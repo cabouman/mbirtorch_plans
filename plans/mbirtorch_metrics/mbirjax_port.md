@@ -1,7 +1,8 @@
 # Porting mbirjax_metrics to mbirtorch_metrics: implementation plan
 
-Status: accepted 2026-08-23.  Greg accepted the recommendations for decisions 1
-through 4.  Decision 5 is settled: the repository is `cabouman/mbirtorch_metrics`,
+Status: increments 1 through 6 are built and pushed.  The Mac is cut over.  The cluster and the
+published page wait on two things only a repository admin or token owner can do.  See the results
+section at the end.  Greg accepted the recommendations for decisions 1 through 4 on 2026-08-23.  Decision 5 is settled: the repository is `cabouman/mbirtorch_metrics`,
 and it is cloned to `Research/mbirtorch_metrics`.  Implementation is under way,
 one increment at a time, with a commit after each.
 
@@ -324,3 +325,220 @@ the `enable_nightly.sh` change that uses it (section 5, already accepted), the
 
 This review is a separate step, and I will write its result into this file when
 the port is done.
+
+---
+
+# What was built (2026-08-23)
+
+Increments 1 through 6 are done, committed, and pushed to
+`github.com/cabouman/mbirtorch_metrics`.  Increment 7, the cutover, is not started, because its
+steps change running schedules and repository settings.  Section "The cutover, still to do" lists
+them.
+
+The repository holds 128 tracked data files and about 4,800 lines of tooling.  The measured data is
+39 runs and 1,900 cells, covering 2026-08-05 through 2026-08-23 on three branches.
+
+## The increments, with what verified each one
+
+**Increment 1: the repository skeleton.**  `.gitignore`, `README.md`, and `state/README.md`.
+
+**Increment 2: migrate the measured data.**  120 result files and five branch markers moved, with
+the platform keys renamed from `gpu-torch` and `cpu-torch` to `gpu` and `cpu`.
+
+Verification compared the migrated tree against the source, file by file.  The 120 files map one to
+one.  Each migrated file differs from its source only by the four renamed tokens.  All 1,900 cells
+compare identical on geometry, operator, size, device count, time, and memory.  Every run's platform
+key is consistent with the `sizes` key in its own config block, which is what the gate reads back.
+
+**Increment 3: the dashboard.**  The dashboard sources came from the reference commit.  The
+two-backend machinery was removed, which is the `PLAT_IS_TORCH` test, the second history row, and
+the family restriction in the correctness analyzer.
+
+Two schema keys were also renamed in the migrated data during this increment, because the dashboard
+reader forces the choice.  `mbirjax_version` became `mbirtorch_version` and `jax_available` became
+`torch_available`.  The dashboard now reads `toolchain.torch`, so every migrated run displays its
+torch version and its package version; before the rename both were blank.
+
+Verification built the dashboard from both repositories and compared the results.  The source build
+was restricted to the two torch platform keys.  The two builds agree on every run, cell, gate
+verdict, fingerprint, and correctness finding, after normalizing the platform token inside the
+gate's references to prior files.  The published page was then loaded in a browser: 39 runs, no
+console errors, and every panel populated.
+
+**Increment 4: the measurement engine.**  `torch_backend_writer.py` and the decision half of
+`performance_tracking.py` merged into one engine file of 1,458 lines.  `scaling_common.py` lost its
+jax half and gained the torch memory and timing rulers, dropping from 1,190 lines to 549.  Three
+functions that existed in both files collapsed to one definition each: `time_op`,
+`run_measure_loop`, and `peak_memory_mb`.  `time_op` also lost an unused `model` argument.
+Plotting, `correctness_metrics`, and `annotate_mem_fraction` were dropped as unused, which also
+removes matplotlib from the harness dependencies.
+
+Four checks verified the engine.  The gate unit tests pass, six of six.  The gate was replayed over
+all 39 migrated runs against their recorded priors, and every verdict, hard finding, and soft
+finding matched what the file recorded.  Every companion `_table.yaml` re-rendered byte-identically.
+A smoke sweep ran end to end on CPU and wrote a run file, a record book, and a table, and the
+dashboard parser read the result.
+
+**Increment 5: the nightly wrapper and the entry points.**  The wrapper, its configuration, the
+schedule scripts, and the `action_scripts/` entry points, including `add_run.sh`, which had no torch
+version before.
+
+Two guards were added that the source repository did not need.  The wrapper now refuses to reuse a
+metrics clone whose origin is a different repository, and `status_nightly.sh` refuses to read runs
+from one.  Both matter at cutover, because `~/.mbirtorch/regression/metrics` currently holds a clone
+of `mbirjax_metrics`.  Without the first guard the wrapper would rebase this repository's work onto
+another repository's history and then fail to find its own script.
+
+Verification ran the wrapper on the Mac.  Fire-on-change read the migrated markers and skipped an
+unchanged branch.  A forced run cloned the tip, installed it, measured one cell, and wrote the run
+file under its commit-time name, matching the migrated file for the same commit.  `status_nightly.sh`
+reported the schedule, the recent runs, and the correctness summary.
+
+**Increment 6: the torch-release watch and the dependency canary.**  `check_torch_release.py` is
+new.  The watch runs every night and warns when PyPI carries a torch newer than
+`TORCH_LAST_REVIEWED`, with a second line saying whether that version can install on the env's
+Python.  The canary is the measuring half and ships switched off.
+
+Verification exercised both states.  The watch is silent when `TORCH_LAST_REVIEWED` equals the PyPI
+latest, and prints both lines when it does not.  The canary stayed inert with `DEP_CANARY_ENABLED=0`.
+
+## The review of commits after the reference commit
+
+The review is complete, and it found nothing further to port.  Twenty files changed between
+`e37bc93e` and the tip of `mbirjax_metrics`, outside `results/` and `state/`.  Seventeen of them are
+the torch nightly itself, which this port took at its final state, so every fix inside them came
+along.
+
+Three shared files changed, and each was decided.  `lib_mac_entry.sh` and the `enable_nightly.sh`
+change that uses it are the macOS entry-clone fix, and both were ported.  The `recent_runs.py`
+change widens a column to fit hyphenated platform keys, which this repository does not have.  The
+`dashboard.js` change makes the dashboard open on the newest non-torch run, which is wrong here.
+
+## Departures from the plan as written
+
+Three things differ from the plan above, and each is a simplification the plan did not anticipate.
+
+`run_nightly.py` was not ported.  In the reference commit it is a thin, environment-driven entry
+point over `performance_tracking.run`, kept separate because `main()` served manual runs.  The
+merged engine has one entry point, so `main()` reads the environment directly and the extra file
+would add nothing.
+
+The two dashboard entry scripts landed in increment 3 rather than increment 5.  `build_dashboard.sh`
+and `clear_correctness.sh` belong to the dashboard, and increment 3 needed the first one to run its
+own check.
+
+The schema key rename in increment 3 was not in the plan.  It follows from decision 1 in the same
+way the platform rename does, and the dashboard forced the choice.
+
+## The cutover, still to do
+
+Five steps remain, and each one changes something outside this repository.
+
+1. Turn on GitHub Pages for the repository, with the source set to GitHub Actions.  The workflow is
+   already in place and the build already runs locally.
+2. Create the push token on the cluster.  It must grant write access to
+   `cabouman/mbirtorch_metrics`, so the mbirjax nightly's token will not serve.  The path
+   `regression.env` expects is `~/.config/mbirtorch/metrics_credentials`.
+3. Run one forced night on the cluster as the end-to-end check, with `REG_FORCE=1`.
+4. Disable the torch nightly in `mbirjax_metrics`, then enable this one.  The order matters: while
+   both are enabled they measure the same mbirtorch branches and the series splits across two
+   repositories.
+5. Decide what happens to the torch files and rows left in `mbirjax_metrics`.  They can stay frozen
+   or be removed.
+
+One detail belongs to step 4.  Both nightlies use `~/.mbirtorch/regression` as their work directory,
+and the clone inside it currently belongs to `mbirjax_metrics`.  The new wrapper detects that and
+re-clones, so no manual cleanup is needed.
+
+---
+
+# The cutover (2026-08-23)
+
+The Mac is cut over and running against the new repository.  The cluster is not, and one blocker
+explains both remaining steps: no credential on the cluster can push to
+`cabouman/mbirtorch_metrics`.
+
+## Step 1: GitHub Pages, blocked by permission
+
+Enabling Pages needs admin permission on the repository.  `gbuzzard` has `write`.  Only `cabouman`
+can turn it on, or grant admin.
+
+The workflow itself is proven.  It has already run once, on the increment-1 push.  Its build step
+succeeded and produced the dashboard.  Only the `configure-pages` step failed, because Pages is off.
+Turning Pages on, with the source set to GitHub Actions, is the whole of what remains.
+
+## Step 2: the push token, blocked for a specific reason
+
+The credential on the cluster is scoped to the old repository.  A dry-run push to
+`cabouman/mbirtorch_metrics` using `~/.config/mbirjax/metrics_credentials` returns
+"Permission to cabouman/mbirtorch_metrics.git denied to gbuzzard", which is HTTP 403.
+
+SSH is not an alternative.  The cluster has no SSH key for GitHub, and `ssh -T git@github.com`
+returns "Permission denied (publickey)".
+
+The new token must be a CLASSIC token with the `repo` scope, not a fine-grained one.  A fine-grained
+token can only target repositories owned by whoever created it, or by an organization that opted in.
+`cabouman` is a user account, not an organization, so a fine-grained token owned by `gbuzzard`
+cannot reach this repository.  A fine-grained token created by `cabouman` would also work.
+
+Once the token exists, `action_scripts/create_token.sh` writes it to
+`~/.config/mbirtorch/metrics_credentials`, which is the path `regression.env` expects.
+
+## Step 3: the forced runs, done on both machines
+
+**The Mac ran a real night**, not a trial.  It measured `prerelease` and `greg_dev` on CPU, wrote
+both runs, and pushed them.  The push proves the Mac's keychain credential reaches the new
+repository.
+
+The `greg_dev` run is the strongest single check in the whole port.  Its gate compared a fresh
+measurement against a MIGRATED prior, `regression_cpu_20260821T211839Z_42574f83.yaml`, and returned
+PASS with no changes.  Seven cells set new best-ever records against migrated baselines.
+
+**The cluster ran a forced night** on `main`, in an isolated work directory with pushing off.  It
+took 20 minutes 48 seconds on four H100s and swept n=1, n=2, and n=4.
+
+That run reproduced the migrated run's gate exactly.  Both flag the same 14 hard items, on the same
+cells, with the same numbers to every digit reported.  The measured memory is therefore identical
+between the old engine and the ported one.  The gate says FAIL because a forced re-measure of one
+commit overwrites that commit's file, so the comparison falls back to the previous commit's run from
+2026-08-13.  Those 14 items are the pre-existing memory regression the old nightly already recorded
+on 2026-08-21.  They are not a defect in the port.
+
+## Step 4: the schedules, Mac done and cluster held
+
+On the Mac the old torch agent was unloaded and the new one loaded.  It runs daily at 10:00, from an
+entry clone of the new repository at `~/.mbirtorch/entry`.  The mbirjax agent was not touched.
+
+On the cluster nothing was changed.  The `mbirtorch-nightly` scrontab block still runs the old
+wrapper into `mbirjax_metrics`, and GPU coverage continues there.  Enabling the new cluster schedule
+before the token exists would measure for up to four hours, fail to push, and lose the result, every
+night, without an alert.  A push failure is a warning rather than an error, so the waste would be
+silent.  Holding the cluster costs nothing except a few more frozen rows in the old repository,
+which step 5 leaves in place anyway.
+
+## One defect found and fixed during the cutover
+
+`lib_mac_entry.sh` refreshed an existing entry clone in place without checking its origin.
+`~/.mbirtorch/entry` held a clone of `mbirjax_metrics`, so the refresh would have left the agent
+running that repository's `run_regression.sh`, which is the mbirjax nightly.  The fixed version
+replaces a clone whose origin does not match, and the fix fired correctly during the cutover.  This
+is the third place that check was needed; the wrapper and the status script already had it.
+
+## What remains
+
+Three commands, in this order, after the token exists:
+
+1. On the cluster, `action_scripts/create_token.sh` from a checkout of the new repository.
+2. In `mbirjax_metrics` on the cluster, `action_scripts/disable_torch_nightly.sh`.
+3. In `mbirtorch_metrics` on the cluster, `action_scripts/enable_nightly.sh`.
+
+Separately, `cabouman` turns on GitHub Pages with the source set to GitHub Actions.
+
+## Two things left in a changed state
+
+The trial sent one notify email, subject `[mbirtorch-nightly] gpu regression: main`.  It reports the
+14 hard items above, which are already known.
+
+Both `mbirtorch_regression` conda environments, on the Mac and on the cluster, have their editable
+install pointing at a clone that has since been deleted.  Each nightly reinstalls as its first step,
+so both self-heal on the next run.
