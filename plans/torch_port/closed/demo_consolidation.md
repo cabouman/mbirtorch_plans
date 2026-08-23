@@ -1,0 +1,256 @@
+# Demo consolidation — plan
+
+**Status:** IMPLEMENTED and reviewed (mbirtorch d8d3e02, 2026-08-11).
+Charlie ran every demo interactively and approved the set.  The
+translation demo stays HELD (Charlie: not ready for prime time); the
+shipped demos are numbered 1-9 consecutively, so translation takes a
+new number when it lands.  Changes made during Charlie's review:
+demo 2 gained the Bouman-Sauer transmission noise model at dosage
+10,000 (1,000 was tried and rejected — the SNR is too low for
+attenuation 6, and the Shepp-Logan shell dominates the sinogram);
+demo 3's padding rose to 1.3 with display window [0, 1]; demo 4's
+viewer opens on the vertical cut; every viewer opens at display
+minimum 0; generate_demo_data gained multiaxis support.
+
+## 1. Goal and ground rules
+
+The mbirjax demos are ported to mbirtorch as a CONSOLIDATED set, not a
+straight port.  Charlie's charge: clean up the demos, simplify them, and
+make them easier to understand.
+
+Three ground rules govern the work.
+
+1. The demos are reviewed one at a time, with a written critique for
+   each, before any design is fixed.
+2. No demo code is written until the consolidated design is formulated
+   and Charlie approves it.
+3. This file is the running record: each critique is added here as it is
+   done, and the design section is filled in last.
+
+## 2. The existing demos (mbirjax/demo/)
+
+| # | file | lines | what it shows |
+|---|---|---|---|
+| 1 | demo_1_shepp_logan.py | 124 | the basic pipeline: phantom, forward project, reconstruct, view |
+| 2 | demo_2_large_object.py | 166 | an object larger than the field of view |
+| 3 | demo_3_cropped_center_recon.py | 117 | reconstructing a cropped center region |
+| 4 | demo_4_wrong_rotation_direction.py | 108 | diagnosing a reversed rotation direction |
+| 5 | demo_5_fbp_fdk.py | 104 | direct (non-iterative) FBP and FDK reconstruction |
+| 6 | demo_6_qggmrf_denoiser.py | 78 | the qGGMRF denoiser on its own |
+| 7 | demo_7_multiaxis_parallelbeam.py | 121 | the multiaxis parallel geometry |
+| 8 | demo_8_helical_recon.py | 136 | helical cone-beam reconstruction |
+| 9 | demo_9_anisotropic_voxels.py | 174 | anisotropic voxel spacing |
+| 10 | demo_10_artifacts.py | 401 | a gallery of common artifacts and their causes |
+| 11 | demo_slice_viewer.py | 41 | the slice viewer |
+
+1,570 lines in all.  Each script also has a Colab notebook twin linked
+from the demos documentation page.  mbirtorch currently carries a
+minimal port of demo 1 only.
+
+## 3. The critique process
+
+The demos are reviewed in numeric order, one per sitting, Charlie and
+Claude together.  Each critique answers five questions and is recorded
+in section 5 below.
+
+1. What is this demo trying to teach?
+2. Does that lesson earn its own demo, or does it belong inside another?
+3. What in the current script is confusing, redundant, or stale?
+4. What would the simplest version of this lesson look like?
+5. Verdict: keep as its own demo, merge into another, or drop.
+
+## 4. Draft principles for the new set
+
+These are starting points for the critiques to confirm, sharpen, or
+strike.
+
+- CONFIRMED, and FIRST in priority (Charlie, 2026-08-11): demos must be
+  very simple and direct, clearly demonstrating simple concepts to
+  users.  Explanations are simple and direct, without complicated
+  jargon.  This is very important.
+- One lesson per demo, stated in one sentence at the top of the script.
+- Short: a demo someone can read top to bottom in a few minutes.
+- Runs to completion on a laptop CPU in a few minutes, with a note on
+  what changes on a GPU.
+- A first-time user can run demo 1 and see a reconstruction with no
+  editing of the script.
+- Shared boilerplate (phantom creation, viewing) is either repeated
+  plainly or factored into the library, never into a demo-local helper
+  module a reader must chase.
+- The script is the primary artifact; whether Colab notebook twins are
+  kept is an open question below.
+- CONFIRMED (Charlie, 2026-08-11): parameters returned by a data
+  generator are unpacked EXPLICITLY and passed visibly — for example
+  ``angles = params['angles']`` and then ``angles`` handed to the model
+  constructor — never an invisible hand-off of the whole dictionary.
+  The reader must be able to see what is going on.
+
+## 5. Critiques (filled in as reviewed)
+
+### demo_1_shepp_logan.py (reviewed 2026-08-10)
+
+1. **Lesson:** the basic pipeline — make synthetic data, build a model,
+   reconstruct, view.
+2. **Earns its own demo:** yes; it is the front door.
+3. **Problems:** teaches six lessons at once (pipeline, weights,
+   sharpness, notes, HDF5 save, HDF5 load, memory statistics); the
+   weights code contradicts its own use-None-first comment and carries
+   an unexplained conditional scaling; a geometry if-else doubles the
+   reading; Colab notebook residue (cell-heading strings, unused
+   pprint import, a typo); the notes lines append without newlines and
+   run together; the closing save-then-reload proves a round-trip a
+   reader does not need.
+4. **Simplest version:** 40-50 lines, one geometry, defaults
+   throughout, view phantom beside recon, one error number, a pointer
+   onward.
+5. **Verdict (Charlie, 2026-08-10): SPLIT.**  New demo 1 is parallel
+   beam, very simple.  New demo 2 is cone beam and introduces the more
+   complex concepts (weights among them).  The evicted material lands
+   there rather than disappearing.
+
+### demo_2_large_object.py (reviewed 2026-08-11)
+
+1. **Lesson:** the artifacts caused when the object extends outside the
+   field of view, and the fix (enlarge the reconstruction region with
+   scale_recon_shape); shown as default vs lower-sharpness (the
+   tempting wrong fix) vs padded reconstructions.
+2. **Earns its own demo:** the lesson yes; the framing no — "large
+   object" misnames it.  The size is not the issue; extension outside
+   the field of view is.
+3. **Problems:** the heaviest Colab residue so far (generated-by
+   header, %pip magic, notebook-only caveats); jax.numpy imported for
+   one linspace and block_until_ready in the timing; the lesson's
+   observations crammed into viewer window titles; full parameter
+   dictionaries printed three times; an unexplained half-rotation angle
+   range; typos and one garbled sentence.
+4. **Simplest version:** oversized-in-extent phantom, project, the
+   without-padding and with-padding reconstructions side by side,
+   printed observations.
+5. **Verdict (Charlie, 2026-08-11): CONSOLIDATE with old demo 3 and
+   reframe as "object outside the field of view" — two new demos, one
+   per geometry (rows 3 and 4 of the table below).**
+
+### demo_3_cropped_center_recon.py (reviewed 2026-08-11, folded into
+the demo-2 verdict)
+
+Charlie: the example is confusing as written — it sets row_scale=0.5 to
+illustrate the issue, which is backwards from practice.  In a real
+parallel-beam region-of-interest application the object extends outside
+the field of view, and the reconstruction pads UP (row_scale and
+col_scale about 1.2) so the region of interest reconstructs cleanly.
+The new demo generates its data that way.  Verdict: MERGE into the new
+field-of-view pair.
+
+### demo_4_wrong_rotation_direction.py (reviewed 2026-08-11)
+
+1. **Lesson:** a reversed rotation direction produces a subtly warped,
+   top/bottom-mirrored cone-beam reconstruction.
+2. **Earns its own demo:** no.  It teaches something a user
+   RECOGNIZES, not something a user does; the fix is "don't reverse
+   the angles", and it spends two full reconstructions showing one
+   visual symptom.
+3. **Problems:** the usual Colab residue; otherwise the script is
+   fine — the shape is just not demo-shaped.
+4. **Simplest version:** a paragraph with one picture.
+5. **Verdict (Charlie, 2026-08-11): DROP as a demo; move the lesson to
+   the FAQ section as a paragraph** (the symptom, its cause, and the
+   fix).
+
+### demo_5_fbp_fdk.py (reviewed 2026-08-11)
+
+1. **Lesson:** direct (non-iterative) reconstruction via direct_recon —
+   FBP for parallel, FDK for cone.  The script never states when to
+   choose direct over iterative, which is the real lesson.
+2. **Earns its own demo:** not as written — stripped of boilerplate it
+   differs from demo 1 by one line.  Reframed, yes: a direct-versus-
+   model-based comparison is the package's reason for existing, and no
+   current demo makes the case.
+3. **Problems:** the geometry is chosen twice (geometry_type drives the
+   labels, model_type drives the code — change one and the labels lie);
+   a stale TestPyPI install line; demo 1's whole boilerplate list; the
+   bare get_recon_dict() asymmetry unexplained.
+4. **Simplest version:** one data set, both reconstructions beside the
+   phantom, two error numbers and times; a second, sparse-view regime
+   where the difference is vivid.
+5. **Verdict (Charlie, 2026-08-11): REFRAME as the comparison demo**,
+   with a very sparse-view case that clearly illustrates the
+   improvement of MBIR — illustrative rather than practical is fine.
+
+### demos 6-11 (reviewed together, 2026-08-11)
+
+- **demo_6_qggmrf_denoiser.py — KEEP, simplified.**  A distinct
+  capability (image in, image out, no geometry).  Add noise, denoise,
+  view, one knob (sigma).
+- **demo_7_multiaxis_parallelbeam.py — KEEP as a short geometry demo.**
+  The two-angle (azimuth, elevation) form; the zero-tilt-equals-
+  parallel check is worth keeping.
+- **demo_8_helical_recon.py — KEEP as a short geometry demo.**  The
+  per-view z-shift and pitch.
+- **demo_9_anisotropic_voxels.py — MERGE with the ALU lesson.**
+  Units, detector spacing, anisotropic voxels, and the
+  auto_set_recon_geometry() requirement are one subject.
+- **demo_10_artifacts.py — DROP (Charlie, 2026-08-11).**  Super
+  complicated; Charlie cannot understand it, so a new user has no
+  chance.  Demos must clearly demonstrate simple concepts.  The
+  rotation-direction FAQ paragraph is unaffected.
+- **demo_slice_viewer.py — DROP.**  Every demo uses the viewer; its
+  options belong on the viewer's documentation page.
+
+## 6. Proposed consolidated demos (grows as the critiques proceed)
+
+| # | working name | lesson | draws from |
+|---|---|---|---|
+| 1 | parallel beam basics | the simplest complete pipeline: phantom, forward project, reconstruct, view | old demo 1 |
+| 2 | cone beam and real-data practices | cone geometry, plus the concepts a real reconstruction needs: weights, sharpness, saving results | old demo 1 |
+| 3 | parallel beam region-of-interest scan | the object extends outside the field of view (the common real parallel-beam case); reconstruct the region of interest, padding with row_scale = col_scale = 1.3; shown without and with the padding so the artifacts and their mitigation are both visible | old demos 2 + 3 |
+| 4 | cone beam axial field-of-view artifacts | the object extends outside the field of view in the axial direction, producing cone-beam artifacts; extend the reconstruction axially (axial_pad_fraction) to reduce them; shown without and with the padding | old demos 2 + 3 |
+| 5 | direct vs model-based reconstruction | FBP and MBIR on the same parallel-beam data, side by side: comparable on many clean views, then a very sparse-view case where the MBIR improvement is unmistakable (illustrative, not practical); states plainly when direct reconstruction is all you need | old demo 5 |
+| 6 | helical cone beam | the helical scan: per-view z-shifts and pitch, on the demo-1 skeleton | old demo 8 |
+| 7 | multiaxis parallel (laminography) | the two-angle (azimuth, elevation) form; zero tilt reproduces parallel beam | old demo 7 |
+| 8 | translation (TCT) | the translation geometry, newly ported and previously undemonstrated; translation vectors as the one distinctive concept | new |
+| 9 | units, spacing, and voxel shape | ALUs; changing detector spacing; anisotropic voxels; and the rule that geometry-parameter changes require auto_set_recon_geometry() — the confusion Charlie flagged, addressed head-on | old demo 9 + the ALU lesson |
+| 10 | the qGGMRF denoiser | add noise to a phantom, denoise, view; one knob (sigma) | old demo 6 |
+
+Dropped entirely: old demo 10 (the artifact gallery) and old demo 11
+(the viewer script).  Documentation work instead of demos: the
+rotation-direction FAQ paragraph, and the viewer's options on the
+viewer's page.
+
+**Library and documentation work the new set needs:**
+
+- ``generate_demo_data`` must support objects that extend outside the
+  field of view — laterally (new demo 3) and axially (new demo 4).
+- ``generate_demo_data`` must support the translation and multiaxis
+  geometries; this connects to the known pre-release bug that its
+  translation branch produces an all-zero phantom.
+- An FAQ paragraph for the reversed rotation direction: the symptom
+  (warped, top/bottom-mirrored cone recon), the cause, and the fix
+  (from the dropped old demo 4).
+- NOTED for Greg, not scheduled (Charlie, 2026-08-11): the lateral
+  field-of-view truncation warning fires on the sinogram alone, so it
+  still appears after the user applies the recommended fix — the
+  warning suggests scale_recon_shape, the user enlarges the
+  reconstruction region, and the next reconstruction warns again
+  anyway, which reads as "the fix did not work".  The warning could
+  stay quiet when the reconstruction region already exceeds the field
+  of view.  Found while running new demo 3, where both the broken and
+  the fixed reconstructions trigger it.
+
+## 7. Open questions, settled during the critiques
+
+1. SETTLED (2026-08-11): ten demos (the table above).
+2. SETTLED (Charlie, 2026-08-10): scripts only — all Colab notebook
+   material is dropped.  Users are moving away from notebooks because
+   they can easily build interfaces with Claude.
+3. SETTLED (2026-08-11): yes — translation and multiaxis are rows 8
+   and 7.
+4. SETTLED (Charlie, 2026-08-11): dropped entirely.
+5. Where do demos live in the docs: the current demos-and-FAQs page
+   structure, or something simpler?
+
+## 8. After the critiques
+
+The consolidated design is section 6 of this file, completed: the list
+of new demos, each with its one-sentence lesson and rough length.
+Charlie approves or amends it.  Only then does implementation start,
+one demo at a time, each reviewed as it lands.
