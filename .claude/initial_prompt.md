@@ -3,13 +3,15 @@ to `mbirjax`; mbirjax is READ-ONLY reference. `mbirjax_plans` is parallel to
 both and contains plans related to both.  `mbirjax_metrics` is the nightly
 regression engine and dashboard and is also parallel to both.
 
-This session's task: the opening list in
-`mbirjax_plans/plans/open_items_v5.md`, following that file's
-"Start here" note.  The item entries in v5 carry the detail; work from them, not
-from this file.
+This session's task: migrate mbirjax_metrics to mbirtorch_metrics.  However,
+instead of a port of the current tip, I'd like a port of e37bc93e but with
+mbirtorch in place of mbirjax.  So, we will not migrate any of the mbirjax 
+data but will migrate all of the mbirtorch data.  Once that part is done,
+we'll review the commits since that commit to determine if there are any 
+additional features to port.  
 
-Update
-`mbirjax_plans/plans/open_items_v5.md` as you complete items.
+First make an implementation plan in mbirtorch_plans/plans/mbirtorch_metrics/mbirjax_port.md
+for discussion before coding.  
 
 **IMPORTANT — workflow protocol:** stage only (`git add` by explicit file
 name), never `git commit` unless Greg directs it (he commits from
@@ -39,8 +41,8 @@ measurements use your own gated harnesses.
   files are unreadable in your environment, ask Greg to run
   `ssh-add ~/.ssh/id_rsa` once).  sbatch on partition `ai`, account
   `bouman`, --cpus-per-task=14 per GPU, --gpus-per-node=2 or 4 for the
-  multi-device cells.  mbirtorch scratch checkout:
-  `/scratch/gautschi/buzzard/torch_p3/mbirtorch_src`;
+  multi-device cells.  mbirjax scratch checkout:
+  `/scratch/gautschi/buzzard/torch_p3/mbirjax_src`;
   TORCHPY=`/scratch/gautschi/buzzard/torch_p0/env/bin/python`; results in
   `/scratch/gautschi/buzzard/torch_p3/results/`.  SYNC RULE: per-file scp +
   md5 verify of every changed file — and the scratch tree lags the
@@ -53,8 +55,7 @@ measurements use your own gated harnesses.
   mg1 through mg24 are used, so new scripts start at mg25); findings to
   `plans/torch_port/active/`, with measured rows filed under
   `plans/experiments/torch_port/rows/`.
-- Concurrent sessions may be active (the test-helper repair, and
-  Charlie's on the utility API and docs).  Terminology: "variants"
+- Concurrent sessions may be active.  Terminology: "variants"
   (never arms/cells for variant sets); the multi-device forward's
   mechanism is the "cylinder transfer" — pre-2026-08-17 records call it
   the "column gather".  The kernel width rule: hand-written kernels
