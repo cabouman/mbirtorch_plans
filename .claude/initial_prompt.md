@@ -1,4 +1,4 @@
-We're continuing work on the `mbirtorch` repo, which is based on the parallel checkout
+We're continuing work on the `mbirtorch` repo, which is a port of the parallel checkout
 `mbirjax`; mbirjax is READ-ONLY reference. `mbirtorch_plans` is parallel to
 both and contains plans related to mbirtorch.  `mbirtorch_metrics` is the nightly
 regression engine and dashboard and is also parallel to both.  There are older
