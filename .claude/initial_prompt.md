@@ -1,17 +1,24 @@
-We're continuing the mbirtorch port in the `mbirtorch` repo, parallel checkout
-to `mbirjax`; mbirjax is READ-ONLY reference. `mbirjax_plans` is parallel to
-both and contains plans related to both.  `mbirjax_metrics` is the nightly
-regression engine and dashboard and is also parallel to both.
+We're continuing work on the `mbirtorch` repo, which is based on the parallel checkout
+`mbirjax`; mbirjax is READ-ONLY reference. `mbirtorch_plans` is parallel to
+both and contains plans related to mbirtorch.  `mbirtorch_metrics` is the nightly
+regression engine and dashboard and is also parallel to both.  There are older
+versions of plans and metrics for `mbirjax`, but these are also for reference only.  
 
-This session's task: migrate mbirjax_metrics to mbirtorch_metrics.  However,
-instead of a port of the current tip, I'd like a port of e37bc93e but with
-mbirtorch in place of mbirjax.  So, we will not migrate any of the mbirjax 
-data but will migrate all of the mbirtorch data.  Once that part is done,
-we'll review the commits since that commit to determine if there are any 
-additional features to port.  
+The task for this session is to investigate this observation:
+```
+The multiaxis forward projector is 3.28 times slower at the non-dividing 
+size than at the dividing one. It reads 305.9 ms at 512x448x384 and 1004.6 ms 
+at 513x449x385, on one H100.
 
-First make an implementation plan in mbirtorch_plans/plans/mbirtorch_metrics/mbirjax_port.md
-for discussion before coding.  
+Every other geometry pays far less for the same step. Parallel pays 1.04 
+times on forward, cone pays 1.03 times, and multiaxis itself pays only 1.14 
+times on its filter and 1.17 times on its back projection. So the penalty is 
+specific to the multiaxis forward projector at the non-dividing size.
+ ```
+
+This is quite possibly similar to the behavior on other geometries that was 
+remedied in greg_dev with commit 64dedb8732, which introduced rounding up to the 
+next multiple of 16 for the triton kernels.  
 
 **IMPORTANT — workflow protocol:** stage only (`git add` by explicit file
 name), never `git commit` unless Greg directs it (he commits from

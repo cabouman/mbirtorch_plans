@@ -542,3 +542,163 @@ The trial sent one notify email, subject `[mbirtorch-nightly] gpu regression: ma
 Both `mbirtorch_regression` conda environments, on the Mac and on the cluster, have their editable
 install pointing at a clone that has since been deleted.  Each nightly reinstalls as its first step,
 so both self-heal on the next run.
+
+---
+
+# Two questions about the live dashboard (2026-08-24)
+
+Greg raised two things after the dashboard went live.  One was the pending cutover, one was a real
+gap in the cell set, and one part was not a defect at all.
+
+## The GPU rows stop before the newest commits
+
+The cause is the pending cluster cutover, not the port.  The cluster nightly still runs the old
+wrapper from `mbirjax_metrics`, because `~/.config/mbirtorch/metrics_credentials` does not exist.
+One GPU run had landed there since the migration: `greg_dev` at commit `eee646af`, measured
+2026-08-24.
+
+That run is now back-filled into this repository, using the same renames the migration used.  The
+dashboard went from 41 runs to 42.  The back-fill covers GPU only.  The CPU nightly already writes
+here, so copying its runs from the old repository would replace measurements this repository made
+with duplicates of the same commits.
+
+Back-filling is a stopgap.  Every cluster night adds another stranded GPU run until the token exists
+and the cutover happens.
+
+## Prerelease shows one GPU entry, and that is correct
+
+`results/gpu-torch/prerelease/` in `mbirjax_metrics` has exactly one run, committed 2026-08-23, and
+git shows no deletions there.  So one entry is faithful.
+
+The reason there is only one is fire-on-change.  `prerelease` was added to the torch tracked
+branches, removed, then added again, and its tip moved only once while it was tracked.  The
+long prerelease series in the old dashboard is the mbirjax one under `results/gpu/prerelease/`,
+which is jax data and was deliberately not migrated.
+
+## Translation and multiaxis were genuinely missing
+
+The design record fixed the cell set on 2026-08-08 with this sentence: "mbirtorch has no
+translation or multiaxis geometry, so those two rows do not exist and their absence is not a gap."
+That sentence is now stale.  mbirtorch exports `TranslationModel` and `MultiAxisParallelModel`, and
+both build and project.  The port carried the 2026-08-08 cell set forward faithfully, so the gap
+came across with it.
+
+Both geometries are now in the engine, at the mbirjax engine's own sizes and ops, so the rows sit at
+coordinates the two backends share.  Each runs `direct_filter`, `forward`, and `back`.  Neither runs
+vcd, because their reconstruction is the shared qGGMRF outer loop already tracked under parallel and
+cone.  Both are held at one device, like the denoiser, and `SINGLE_DEVICE_GEOMETRIES` names that set
+in one place so the gate does not expect multi-device cells for them.
+
+No dashboard change was needed.  The dashboard already knew both geometries, including a History
+group called "translation + multiaxis" that has been empty until now.
+
+The cost is small.  The 21 new GPU cells took 167 seconds on one H100, against a full night of about
+21 minutes.  The 15 new CPU cells took 71 seconds on the Mac.  No cell failed on either platform.
+
+## What the new rows showed on their first measurement
+
+The multiaxis forward projector is 3.28 times slower at the non-dividing size than at the dividing
+one.  It reads 305.9 ms at 512x448x384 and 1004.6 ms at 513x449x385, on one H100.
+
+Every other geometry pays far less for the same step.  Parallel pays 1.04 times on forward, cone
+pays 1.03 times, and multiaxis itself pays only 1.14 times on its filter and 1.17 times on its back
+projection.  So the penalty is specific to the multiaxis forward projector at the non-dividing size.
+
+These numbers come from one run on one node, so they need a second run before anyone acts on them.
+The nightly will supply that on its own.  Surfacing this is what the non-dividing cell is for.
+
+## One measurement lesson, recorded because it nearly misled the cost estimate
+
+A first pass measured the new CPU cells on a Gautschi login node and read 18,450 ms for the
+multiaxis filter at 96x80x64.  The same cell on the Mac reads 5.7 ms.  The login node is shared and
+contended, so it is not a ruler.  Measure on the node the nightly measures on, or on a batch
+allocation, and never on a login node.
+
+## Also changed
+
+`HARNESS_DEPS` now installs PyYAML alongside ruamel.yaml.  `recent_runs.py`, which
+`status_nightly.sh` calls, reuses the dashboard reader and needs PyYAML.  The dedicated env did not
+carry it, so the recent-runs table fell back to listing filenames on a machine that had nothing else
+with PyYAML.
+
+## Evidence that the Mac cutover holds
+
+The Mac nightly fired on its own at 10:00 on 2026-08-24, updated its clone of this repository, and
+reported all three branches unchanged.  No hand-holding was involved.
+
+---
+
+# The push credential, and a 403 that was not the token (2026-08-24)
+
+The first token check on the cluster failed with "Permission to cabouman/mbirtorch_metrics.git
+denied to gbuzzard", which is HTTP 403.  The token was correct.  The wiring was not.
+
+git consults every configured `credential.helper` in config order, which is system, then global,
+then local, then the command line, and it uses the FIRST credential returned.  The cluster account
+has a global `credential.helper = store`, which reads `~/.git-credentials`.  That file matches by
+HOST alone, so its `github.com` entry answers every github.com request.  On this account that entry
+holds a token for the other metrics repository, so it answered first and the push was refused.
+
+Adding a helper on the command line does not displace the global one.  It appends to the list.  An
+EMPTY value resets the list, so the fix is to reset first and then add the file:
+
+```
+git -c credential.helper= -c credential.helper="store --file=$TOKEN_FILE" push --dry-run
+```
+
+Measured on 2026-08-24 in a throwaway clone: the single-helper form returns 403, and the
+reset-then-add form returns "Everything up-to-date".  The token is the same in both.
+
+The nightly had the same defect.  `run_regression.sh` wired its helper with one
+`git config credential.helper ...` call, which appends rather than replaces.  The first scheduled
+cluster night would therefore have measured for up to four hours and then failed to push.  A push failure is a warning rather than
+an error, so the loss would have been silent.  The wrapper now resets the list before adding
+`TOKEN_FILE`, and the two token documents explain why the reset is required.
+
+One thing was left alone deliberately.  The `github.com` entry in `~/.git-credentials` is stored
+under the literal username `YOUR_GITHUB_USERNAME`, which is a template line that was pasted
+verbatim at some point.  GitHub ignores the username for a personal access token, so the entry still
+works, and the mbirjax nightly may depend on it.  Changing a shared global credential file is the
+account owner's call, not the harness's.
+
+
+---
+
+# Retiring the mbirjax nightly on the Mac (2026-08-24)
+
+The Mac now runs one nightly.  `com.mbirjax.regression`, which ran at 09:00, is unloaded and its
+agent file is removed.  `com.mbirtorch.regression` still runs at 10:00 against this repository.
+Nothing else changed: no config, no results, and no cluster schedule.  Running
+`action_scripts/enable_nightly.sh` from the mbirjax_metrics checkout puts it back.
+
+## The retired nightly had already stopped working
+
+This matters for reading the mbirjax dashboard, so it is recorded here.  The mbirjax macOS nightly
+produced its last completed run on 2026-08-17.  Every run since then aborted, and the logs name two
+causes.
+
+The first cause is the network.  Two runs, on 2026-08-18 and 2026-08-20, ended at
+`FATAL: clone metrics failed`, with `Could not resolve host: github.com` in the error log.  The Mac
+apparently had no working DNS at 09:00.
+
+The second cause is a shell bug.  Every run after that aborted at
+`run_regression.sh: line 184: CHANGED_BR[@]: unbound variable`, immediately after the
+dependency-canary line.  The abort left no completion line, so the log simply stops.
+
+The mbirjax CPU series is therefore about a week stale.  Retiring that nightly ended nothing that
+was still working.
+
+## The same bug was latent in this repository
+
+macOS ships bash 3.2.  Under `set -u`, bash 3.2 raises "unbound variable" when it expands
+`"${arr[@]}"` on an EMPTY array.  `${#arr[@]}` is safe, and bash 4.4 and later are safe both ways.
+The cluster runs bash 5.1, so only the macOS nightly is exposed.
+
+This wrapper had the unsafe form in three places, and two action scripts had it as well.  It had
+never fired, for one reason: the two risky paths are the dependency canary, which ships switched
+off, and `--sbatch` with no other argument, which is only ever used on the cluster.  Switching the
+canary on would have aborted the macOS nightly on the first night with no changed branch.
+
+Every such expansion now uses the `${arr[@]+"${arr[@]}"}` form, which expands to nothing when the
+array is empty.  Verified under `/bin/bash` 3.2: the old form aborts, the new form runs, and the
+wrapper completes its no-change path.
