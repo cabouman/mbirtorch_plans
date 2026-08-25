@@ -3298,6 +3298,150 @@ kernels the compile is worth far more than this; the recorded
 chain-level wins there run to a factor of 22.  Nothing here
 argues for changing what those geometries do.
 
+### 1.51 The multiaxis forward's non-dividing penalty was one
+### kernel argument, the detector row bound, and the cone
+### forward's convention removed it (2026-08-24, mg62 job
+### 15487404, mg63 job 15487437 and mg64 job 15487827)
+
+The nightly dashboard's first multiaxis rows showed the forward
+projector costing 3.28 times more at a non-dividing size than at
+a dividing one.  It read 306.7 ms at (512, 448, 384) and
+1005.1 ms at (513, 449, 385) on one H100.  No other row paid
+nearly as much.  The multiaxis filter paid 1.07 times and its
+back projection 1.17 times, and the parallel and cone forward
+projectors paid 1.04 and 1.03 times.
+
+**The cause is a single kernel argument.**  The multiaxis forward
+wrapper rounds the detector row count up to a multiple of 16 and
+uses that padded count for the output allocation and the output's
+row stride.  It then passes the REAL row count to the kernel as
+the bound its row lanes are masked against.  Triton compiles a
+separate kernel for each divisibility class of an integer
+argument, and the class that cannot be proved a multiple of 16 is
+the slow one.
+
+**mg62 established this by changing one integer at a time**, at a
+fixed view batch of 128 views, timing the bound body directly.
+
+| cell | argument changed | median per body call | ratio |
+|---|---|---|---|
+| 512x448x384 | none, bound 448 | 73.86 ms | 1.00 |
+| 512x448x384 | bound 447 | 231.82 ms | 3.14 |
+| 513x449x385 | none, bound 449 | 231.32 ms | 1.00 |
+| 513x449x385 | bound 448 | 74.66 ms | 0.32 |
+| 513x449x385 | bound 464 | 76.90 ms | 0.33 |
+
+Every other candidate was flat within one percent.  Four were
+tested: the values gather's row stride, the channel count, the
+slice count and the pixel count.  The row stride was the leading
+suspect and it moved nothing, with 449, 450 and 464 all reading
+about 231 ms.
+
+The ragged view batch is worth naming separately, because it is
+the other thing a non-dividing size introduces.  513 views split
+into four batches of 128 views and one batch of 1 view.  That
+fifth call cost 2.4 ms out of 1003.
+
+**The remedy is the convention the cone forward already uses,
+and it has landed.**  Cone passes its padded row count as the
+kernel's bound, so its extra row lanes are ordinary live lanes
+whose atomic adds land in output rows the wrapper slices off
+before returning.  The multiaxis forward masked those lanes off
+instead and left the extra rows at zero.  It now uses cone's
+convention: the padded count is the output's row stride, the
+grid's row extent, and the kernel's row-mask bound.  The change
+is two executable lines in
+`_multiaxis_forward_view_batch_triton`.  mg63 measured the
+convention before it landed, end to end through
+`sparse_forward_project`.
+
+| cell | shipped | row bound padded | ratio |
+|---|---|---|---|
+| 512x448x384 | 306.1 ms | 306.3 ms | 1.00 |
+| 513x449x385 | 1002.8 ms | 314.4 ms | 3.19 |
+
+The values agree with the shipped path at 1.2e-6 relative, inside
+the design's 1e-5 single-shot gate and the size of this kernel's
+own repeat-to-repeat spread.  Transient memory does not move,
+because the output plane was already allocated at the padded row
+count.  The non-dividing cell would then pay 1.03 times, which is
+what cone and parallel pay.
+
+**The threshold is divisibility by 16 and nothing coarser.**
+mg63 swept the bound from 440 to 464 at the dividing cell,
+holding everything else fixed.  Only 448 and 464 were fast, at
+73.6 and 75.7 ms.  Every other bound read 229 to 235 ms,
+including 440 and 456, which are multiples of 8.
+
+**The multiaxis forward was the only launch of the seven that
+passed a real width.**  Six others were read: the parallel back
+and forward kernels, the sorted parallel forward, the cone back
+and forward kernels, and the multiaxis back kernel.  All six pass
+the padded value as the bound their vector axis is masked
+against.  This was a single-site defect, not a pattern.
+
+**mg64 verified the landed change on hardware.**  The CUDA-only
+kernel tests passed, 166 of them, covering the three kernel
+modules, the sharded launches, the multiaxis geometry and the
+adjoint suite.  The times, against mg62's readings on the same
+node:
+
+| cell | before | after | ratio |
+|---|---|---|---|
+| 129x113x97 | 5.0 ms | 2.3 ms | 0.46 |
+| 256x224x192 | 20.4 ms | 20.1 ms | 0.99 |
+| 512x448x384 | 307.0 ms | 307.1 ms | 1.00 |
+| 513x449x385 | 1003.4 ms | 316.6 ms | 0.32 |
+
+The two cells whose detector row count is a multiple of 16 did
+not move.  Both cells whose row count is not are faster, and the
+129-class by 2.2 rather than 3.2 because at 113 rows the kernel
+is not yet the whole cost.  The non-dividing penalty is now
+1.03 times, beside cone's 1.01 and parallel's 1.04.
+
+The values were checked two ways.  Against the kernel's own
+previous behaviour the four cells agree at 4.8e-07 to 8.6e-07,
+which is this kernel's repeat-to-repeat spread from its atomic
+adds.  Against the torch body the edited kernel and the previous
+one read the same gap at every cell, 6.2e-06 at 113 rows rising
+to 2.5e-05 at 449 rows.  That gap is the kernel's own and the
+change did not move it.  It grows with the row count for the
+reason tests/test_triton_multiaxis.py records at its
+multi-row-chunk test, and mg64's first submission failed it only
+by holding every cell to the small-cell gate; the run record has
+that correction.
+
+**What Triton compiles at each bound was read and does not
+explain itself.**  The two variants use the same 32 registers and
+neither spills.  The unspecialized one carries 4 percent more PTX
+and 7 percent more cubin, which is a small difference for a
+factor of 3.1.  So the mechanism is the KIND of memory
+instruction the specialization admits rather than register
+pressure or code volume, and naming it exactly would need the
+generated code read side by side.  That was not done.
+
+**The widening floors were re-recorded rather than
+re-measured.**  The change moves `triton_multiaxis.py`, which is
+a hashed cost input for the multiaxis floors, so the staleness
+check named it.  The floors were re-recorded on 2026-08-24
+without a measurement run, because the change is a no-op at both
+multiaxis floor cells: each has a detector row count that is
+already a multiple of 16, and the 512-class cell was measured at
+307.0 ms before and 307.1 ms after.  Sizes whose row count is not
+a multiple of 16 did get faster, so a crossover for such a size
+may have moved.  The refresh ladder has never included one, so no
+recorded floor describes such a size either way.  The reasoning
+sits with the hashes in `mbirtorch/_widening_floors.py`.
+
+**The back projection's smaller penalty is a different thing.**
+The multiaxis back body reads 34.90 ms per batch at the dividing
+cell and 40.53 ms at the non-dividing one, which is the 1.17
+times the dashboard shows.  Changing its row bound moves nothing:
+all four bounds read 40.53 to 40.59 ms.  Cone's back projection
+pays a matching 1.14 times, so this residue is shared by the two
+banded back kernels rather than being the forward's defect.  It
+is unexplained and left open.
+
 ## 3. The crossover ladder (mg4)
 
 This section locates where each device count starts paying, which is
