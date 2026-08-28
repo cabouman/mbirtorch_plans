@@ -702,3 +702,87 @@ canary on would have aborted the macOS nightly on the first night with no change
 Every such expansion now uses the `${arr[@]+"${arr[@]}"}` form, which expands to nothing when the
 array is empty.  Verified under `/bin/bash` 3.2: the old form aborts, the new form runs, and the
 wrapper completes its no-change path.
+
+---
+
+# Timing noise, larger shapes, and a wider device sweep (2026-08-27)
+
+Greg raised two things: some GPU shapes are too small to time, and translation, multiaxis, and the
+denoiser should run on two and four devices.  Both were right, and they interact, because dividing
+a small cell across four devices makes it smaller.
+
+## The noise floor, measured rather than assumed
+
+Two runs of one commit, `b8bbd8a0`, on the same node class three days apart, give run-to-run noise
+directly.  The spread depends sharply on how long the cell takes.
+
+| cell duration | cells | median spread | worst |
+|---|---|---|---|
+| 1 to 10 ms | 7 | 4.6% | 12.4% |
+| 10 to 100 ms | 22 | 3.4% | 55.6% |
+| 100 to 1000 ms | 16 | 1.1% | 9.9% |
+| over 1000 ms | 22 | 0.5% | 3.5% |
+
+The knee sits at 100 ms.  Below it the worst excursion is more than twice the 25% threshold the
+gate tests against, so a small cell can warn on noise alone.
+
+The problem was wider than the two new geometries.  Of the 88 GPU cells measured before this
+change, 46 ran under 100 ms.  Three causes: the filter is cheap in every geometry, the small shapes
+are cheap, and dividing a 100 to 300 ms cell across two or four devices drops it under.
+
+## Four changes
+
+**The gate now has a timing floor.**  `Config.time_gate_min_ms` defaults to 100 ms.  Below it, time
+and speedup are recorded but not gated.  The test uses the larger of the two runs, so a cell that
+grows out of the noise is still caught.  Memory and the correctness fingerprint gate at every size,
+because both are deterministic.
+
+**Translation grew a timing cell.**  A shape sweep on one H100 found that recon rows buy work
+almost free: at a 1024 detector, going from 40 to 160 rows moved back projection from 32 ms to
+106 ms while peak memory fell slightly.  Detector size buys work in proportion to memory.  Four
+candidates were measured at all three device counts, and the chosen shape is a 2048 detector with
+320 recon rows.  It reads 310 ms forward and 470 ms back at one device, and stays above the floor
+at two and four.  It keeps the object a slab, at 6.4 to 1.  It peaks at 15.6 GB, against the
+23.0 GB the largest cone cell already uses.  The small translation cells stay at 40 rows, so the shared
+cross-platform cell and the CPU cells did not move.
+
+**Multiaxis gained a 1024-class size**, so its projectors stay above the floor at four devices.
+
+**The device sweep is now named per geometry.**  `MULTI_DEVICE_CELLS` replaces a flat set of size
+labels, because the geometries do not share a size table.  All five geometries pin and run at two
+and four devices, verified on hardware.  That includes the denoiser, which an earlier note claimed
+raises under any non-trivial placement.  It does not.
+
+## What the trial night showed
+
+A forced night on the new cell set measured 119 cells with no failure and no memory exhaustion.
+
+The gate replay over the 36 tracked runs with a prior confirmed the floor is safe: no run's HARD
+findings changed, and 47 soft timing findings disappeared.  Those 47 are the noise warnings this
+removes from the history.
+
+The cost is real.  The night went from 20m48s to 41m05s for one branch.  Most of the increase is
+multiaxis on `main`, which is slow there; see the next section.  A worst-case night with three
+changed branches now runs about two hours against a four-hour ceiling.
+
+## The multiaxis projectors are much faster on greg_dev than on main
+
+Measured at 512x448x384 on one device: forward reads 1139.6 ms on `main` and 306.7 ms on
+`greg_dev`, and back reads 651.5 ms against 140.4 ms.  That is 3.7 times on forward and 4.6 times
+on back.
+
+This is a code difference, not a measurement artifact.  In the same pair of runs, every parallel
+and cone cell that already swept several device counts reproduced exactly.  Forward at 512 read
+87.5 ms in both runs, and back read 29.0 ms in both.
+
+The nightly will confirm it as soon as both branches carry multiaxis rows.  It also means the cost
+above will fall when that work reaches `main`.
+
+## The denoiser gets slower with more devices
+
+At 512x448x384 it reads 273 ms, 654 ms and 1222 ms at one, two and four devices.  At the 1024 cell
+it reads 2441 ms, 3437 ms and 3458 ms.  Translation slowed with devices too at its old tiny shapes,
+though at the new timing shape it speeds up, from 310 ms to 121 ms on forward.
+
+These rows are worth keeping rather than hiding.  A geometry that costs more on more devices is
+something the dashboard should show.
