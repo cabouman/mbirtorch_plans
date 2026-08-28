@@ -89,6 +89,25 @@ Status (updated as work proceeds):
 | 3 | multi-slice fusion runs and sweeps | done 2026-08-27; fusion (default weights 1/2, 1/6, 1/6, 1/6) is best at EVERY grid strength; best 0.0913 at sigma_scaled 0.075 (30 iterations), confirmed 0.0925 at 60 (spread 6.8e-3 — a stable equilibrium with small persistent inter-orientation disagreement); about 25% below the best non-fusion method at convergence; the weight sweep stayed unused since fusion separated at the defaults; data-consistency metric landed — denoised results sit at the noise floor (rms_w 0.0715-0.0736 vs 0.0729) while the standard recon overfits (0.0521); the sandbox gained PROBLEM='3d' with the fusion panel |
 | 4 | findings and follow-ups | done 2026-08-27; `multi_slice_fusion_findings.md`, with the follow-up queue carried there |
 
+Addendum 2026-08-27 — first real-data run (the queue's real-data follow-up): multi-slice
+fusion on the NSI Lilly Autoinjector scan (downsample 3, view subsample 5, recon
+(626, 626, 467) at 102.94 um), on a gautschi H100, via the self-contained
+`mbirtorch_applications/nsi/msf_recon.py` (preprocessing duplicated from Lilly_recon.py;
+MACE loop and agents inlined; initialized at the existing standard recon).  30 fusion
+iterations took 799 s (~27 s each); consensus spread settled near 8e-3, the same
+equilibrium signature as the demo runs.  Weighted sinogram residual rms_w(y - Ax):
+standard 0.0657, three-orientation postprocessing 0.0656, fusion 0.0614 — though part of
+the fusion improvement is simply its 90 additional warm-started prox iterations on a
+15-iteration standard recon, so the visual comparison carries the real evaluation.
+A second run at sigma_scaled 0.04 (Greg's call after seeing the 0.075 slices) matched
+the data fit (rms_w 0.0613 vs 0.0614) with visibly crisper edges — the spring coils
+resolve individually — while keeping the streak suppression; consensus spread settled
+lower too (5.2e-3 vs 8.1e-3), consistent with the weaker prior.  0.04 looks like the
+better operating point on this data.  Volumes and traces:
+`mbirtorch_applications/nsi/output/msf/` on gautschi.  Env notes:
+deepinv + cu130 torchvision installed --no-deps into the gautschi `mbirtorch` conda env;
+DRUNet weights staged at `~/.cache/torch/hub/checkpoints/`.
+
 **Increment 1: 3D problem and 3D qGGMRF gate (quantitative gate).**
 A 3D problem module beside `cone_beam_2d.py` (the same generator without the
 mid-slice restriction), and the equality gate at 3D: MACE with the forward
