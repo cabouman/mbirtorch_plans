@@ -171,12 +171,12 @@ Two things that bite when sharing that allocation:
   set `XLA_PYTHON_CLIENT_PREALLOCATE=false`, or use separate allocations.
 
 **Match Greg's shell.**  His prompt is
-`(mbirjax) buzzard@login01.gautschi:[mbirjax_applications] $` -- the `user@host:[dir]` part
-comes from the SYSTEM profile (there is no PS1 in his ~/.bashrc), and `(mbirjax)` comes from
-conda activation, which his .bashrc does NOT do (it installs the hook only).  So a fresh
-shell is missing the prefix.  `remote_cluster/claude_bashrc` fixes it by doing what a LOGIN shell does:
+`(<env>) buzzard@login01.gautschi:[mbirjax_applications] $` -- the `user@host:[dir]` part
+comes from the SYSTEM profile (there is no PS1 in his ~/.bashrc), and the `(<env>)` prefix
+comes from conda activation, which his .bashrc does NOT do (it installs the hook only).  So
+a fresh shell is missing the prefix.  `remote_cluster/claude_bashrc` fixes it by doing what a LOGIN shell does:
 source **`/etc/profile`** (which runs all of `/etc/profile.d/*.sh`), then `~/.bashrc`, then
-`conda activate mbirjax`, then print a session banner (job, node, walltime, **time
+`conda activate <env>`, then print a session banner (job, node, walltime, **time
 remaining**, end time).  Sourcing `/etc/profile` — rather than cherry-picking the prompt
 file — is essential: that directory also defines the **`module`** command
 (`modules.sh`, `00-modulepath.sh`, `z01_default_module.sh`), so a shell without it cannot
@@ -184,6 +184,9 @@ file — is essential: that directory also defines the **`module`** command
 needs `env SHELL=remote_cluster/claude_shell` instead, because it runs `$SHELL -l` and a
 LOGIN shell ignores `--rcfile` (the wrapper drops the `-l`).  Note `xfce4-terminal --command`
 parses argv directly, so use `env VAR=val cmd`, never a bare `VAR=val cmd` prefix.
+As of 2026-09-01 `claude_bashrc` still activates the removed `mbirjax` env.  Its
+`conda activate` line ends in `|| true`, so the activation silently does nothing and no
+`(<env>)` prefix appears.  Set that name from the env roster before relying on the prefix.
 
 **A terminal ON the compute node** (so work runs where the GPU is, and PyCharm/viewers can
 be started from it): `plans/experiments/remote_cluster/tl_node_terminal.sh` — run it on the
@@ -220,12 +223,28 @@ works.
   more GPUs** (`--gpus-per-node=2` → ~252 GB, and so on).  The node is provisioned to match:
   h-nodes have 112 CPUs / 8 GPUs / 1,031,500 MB, and 9200 x 112 = 1,030,400 MB.
   (gilbreth is different — its `sinteractive` line below does take `--mem`.)
-- Repos: `~/PycharmProjects/{mbirjax, mbirjax_applications, mbirjax_metrics}`.
-- Conda envs: `mbirjax` (interactive) and `mbirjax_regression` (the nightly).
+- Repos: `~/PycharmProjects/` holds many, including `mbirjax`, `mbirjax_applications`,
+  `mbirjax_metrics`, `mbirtorch`, `mbirtorch_applications`, `mbirtorch_metrics` and
+  `pcdrecon`.  Run `ls ~/PycharmProjects/` for the current set.
+- **Conda envs — list them, do not assume.**  The roster changes as projects come and go:
+  `ssh -o BatchMode=yes buzzard@gautschi.rcac.purdue.edu 'conda env list'`.  An env named
+  `*_regression` belongs to a nightly; the rest are interactive.  (VERIFIED 2026-09-01.
+  The interactive env named `mbirjax` that earlier versions of this guide listed no longer
+  exists.)
 - Node preamble (sourced first — puts conda on PATH, loads cuda, sets the squid proxy so
-  git can reach github from a compute node): `source ~/load_conda_cuda.sh`.
-- The metrics nightly runs from a scrontab entry (02:00 daily); logs at
-  `/home/buzzard/.mbirjax/regression/nightly-<jobid>.log`.
+  git can reach github from a compute node): `source ~/load_conda_cuda.sh`.  It now works
+  in a non-login shell too.  When the `module` command is missing it sources `/etc/profile`
+  first, so `sbatch --wrap "source ~/load_conda_cuda.sh && ..."` needs no extra preamble
+  line.  (VERIFIED 2026-09-01.)
+- Two metrics nightlies run from scrontab entries: `mbirjax-nightly` at 02:00 and
+  `mbirtorch-nightly` at 03:00.  Their logs are
+  `/home/buzzard/.mbirjax/regression/nightly-<jobid>.log` and
+  `/home/buzzard/.mbirtorch/regression/nightly-<jobid>.log`.  Read the entries with
+  `scrontab -l`.
+
+VERIFIED 2026-09-01: the env roster command above, `source ~/load_conda_cuda.sh` in a login
+shell, and that same source inside `sbatch --wrap` with no other preamble (job 15746730,
+`BATCH_OK`).
 
 Example batch header (1 GPU):
 
@@ -258,7 +277,7 @@ Automated performance + correctness tracking for `mbirjax`, living in the **sepa
   trips, e.g. `main: GATE FAIL (perf regression) — REGRESSION DETECTED`.  That is the system
   working.  What it could NOT catch before 2026-07-25 was a run that silently measured on the
   wrong platform — see the platform-mismatch entry in the failure table below.
-- **Env:** `mbirjax_regression` (NOT the `mbirjax` env used interactively), built with
+- **Env:** `mbirjax_regression` (NOT an interactive env), built with
   `INSTALL_EXTRAS_gpu` from `mbirjax_metrics/action_scripts/run_configs.env`.  That setting is
   independent of the library's own `dev_scripts/clean_install_all.sh`: changing the library's
   CUDA extra does **not** change the nightly's.  Keep them in sync by hand.
@@ -334,8 +353,8 @@ scp -o BatchMode=yes buzzard@gautschi...:/scratch/gautschi/buzzard/<dir>/result.
 
 - **Staging code:** put run scripts in a scratch `scripts/` dir and `scp` updates as you
   iterate.  Do NOT edit inside Greg's `~/PycharmProjects` checkouts — those are his working
-  trees (and on gautschi the `mbirjax` env is an EDITABLE install pointing at one, so a
-  change there changes what runs).
+  trees, and an interactive env on gautschi may hold an EDITABLE install pointing at one, so
+  a change there changes what runs.
 - **Which store:** scratch for job output and anything regenerable; **depot for anything that
   must survive** (scratch is purge-eligible).  `/depot/bouman/` is mounted on **both**
   clusters, so it is the natural way to move results between gautschi and gilbreth without
@@ -434,7 +453,7 @@ did not think you were running.
 | a worker subprocess raises `ImportError: cannot import name ...` from a package that is definitely current | the package tree was scp-SYNCED while the job was running, and the worker imported a half-updated pair of modules (new `__init__` against an old sibling).  Same class as the pip race: never mutate a staged tree or env while a job runs from it — sync first, then submit, or chain the sync's consumer with `--dependency`. |
 | GPU charts stop updating, results land as `regression_cpu_*` under `results/gpu/` | jax fell back to CPU (usually the CUDA plugin extra not matching the node's `module load cuda`).  Since 2026-07-25 `performance_tracking` hard-aborts instead; look above the abort for `Jax plugin configuration error`. |
 | `srun: error: Ignoring --x11 option for a job step within an existing job` | harmless.  X11 is set at ALLOCATION time; steps inherit it.  If the allocation lacks `--x11` it cannot be retrofitted — start a new one. |
-| prompt shows `bash-5.1$`, **or `module: command not found`** | non-login shell: `/etc/profile` (hence all of `/etc/profile.d/*.sh`) was not sourced.  That directory supplies BOTH the prompt and the `module` function.  Use `remote_cluster/claude_bashrc`. |
+| prompt shows `bash-5.1$`, **or `module: command not found`** | non-login shell: `/etc/profile` (hence all of `/etc/profile.d/*.sh`) was not sourced.  That directory supplies BOTH the prompt and the `module` function.  Since 2026-09-01 `~/load_conda_cuda.sh` sources `/etc/profile` itself when `module` is missing, so this signature no longer comes from that preamble.  Any OTHER script that calls `module` in a non-login shell still shows it.  Use `remote_cluster/claude_bashrc`, or copy the guard from the top of the preamble. |
 | XQuartz: "Cannot establish any listening sockets" | stale `/tmp/.X0-lock` from a failed start — delete it and retry. |
 | a GUI window vanished when its app closed | the allocation was `srun <cmd>`, which ends with the command.  Hold it with a shell instead. |
 | tests pass but prove nothing about the GPU kernels | `tests/test_pallas_kernels.py` silently runs in interpret mode when `_pallas_kernels.availability()` is False.  Assert availability first. |
@@ -453,6 +472,6 @@ did not think you were running.
   No data, no source, no drafts.
 - **Don't edit Greg's cluster checkouts** (`~/PycharmProjects/*`) — stage your own scripts in
   scratch.
-- **Coordinate before heavy gautschi use** — his interactive sessions and the 02:00 nightly
-  share the same account and queue.  gilbreth is lightly used by the group; submit freely there.
+- **Coordinate before heavy gautschi use** — his interactive sessions and the 02:00 and
+  03:00 nightlies share the same account and queue.  gilbreth is lightly used by the group; submit freely there.
 - **Don't assume an uncommitted fix reaches the nightly** — it fresh-clones from origin.
