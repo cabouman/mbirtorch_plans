@@ -1,6 +1,6 @@
 #!/bin/bash
-# Launch mbirjax slice_viewer on a GPU COMPUTE NODE, rendering into the ThinLinc desktop
-# running on THIS login node.
+# Launch the mbirtorch slice_viewer on a GPU COMPUTE NODE, rendering into the ThinLinc
+# desktop running on THIS login node.
 #
 # Why this shape:
 #  * ThinLinc's Xvnc runs with `-nolisten tcp -localhost`, so only processes on the SAME
@@ -11,15 +11,22 @@
 #  * The display number is NOT stable (a restarted session moves :1 -> :2 -> ...), so it is
 #    discovered from the live Xvnc process rather than hardcoded.
 #
-# Run ON the login node hosting the ThinLinc session:
+# Run ON the login node hosting the ThinLinc session, from a copy of this directory on
+# scratch:
 #     nohup bash tl_slice_viewer.sh > /tmp/tl_viewer.log 2>&1 &
 # The nohup+& matter: the window then survives the ssh that started it.
+# Env: CONDA_ENV (default mbirtorch) selects the python; SCRIPTS_DIR defaults to this
+#      directory.  Note `srun <cmd>` holds the node only while the viewer is open; for a
+#      persistent allocation use tl_gpu_session.sh + tl_node_terminal.sh instead.
 set -u
 
-PY=$HOME/.conda/envs/mbirjax/bin/python
-SCRIPT=/scratch/gautschi/buzzard/h100_tuning/scripts/x11_slice_viewer_demo.py
+SCRIPTS_DIR=${SCRIPTS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
+CONDA_ENV=${CONDA_ENV:-mbirtorch}
+PY=$HOME/.conda/envs/$CONDA_ENV/bin/python
+SCRIPT=$SCRIPTS_DIR/x11_slice_viewer_demo.py
+[ -x "$PY" ] || { echo "FATAL: no python at $PY (conda env '$CONDA_ENV'; set CONDA_ENV=<name>)"; exit 5; }
 
-echo "host: $(hostname)"
+echo "host: $(hostname)   env: $CONDA_ENV   script: $SCRIPT"
 
 # ── discover the live ThinLinc session on this node ───────────────────────────
 XVNC_ARGS=$(ps -u "$USER" -o args= 2>/dev/null | grep "[X]vnc :" | head -1)

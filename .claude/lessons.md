@@ -1,6 +1,9 @@
-# Engineering lessons (mbirjax sharding)
+# Engineering lessons
 
-Operative rules from the sharding effort, organized by development question.  Each entry: the rule,
+Operative rules from the mbirjax sharding effort and the mbirtorch port, organized by development
+question.  **mbirjax is legacy (support ends after 2026):** entries tagged *(jax)* describe jax/XLA
+mechanisms — keep them for reading old results, and check whether the rule transfers before applying
+it to torch; untagged entries are framework-independent or torch.  Each entry: the rule,
 the mechanism, the tell, and a code pointer as the worked example.  Full discovery narratives (the F1
 and Phase D case studies, per-entry history) live in this file's git history (pre-2026-07-03
 consolidation).  The general measurement principles also live in global `~/.claude/CLAUDE.md`; the
@@ -14,8 +17,8 @@ short jax/perf tips in `claude_prompt.md`.
 4. [The 2^31 / dtype boundary](#4-the-231--dtype-boundary)
 5. [Measuring honestly (the ruler)](#5-measuring-honestly-the-ruler)
 6. [Performance expectations](#6-performance-expectations)
-7. [Out-of-pool GPU allocations](#7-out-of-pool-gpu-allocations)
-8. [Known-benign warnings](#8-known-benign-warnings)
+7. [Out-of-pool GPU allocations](#7-out-of-pool-gpu-allocations-jaxxla-legacy)
+8. [Known-benign warnings](#8-known-benign-warnings-jax-legacy)
 9. [Tooling / harness](#9-tooling--harness)
 
 ## 1. General principles
@@ -40,7 +43,7 @@ short jax/perf tips in `claude_prompt.md`.
   `assert_sharded_allclose`).  NOT a fixed `atol` (scale-dependent: passes small-magnitude operators,
   false-fails large ones for the same relative noise) and NOT per-element `rtol` (near-zero entries,
   whose noise comes from large cancelling terms, get near-zero thresholds).
-- **Calibration:** same-executable GPU run-to-run noise on the projectors reaches ~8e-6 RELATIVE
+- *(jax)* **Calibration:** same-executable GPU run-to-run noise on the projectors reaches ~8e-6 RELATIVE
   (~70 ULP, atomics), so anything touching the projectors gates at 1e-5 single-shot / 1e-4 iterated;
   pure elementwise kernels (qGGMRF cylinder) are safe at 1e-6.  The noise SOURCE is the forward
   projector's `.at[n].add` scatter (atomic float adds; arrival order varies with GPU scheduling);
@@ -77,6 +80,11 @@ short jax/perf tips in `claude_prompt.md`.
   `plans/torch_port/active/multigpu_findings.md` §1.16.
 
 ## 3. Writing sharded / jitted code
+
+*(jax, legacy — the whole section is about jit/GSPMD/XLA.  The principles carry to mbirtorch:
+bound working memory by a fixed batch, no hidden full-shard copies, never slice a sharded axis,
+per-device local reductions, donate in-place state.  Torch-side findings live in
+`plans/torch_port/`.)*
 
 - **Jit per-worker compute.**  Eager op-by-op dispatch silently kills multi-device scaling (a lost
   `@jax.jit` turned ~6.5× into ~2×) and materializes every intermediate at peak memory.
@@ -160,13 +168,13 @@ A full-size sinogram/recon (~4.6–4.8e9 elements) crosses int32's 2^31 ≈ 2.1e
 several mechanisms fail there, mostly SILENTLY.  Treat any element COUNT or FLAT INDEX at this scale
 as suspect — and note small phantoms can never reproduce these (size-dependent, not path-dependent).
 
-1. **`jnp/lax.argmin` over a >2^31-element array WRAPS with no warning** (index labels are int32
+1. *(jax)* **`jnp/lax.argmin` over a >2^31-element array WRAPS with no warning** (index labels are int32
    regardless of axis length; a min planted at 2.3e9 returned −1,994,967,296 = off by exactly 2^32).
    A scalar read on a >2^31 flat axis separately requests int64 indices, truncated with the
    "int64 ... truncated to int32" UserWarning — the warning is smoke from the read; the fire is the
    argmin.  Fix: never form flat indices on full-size arrays — stage the argmin per axis and carry
    `(view, row, col)` tuples with basic per-axis indexing (`mar._argmin_3d`).
-2. **A Python int > 2^31 as a traced operand raises OverflowError at the jit boundary** (weak int →
+2. *(jax)* **A Python int > 2^31 as a traced operand raises OverflowError at the jit boundary** (weak int →
    int32).  Counts enter traced arithmetic as FLOATS (`float(n)`; same ~1e-7 rounding `jnp.mean` had
    internally); per-run int counts passed to jitted functions are STATIC args, float()ed in the body.
    RECURRED 2026-07-10 (`mar.py`'s padding-aware mean divided by `num_real_pixels` = 3.7e9 on a
@@ -187,7 +195,7 @@ as suspect — and note small phantoms can never reproduce these (size-dependent
 
 ## 5. Measuring honestly (the ruler)
 
-- **`peak_bytes_in_use` is a process-cumulative high-water mark of LIVE bytes.**  It never resets, so
+- *(jax)* **`peak_bytes_in_use` is a process-cumulative high-water mark of LIVE bytes.**  It never resets, so
   honest per-config memory needs a fresh subprocess per config, with a JAX-free orchestrator.  It is
   preallocation-INVARIANT (it tracks in-use tensors, not the pool), so `PREALLOCATE=false` does NOT
   reveal the capacity floor — to find the true OOM threshold, keep preallocation and LOWER
@@ -205,7 +213,7 @@ as suspect — and note small phantoms can never reproduce these (size-dependent
   temp (345 MHz alone is the H100 idle clock); the warmest-at-idle card is the culprit — a 10 s
   `nvidia-smi dmon` is a cheap preflight.  The scaling harness self-records topo/UUIDs/clock+temp and
   flags `[THROTTLED]` rows.
-- **An op- and platform-specific slowdown with sibling ops flat is a TOOLCHAIN regression — bisect
+- *(jax; the rule holds for torch releases too)* **An op- and platform-specific slowdown with sibling ops flat is a TOOLCHAIN regression — bisect
   the jax version, not your diff.**  (jaxlib 0.10.2 regressed the forward GEMM path 3–9× while back/
   filter were byte-identical; 0.10.1 is the pin.)  Playbook: pin the code, downgrade jax one release
   at a time; `tooling/scaling_tests/measure_one_cell.py` reproduces one cell in ~30 s and prints
@@ -225,7 +233,7 @@ as suspect — and note small phantoms can never reproduce these (size-dependent
   stale compiled state (a "33 GB leak" was a stale binary); and a modern `pip install -e` registers a
   `sys.meta_path` finder that beats `PYTHONPATH` — to select code under test, install it into a
   dedicated env (`mbirjax_metrics/tooling/regression/lib_env.sh`), never point `PYTHONPATH` at it.
-- **A bench that constructs a `jax.jit` inside the measured call measures HOST TRACING, not the
+- *(jax)* **A bench that constructs a `jax.jit` inside the measured call measures HOST TRACING, not the
   operation.**  A fresh `jax.jit(...)` object retraces on every invocation (the persistent cache
   skips only XLA compilation, not tracing) — in the E4 composed-back preview this inflated a ~1 ms
   weight builder to 1,828 ms (61% of the "composed" time) and earlier masqueraded as an "H100
@@ -235,7 +243,7 @@ as suspect — and note small phantoms can never reproduce these (size-dependent
   to module level (or cache the jitted callable) before timing anything; suspect any "expensive
   precompute" measured through a locally-constructed jit.  Full record:
   `plans/projector_kernels/gpu_headroom_findings.md` (the composed-preview sections).
-- **A kernel spike's speedup is NOT the driver's; the two driver killers are host syncs and
+- *(jax/pallas; the two killers apply to triton drivers too)* **A kernel spike's speedup is NOT the driver's; the two driver killers are host syncs and
   data-dependent launch shapes.**  E4 increment 2: a kernel that spiked 2.13× gated 0.68× in the
   library because the driver (a) pulled a device array to host per view chunk (`np.asarray` — a
   pipeline stall, strictly worse than an eager dispatch) and (b) sized a pallas grid from DATA, so
@@ -263,6 +271,9 @@ as suspect — and note small phantoms can never reproduce these (size-dependent
 
 ## 6. Performance expectations
 
+*(measured on mbirjax in 2025–26; the shape of these rules carries to mbirtorch, the numbers do
+not — re-measure before relying on one.)*
+
 - **Projection time ∝ N⁴ (voxels × views); memory ∝ N³.**  Ideal curves for size sweeps must use
   these, not a common exponent.
 - **On GPU, sharding is primarily a CAPACITY tool; speed is the bonus above the crossover.**  Read
@@ -281,7 +292,7 @@ as suspect — and note small phantoms can never reproduce these (size-dependent
   line-search alpha) are the GPU-specific limiter; the sharded qGGMRF prior regresses at fine
   granularity (small share of cost — optimize only if the prior ever dominates).
 
-## 7. Out-of-pool GPU allocations
+## 7. Out-of-pool GPU allocations *(jax/XLA, legacy)*
 
 With a near-total BFC reservation, everything allocating OUTSIDE XLA's pool shares the small
 remainder — and the pool RETAINS its high-water mark for the life of the process, so late
@@ -301,7 +312,7 @@ is lowering the mem fraction.  Confirmed on the cluster: `bytes_in_use` 0.64 GB 
 `os.environ.setdefault('XLA_PYTHON_CLIENT_MEM_FRACTION', '0.94')` — conservative headroom,
 overridable per-run via the environment (it was a hard-set '0.98' the env var could not override).
 
-## 8. Known-benign warnings
+## 8. Known-benign warnings *(jax, legacy)*
 
 - **`cuda_vmm_allocator ... FABRIC+POSIX_FD ... CUDA_ERROR_NOT_PERMITTED ... will retry with simpler
   handle types`** (W-level): the VMM allocator probing advanced handle types and falling back —

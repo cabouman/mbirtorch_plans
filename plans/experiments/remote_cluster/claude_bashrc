@@ -1,6 +1,6 @@
 # Sourced as the --rcfile for terminals Claude opens on the cluster.
 #
-# Goal: a shell indistinguishable from one Greg gets by logging in.
+# Goal: a shell indistinguishable from one the user gets by logging in.
 #
 # THE TRAP: `bash --rcfile ... -i` is a NON-LOGIN shell, so it never reads /etc/profile
 # and therefore none of /etc/profile.d/*.sh.  On this cluster that directory supplies
@@ -12,6 +12,11 @@
 # conda/cuda could not be loaded.  Source /etc/profile and let it run the whole directory,
 # which is exactly what a login shell does.
 #
+# CAVEAT: this reproduces the STOCK login shell plus ~/.bashrc.  A user whose prompt or env
+# customization lives in ~/.bash_profile or ~/.profile (read by a login shell, not here)
+# gets a different prompt from the one in their own terminals; check with
+#     grep -n 'PS1\|PROMPT_COMMAND' ~/.bashrc ~/.bash_profile ~/.profile
+#
 # ORDER IS LOAD-BEARING: conda prepends "(env) " to whatever PS1 holds AT ACTIVATE TIME,
 # so the profile (which sets PS1) must come BEFORE `conda activate`.
 #
@@ -20,11 +25,17 @@
 # 1. the full login-shell system setup: module, PS1, cluster vars, PATH
 [ -r /etc/profile ] && . /etc/profile
 
-# 2. the user's own rc (installs the conda shell hook; no PS1 of his own)
+# 2. the user's own rc (installs the conda shell hook)
 [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
 
-# 3. then the env, so conda prepends to the prompt set in step 1
-conda activate mbirjax 2>/dev/null || true
+# 3. then the env, so conda prepends to the prompt set in step 1.  CONDA_ENV is exported by
+#    tl_gpu_session.sh / tl_node_terminal.sh (default mbirtorch).  A missing env is REPORTED:
+#    an earlier version activated a since-retired env with `|| true`, and the only symptom
+#    was a missing "(env)" prefix.
+CONDA_ENV=${CONDA_ENV:-mbirtorch}
+if ! conda activate "$CONDA_ENV" 2>/dev/null; then
+    echo "claude_bashrc: conda env '$CONDA_ENV' not found -- set CONDA_ENV=<name> (see: conda env list)" >&2
+fi
 
 # ── session banner: what allocation is this, and how long do I have? ───────────
 if [ -n "${SLURM_JOB_ID:-}" ]; then

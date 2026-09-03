@@ -4,16 +4,16 @@
 
 ## Summary
 
-| Cluster  | Resource              | Queue      | Amount            | Hours left  | Ends       |
+| Cluster  | Resource              | Queue      | Amount            | Balance     | Ends       |
 |----------|-----------------------|------------|-------------------|-------------|------------|
-| Gautschi | H100 GPU-hours        | `bouman`   | 32,850 SU         | **2,716.4** | ~2030      |
+| Gautschi | H100 GPU-hours        | `bouman`   | 32,850 SU         | run `slist` | ~2030      |
 | Gilbreth | A100 node (dedicated) | `bouman-g` | 2 GPUs, 128 cores | no cap      | ~late 2026 |
 | Gilbreth | A100 GPU access       | `bouman-n` | 2 GPUs, 24 cores  | no cap      | Dec 2029   |
 | Gilbreth | old annual sub        | `bouman-e` | expired           | —           | Sep 2021   |
 
-*Hours-left figure is as of 2026-08-06; the ~late-2026 node retirement is inferred (see details below).*
+*The gautschi balance is not recorded here because it moves with every job and every order: `slist` read 2,716.4 on 2026-08-06 and 21,857.1 on 2026-09-03.  Run `slist` on a gautschi login node.  The ~late-2026 node retirement is inferred (see details below).*
 
-Live `slist` on Gilbreth currently reports the group's allocation as **4× A100-40GB total, all free** under account `bouman`.
+Live `slist` on Gilbreth reports the group's allocation as **4× A100-40GB total** under slurm account `bouman` (Total/Queued/Running/Free = 4/8/4/4 on 2026-09-03, so other members are using it).
 
 ## Gautschi details (H100, metered by GPU-hours)
 
@@ -27,14 +27,14 @@ Live `slist` on Gilbreth currently reports the group's allocation as **4× A100-
 
 - No hour metering: the subscription caps how many GPUs the group can use simultaneously (4 total), not total usage.
 - Purchases: dedicated A100 node, Nov 2021, $17,530 (queue `bouman-g`); 2× "A100-40GB GPU Access (5 years)", Dec 2024, $14,000 (queue `bouman-n`).
-- Submit: `sbatch -A <account> -p a100-40gb --gres=gpu:1 ...` — run `slist` on Gilbreth to see the exact account name(s) available to you.
+- Submit: `sbatch -A bouman -p a100-40gb --gres=gpu:1 ...`.  The slurm account is `bouman` on Gilbreth as well (`slist` and `sacctmgr`, 2026-09-03); `bouman-g` and `bouman-n` are the portal's names for the two purchases and appear only when requesting access.
 - The dedicated node's retirement date is not shown in the portal; ~late 2026 is inferred from the standard 5-year node lifetime. Confirm with rcac-help@purdue.edu.
 
 ## What students need to get access
 
 1. **Purdue career account** with BoilerKey/Duo two-factor.
 2. **Be added to the group's queue(s).** Two paths:
-   - Student logs into rcac.purdue.edu/account → **Request Access**, requests the relevant queue (`bouman` on Gautschi, `bouman-g`/`bouman-n` on Gilbreth); the PI approves.
+   - Student logs into rcac.purdue.edu/account → **Request Access**, requests the relevant queue (`bouman` on Gautschi; `bouman-g`/`bouman-n` on Gilbreth — portal names that both map to slurm account `bouman`); the PI approves.
    - Or the PI adds them directly: rcac.purdue.edu/account → Groups → Charles Bouman Group → **Members** tab. (RCAC restored the group-manager role Aug 2026 after a portal-migration glitch had hidden these controls.)
 3. **Log in** (changes can take ~1 day to propagate, plus a log-out/log-in after group changes):
    - `ssh <username>@gautschi.rcac.purdue.edu` or `ssh <username>@gilbreth.rcac.purdue.edu`
