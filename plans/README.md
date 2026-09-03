@@ -56,16 +56,16 @@ current state; these carry the why and the numbers.
   review and fix status.  Experiment scripts are in `experiments/torch_port/`
   (see its own README for the live-vs-archive split).  The port code lives in
   the separate `mbirtorch` repo.
-- `viewer/slice_viewer_eval.md` — slice-viewer evaluation and refactor
+- `archive/viewer/slice_viewer_eval.md` — slice-viewer evaluation and refactor
   recommendations (2026-08-05): stay with matplotlib but
   restructured (model/view split, headless-silent import, easygui removed,
   blitting for the remote-X slider lag); pyqtgraph as an optional later
   frontend; an eight-step refactor sequence with the cluster- and
-  mbirtorch-port-load-bearing steps marked.  `viewer/mbirtorch_viewer_build.md`
+  mbirtorch-port-load-bearing steps marked.  `archive/viewer/mbirtorch_viewer_build.md`
   is the follow-on build spec (decision 2026-08-05): mbirjax's viewer stays
   as-is; the restructured viewer is built greenfield into mbirtorch, in four
   checkpointed stages, with an mbirjax retrofit after field use.
-  `viewer/mbirtorch_viewer_findings.md` is the as-built record (2026-08-05,
+  `archive/viewer/mbirtorch_viewer_findings.md` is the as-built record (2026-08-05,
   built and field-tested; ThinLinc-verified 2026-08-07): feature parity with
   the mbirjax viewer, the latent-bug non-reproduction checklist, the
   deviations that field testing drove (native-first dialogs, the restored

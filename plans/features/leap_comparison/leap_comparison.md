@@ -292,11 +292,11 @@ The source for every row above is the regression table file named in the paragra
 
 That file also records four-GPU speedups of 4.01 for the parallel forward projection, 3.84 for the cone forward projection, and 3.41 for the cone VCD row. Several parallel rows with a 1024-view sinogram carry a "throttled" flag. The harness sets that flag when nvidia-smi reports an active thermal or power throttle reason for a GPU, or when a GPU core reaches 85 C, or when its HBM reaches 95 C, and the dashboard guide says such a point's timing is unreliable (`mbirtorch_metrics/tooling/scaling_tests/scaling_common.py:246`; `mbirjax_metrics/tooling/dashboard/template.html:71`). Those speedups carry the same caveat.
 
-A larger run measured a 2048-view sinogram of shape (2048, 2016, 1984), reconstructed to a volume of shape (1984, 1984, 2016), on a four-H100 node on 2026-08-17. Three iterations took 420 s for cone beam and 216 s for parallel beam on four GPUs, with per-GPU peak memory of 43.1 to 46.3 GiB for the cone configurations. The tables are in `plans/torch_port/active/multigpu_findings.md` section 1.20, and the run detail is in `.../plans/experiments/torch_port/mg19_two_k_baselines.md`.
+A larger run measured a 2048-view sinogram of shape (2048, 2016, 1984), reconstructed to a volume of shape (1984, 1984, 2016), on a four-H100 node on 2026-08-17. Three iterations took 420 s for cone beam and 216 s for parallel beam on four GPUs, with per-GPU peak memory of 43.1 to 46.3 GiB for the cone configurations. The tables are in `../../archive/torch_port/active/multigpu_findings.md` section 1.20, and the run detail is in `.../plans/experiments/torch_port/mg19_two_k_baselines.md`.
 
-One earlier record in this repository normalized LEAP against mbirjax rather than mbirtorch. The file is `plans/projector_kernels/headroom_appendices/appendix_ct_kernel_practice.md`, dated 2026-07-12. It placed mbirjax's parallel forward projection at 40 G voxel-view updates per second per TB/s of memory bandwidth, and LEAP's at 92 G. It described mbirjax as about 2.3 times slower than a state-of-the-art band of 80 to 120 G. Those figures are the appendix author's own normalization of published times rather than published throughputs, and the appendix marks them as estimates pending verification.
+One earlier record in this repository normalized LEAP against mbirjax rather than mbirtorch. The file is `../../archive/projector_kernels/headroom_appendices/appendix_ct_kernel_practice.md`, dated 2026-07-12. It placed mbirjax's parallel forward projection at 40 G voxel-view updates per second per TB/s of memory bandwidth, and LEAP's at 92 G. It described mbirjax as about 2.3 times slower than a state-of-the-art band of 80 to 120 G. Those figures are the appendix author's own normalization of published times rather than published throughputs, and the appendix marks them as estimates pending verification.
 
-Those figures are also stale for mbirtorch. On one GPU, a three-iteration parallel-beam reconstruction with a 1024-view sinogram took 94.0 s of wall-clock time before the hand-written kernels and 21.26 s after them, recorded in `plans/torch_port/active/execution_overview.md`. That 21.26 s reading and the 18,976.3 ms in the regression table above are different runs under different measurement protocols, which the same file says differ by up to 15 percent.
+Those figures are also stale for mbirtorch. On one GPU, a three-iteration parallel-beam reconstruction with a 1024-view sinogram took 94.0 s of wall-clock time before the hand-written kernels and 21.26 s after them, recorded in `../../archive/torch_port/active/execution_overview.md`. That 21.26 s reading and the 18,976.3 ms in the regression table above are different runs under different measurement protocols, which the same file says differ by up to 15 percent.
 
 ### Head-to-head measurements on H100s
 
@@ -331,7 +331,7 @@ The next table gives the steady-state cost of one iteration, taken from the thir
 | 512 | 1.26005 s/iteration | 1.58913 s/iteration | 1 : 1.26 | 15.74 s |
 | 1024 | 19.27966 s/iteration | 17.73758 s/iteration | 1 : 0.92 | 19.45 s |
 
-The source for the table is the same results file. The extra cost is the difference between mbirtorch's first reconstruction and its third, and it is a `torch.compile` cost paid once per inductor cache directory rather than once per machine. The benchmark used a cold cache, so it charges the full amount. This repository records a smaller repeat cost for a warm cache. A new process with a full cache ran a three-iteration parallel reconstruction in 26.02 s, against 21.17 s for an in-process repeat (`plans/torch_port/active/multigpu_findings.md` section 1.48).
+The source for the table is the same results file. The extra cost is the difference between mbirtorch's first reconstruction and its third, and it is a `torch.compile` cost paid once per inductor cache directory rather than once per machine. The benchmark used a cold cache, so it charges the full amount. This repository records a smaller repeat cost for a warm cache. A new process with a full cache ran a three-iteration parallel reconstruction in 26.02 s, against 21.17 s for an in-process repeat (`../../archive/torch_port/active/multigpu_findings.md` section 1.48).
 
 These are two different algorithms with different priors. The numbers are therefore a cost per iteration only. They say nothing about image quality, and nothing about how many iterations either algorithm needs.
 
@@ -549,7 +549,7 @@ LEAP also handles the harder iterative case. Its long-object demo states the tra
 
 This matters to industrial users scanning wide or tall parts, and to synchrotron users doing local tomography. It is a correctness trap rather than a quality question, because including too few slices changes the answer.
 
-mbirtorch has partial coverage. It warns when it detects lateral field-of-view truncation and documents enlarging the reconstruction region with `scale_recon_shape` ([mbirtorch/tomography_model.py:2117](https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/mbirtorch/tomography_model.py#L2117)). This repository's `flash_remediation` program addresses the axial half of the same problem, and its plan records the cone per-end axial extension as implemented and validated on real scans (`plans/flash_remediation/flash_remediation_plan.md`). What is absent is an extrapolating ramp filter, an offset-scan weighting, and the subtract-the-caps method for iterative reconstruction.
+mbirtorch has partial coverage. It warns when it detects lateral field-of-view truncation and documents enlarging the reconstruction region with `scale_recon_shape` ([mbirtorch/tomography_model.py:2117](https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/mbirtorch/tomography_model.py#L2117)). This repository's `flash_remediation` program addresses the axial half of the same problem, and its plan records the cone per-end axial extension as implemented and validated on real scans (`../../archive/flash_remediation/flash_remediation_plan.md`). What is absent is an extrapolating ramp filter, an offset-scan weighting, and the subtract-the-caps method for iterative reconstruction.
 
 An implementation has two independent parts. The extrapolating filter and the offset-scan weighting are changes to the direct-reconstruction filter in `mbirtorch/tomography_utils.py`. The long-object method needs no new projector, because it composes an existing direct reconstruction, an existing forward projection, and a subtraction.
 
@@ -767,12 +767,12 @@ The following sources support every claim above:
 4. `https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/` , the base URL that LEAP file references are written against
 5. `https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/` , the base URL that mbirtorch file references are written against
 6. https://github.com/cabouman/mbirtorch/tree/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2 , the mbirtorch source at the compared commit
-7. `plans/projector_kernels/headroom_appendices/appendix_ct_kernel_practice.md`
-8. `plans/torch_port/open_items_v5.md`
-9. `plans/torch_port/port_plan.md`
-10. `plans/torch_port/closed/current_plans.md`
-11. `plans/torch_port/active/execution_overview.md`
-12. `plans/torch_port/active/multigpu_findings.md`
+7. `../../archive/projector_kernels/headroom_appendices/appendix_ct_kernel_practice.md`
+8. `../../archive/torch_port/open_items_v5.md`
+9. `../../archive/torch_port/port_plan.md`
+10. `../../archive/torch_port/closed/current_plans.md`
+11. `../../archive/torch_port/active/execution_overview.md`
+12. `../../archive/torch_port/active/multigpu_findings.md`
 13. `plans/experiments/torch_port/mg19_two_k_baselines.md`
 14. `mbirtorch_metrics/results/gpu/prerelease/regression_gpu_20260827T175529Z_26bd0ea9_table.yaml`
 15. `plans/experiments/features/leap_comparison/results/leap_benchmark_results.md`, the head-to-head benchmark results
@@ -781,7 +781,7 @@ The following sources support every claim above:
 18. `plans/experiments/features/leap_comparison/leap_cmp_repeat_gautschi.sbatch`, the repeated reconstructions at N = 256
 19. `plans/experiments/features/leap_comparison/leap_cmp_repeat2_gautschi.sbatch`, the repeated reconstructions at N = 512 and N = 1024
 20. `plans/experiments/features/leap_comparison/leap_cmp_multigpu_gautschi.sbatch`, the four-GPU job at N = 1024
-21. `plans/nn_priors/multi_slice_fusion_findings.md` and `plans/flash_remediation/flash_remediation_plan.md`
+21. `plans/nn_priors/multi_slice_fusion_findings.md` and `../../archive/flash_remediation/flash_remediation_plan.md`
 22. https://github.com/LLNL/leap
 23. https://arxiv.org/abs/2307.05801 (Kim and Champley, "Differentiable Forward Projector for X-ray Computed Tomography", ICML workshop, 2023)
 24. https://arxiv.org/abs/2410.07552 (Champley and coauthors, "Methods for Few-View CT Image Reconstruction", 2024)

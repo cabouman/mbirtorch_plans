@@ -259,6 +259,12 @@ Working example of the shell-held form: `plans/experiments/remote_cluster/tl_gpu
 (discovers the ThinLinc display, opens `xfce4-terminal`, runs `sinteractive --x11` in it).
 Verified 2026-07-25: terminal on login01 → shell on h008, released only on `exit`.
 
+**Starting PyCharm on the node (Greg's `~/pycharm.sh`, 2026-09-03):** sources the preamble, activates
+`mbirtorch`, then runs the IDE as `env -u LD_PRELOAD ~/Desktop/pycharm_alias &> ~/pycharm_stderr.log &`.
+The `env -u` matters: with the xalt preload inherited, JCEF's renderer never starts and the Markdown
+preview stays raw (see the failure table).  The preamble's `NO_PROXY` is what lets the preview, the
+debugger and anything else on the node's loopback bypass squid.
+
 Two things that bite when sharing that allocation:
 
 * **`--x11` is set at ALLOCATION time, not per step** — and steps inherit it.  Passing
@@ -405,11 +411,14 @@ if ! command -v module >/dev/null 2>&1 && [ -r /etc/profile ]; then
 fi
 module load conda          # -> conda/2026.03 (the marked default)
 module load modtree/gpu    # the GPU module tree; its toolchain brings cuda/12.6.1 with it
-module load cuda           # a no-op today: modtree/gpu already loaded cuda/12.6.1 (pin cuda/13.3.0 explicitly if nvcc 13 is wanted)
+# No `module load cuda` / `module load cudnn` (removed 2026-09-03).  Bare `module load cuda` now
+# resolves to the default 13.3.0 and swaps out modtree/gpu's 12.6.1; `module load cudnn` (a CUDA-12
+# build of 9.2) swaps it back AND breaks torch — see the cudnn row below.
 export HTTPS_PROXY=squid.rcac.purdue.edu:3128   # compute nodes reach github/PyPI only via squid
 export HTTP_PROXY=squid.rcac.purdue.edu:3128
+export NO_PROXY=localhost,127.0.0.1,::1,.rcac.purdue.edu   # loopback must bypass squid: PyCharm Markdown preview, debugger, Jupyter, TensorBoard
+export no_proxy=$NO_PROXY                                   # curl/git read lowercase; Chromium/Java uppercase
 # module use /depot/bouman/apps/modules          # group tree (cuda/12.9.0, 13.0.0; cudnn/9.11.0, 9.12.0) — unused
-module load cudnn          # -> cudnn/9.2.0.82-12; harmless and unused (below)
 ```
 
 **What the modules resolve to** (VERIFIED 2026-09-03 on a login node and on h000):
@@ -418,7 +427,7 @@ module load cudnn          # -> cudnn/9.2.0.82-12; harmless and unused (below)
 |---|---|---|---|
 | `conda` | 2026.03 | 2026.03 | 2024.09, 2025.02, 2025.09; `anaconda/2025.12-py313` |
 | `cuda` | **12.6.1**, pulled in by `modtree/gpu` | 13.3.0 | 12.8.0, 12.9.0, 13.2.0 |
-| `cudnn` | 9.2.0.82-12 | 9.2.0.82-12 | 9.12.0.46-12 (both are CUDA-12 builds) |
+| `cudnn` | **not loaded** (was 9.2.0.82-12 until 2026-09-03) | 9.2.0.82-12 | 9.12.0.46-12 (both are CUDA-12 builds).  **Do not load either**: the module goes first on `LD_LIBRARY_PATH`, torch 2.13 bundles cuDNN 9.20 and refuses the older runtime — `RuntimeError: cuDNN version incompatibility: PyTorch was compiled against (9, 20, 0) but found runtime version (9, 2, 0)` on any conv/batchnorm (VERIFIED 2026-09-03 on h004; a plain matmul, which is all the earlier check ran, never touches cuDNN, and mbirtorch's `avg_pool2d` is a native kernel, so the nightly never noticed). |
 
 The 12.6.1 comes from modtree/gpu's toolchain (gcc 11.4.1 / openmpi 5.0.5), not from the
 `module load cuda` line, which finds cuda already loaded and does nothing.  An explicit
@@ -728,6 +737,9 @@ shadowing all fail the same way, by running code you did not think you were runn
 | a worker subprocess raises `ImportError: cannot import name ...` from a package that is definitely current | the package tree was scp-SYNCED while the job was running, and the worker imported a half-updated pair of modules (new `__init__` against an old sibling).  Same class as the pip race: never mutate a staged tree or env while a job runs from it — sync first, then submit, or chain the sync's consumer with `--dependency`. |
 | GPU charts stop updating; a nightly aborts with `PLATFORM MISMATCH` / `DEVICE PIN FAILED` (torch) or `Jax plugin configuration error` *(legacy)*, or *(legacy)* results land as `regression_cpu_*` under `results/gpu/` | the framework fell back to CPU: the wheels' CUDA major is not supported by the driver (check `nvidia-smi`), or the env was rebuilt against the wrong index/extra.  The torch engine hard-aborts on this; before 2026-07-25 the jax one measured the whole sweep on CPU. |
 | `srun: error: Ignoring --x11 option for a job step within an existing job` | harmless.  X11 is set at ALLOCATION time; steps inherit it.  If the allocation lacks `--x11` it cannot be retrofitted — start a new one. |
+| PyCharm shows raw Markdown, no preview; `idea.log` has `LoadErrorException: Failed to load http://localhost:63342/markdownPreview/…` with an empty reason | Chromium is sending the loopback request to squid.  `HTTP_PROXY` is set with no `NO_PROXY`.  The preamble exports `NO_PROXY` since 2026-09-03; if `env \| grep -i proxy` lacks it, re-source the preamble and restart PyCharm (the Chromium helper reads proxies only at start). |
+| PyCharm shows raw Markdown, no preview; the same `LoadErrorException` but with reason `ERR_ABORTED`, and under the `cef_server` process there are two `<defunct>` children (died on SIGTRAP) and no `--type=renderer` process | Chromium's zygote helpers died at start, so every page load aborts.  Seen 2026-09-03 on h004 when PyCharm inherited `LD_PRELOAD=…/libxalt_init.so` (the `xalt` module that `modtree/gpu` drags in).  Launch PyCharm through `~/pycharm.sh`, which runs it under `env -u LD_PRELOAD` and keeps stderr in `~/pycharm_stderr.log`; verified fixed on h016 (three renderers, preview renders).  Fallback if it recurs: `-Dide.browser.jcef.sandbox.enable=false` in Help › Edit Custom VM Options. |
+| `RuntimeError: cuDNN version incompatibility: PyTorch was compiled against (9, 20, 0) but found runtime version (9, 2, 0)` on a conv, pool or batchnorm | a `cudnn` module is loaded (`module -t list \| grep cudnn`) and its CUDA-12 cuDNN sits ahead of torch's bundled 9.20 on `LD_LIBRARY_PATH`.  `module unload cudnn` and never load it; the preamble stopped loading it on 2026-09-03. |
 | prompt shows `bash-5.1$`, **or `module: command not found`** | non-login shell: `/etc/profile` (hence all of `/etc/profile.d/*.sh`) was not sourced.  That directory supplies BOTH the prompt and the `module` function.  The preamble listed above sources `/etc/profile` itself when `module` is missing, so this no longer comes from `~/load_conda_cuda.sh`; any OTHER script that calls `module` in a non-login shell still shows it.  Use `remote_cluster/claude_bashrc`, or copy the guard from the top of the preamble. |
 | XQuartz: "Cannot establish any listening sockets" | stale `/tmp/.X0-lock` from a failed start — delete it and retry. |
 | a GUI window vanished when its app closed | the allocation was `srun <cmd>`, which ends with the command.  Hold it with a shell instead. |
@@ -762,7 +774,7 @@ shadowing all fail the same way, by running code you did not think you were runn
 The nightly proves the library; nothing else watched the cluster underneath it until
 2026-09-03.  Now `cluster_probe.sh` in `mbirtorch_metrics/tooling/regression/` runs from
 Greg's scrontab every Monday at 08:00 on one GPU (a few minutes; `enable_probe.sh` /
-`disable_probe.sh`; design record in `plans/mbirtorch_metrics/cluster_probe_plan.md`).
+`disable_probe.sh`; design record in `../plans/archive/mbirtorch_metrics/cluster_probe_plan.md`).
 
 | it catches | how |
 |---|---|
