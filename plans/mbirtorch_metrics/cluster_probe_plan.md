@@ -1,149 +1,162 @@
-# Weekly cluster probe — plan
+# Weekly cluster probe — plan and record
 
-Status: DRAFT 2026-09-03 (rev 2, after a fact-check on the cluster), for an Opus plan review
-before implementation.
-Code lands in `mbirtorch_metrics/tooling/regression/` beside the nightly; this file is the
-record.  Runs from Greg's gautschi scrontab.
+Status: IMPLEMENTED 2026-09-03 (rev 3: the design after review, and the verification log at
+the end).  Code: `mbirtorch_metrics/tooling/regression/` (`cluster_probe.sh`, `lib_scron.sh`,
+`enable_probe.sh`, `disable_probe.sh`, the `PROBE_*` block in `regression.env`, three lines in
+`status_nightly.sh`, a README section).  Runs from Greg's gautschi scrontab.
 
 ## Why
 
-The nightly proves the library.  Nothing watches the cluster underneath it, and the
+The nightly proves the library.  Nothing watched the cluster underneath it, and the
 2026-09-03 pass through `.claude/cluster_use.md` found every one of these by hand:
 
 | failure mode | how it surfaces without a probe | evidence |
 |---|---|---|
-| a nightly dies silently: scrontab entry auto-disabled (`#DISABLED:`), job never submits | nothing — no run, no FAIL mail | the Mac jax series lost 51 nights (lessons.md §9) |
-| driver or module change breaks the wheels' CUDA | nightly aborts; interactive envs fail at the next session | `nvidia-smi` CUDA 13.2 vs pip-bundled 13.x today |
+| a nightly dies silently: scrontab entry auto-disabled (`#DISABLED:`), job never submits, log cut off mid-write, results never pushed | nothing — no run, no FAIL mail | the Mac jax series lost 51 nights (lessons.md §9); push failure is non-fatal by design |
+| driver or partition change; an env whose torch / CUDA build moved | nightly aborts; interactive envs fail at the next session | `nvidia-smi` CUDA 13.2 vs pip-bundled 13.x today |
 | scratch purge hollows a conda env (60 days unaccessed) | cryptic ImportError / `DirectoryNotACondaEnvironmentError` | the hollow `mbirjax` env found 2026-09-03 |
-| home quota creep (logs, pip/triton caches) | a job dies mid-write, no message | 25 GB quota, `myquota` |
+| home quota creep (logs, pip/triton caches) | a job dies mid-write, no message | 25 GB quota, 72.9% used on 2026-09-03 |
 | GPU-hour balance drains | submissions start failing | metered account; balance moved 2,716 → 21,857 between 08-06 and 09-03 |
-| cluster preamble drifts from the repo example | exactly this week's finding | md5 mismatch found 2026-09-03 |
-| a publish leaves bad perms or non-HTML on the public www root | 403s, or a leak | sphinx `_static` files already under `www/mbirjax/` |
+| cluster preamble drifts from the repo example | exactly this week's finding | mismatch found 2026-09-03 |
+| a publish leaves bad perms or data/source on the public www root | 403s, or a leak | sphinx `_static` files already under `www/mbirjax/` |
 | version tables in the guide rot | stale advice | every VERIFIED date in cluster_use.md |
 
-## What
+## What was built
 
-One SLURM job per week (Monday 06:00, account `bouman`, 1 GPU, `-t 0:15:00`, QoS `normal`)
-under Greg's scrontab, installed and removed the way the nightly is (managed block,
-markers `# mbirtorch-probe-BEGIN/END`).  The job:
+One SLURM job per week (Monday 08:00, account `bouman`, partition `ai`, QoS `normal`, 1 GPU,
+`-n 14`, `-t 0:15:00`) under Greg's scrontab, installed and removed the way the nightly is: a
+managed block with markers `# mbirtorch-probe-BEGIN/END`, written by `lib_scron.sh`.  The job:
 
-1. **Gathers facts** on a compute node (a GPU is needed for `nvidia-smi` and a CUDA init per
-   env), as `key=value` lines in a fixed order.
-2. **Classifies** them.  *Identity* facts are compared with a committed baseline; any change
-   is a finding.  *Threshold* facts are compared with knobs; a crossing is a finding.
-3. **Writes** the facts and the verdict to a group-readable depot directory, keeps the
-   previous facts file (for burn-rate), and appends a dated copy to `history/`.
-4. **Exits 1 when there is any finding**, so `--mail-type=FAIL` mails the report to
-   `NOTIFY`; exits 0 otherwise.  The report lists each finding with the old/new value.
-5. When identity facts changed, **prints a ready-to-commit baseline** so accepting a change
-   is one copy plus one commit, not a hand edit.
+1. **Gathers facts** on a compute node as `key=value` lines in a fixed order.  Every fact is
+   tri-state: `key=value` or `key=UNKNOWN:<reason>`.  Every external command runs under
+   `timeout`; a `find` that fails or times out yields UNKNOWN, never 0.
+2. **Classifies.**  Every UNKNOWN is a finding.  *Threshold* facts pass only if the value
+   parses as a number and satisfies the rule.  *Identity* facts are compared with the
+   **previous run's facts file**, which then advances — one mail per change, no committed
+   baseline.
+3. **Writes** the facts, the previous facts, a one-line status, and dated history copies to
+   `PROBE_STATUS_DIR` (`/depot/bouman/data/cluster_status`, readable by the whole group;
+   atomic tmp + `mv`).  When that directory is not writable it writes to `~/.mbirtorch/probe/`
+   and that is itself a finding.
+4. **Mails the report every run** (`sendmail -t`, the nightly's own idiom) — PASS or findings —
+   so a Monday without a `[cluster-probe]` mail is the signal that the probe died.  The scron
+   options carry `--mail-type=FAIL,TIME_LIMIT`, so a script that dies before line 1 still
+   produces a Slurm mail.
+5. **Exits 1 on any finding.**  An EXIT trap catches a death before the verdict, writes an
+   UNKNOWN status, mails, and exits 1.
 
-The probe never changes anything on the cluster: it reads, computes, and writes its own
-output files.  It does not touch `run_regression.sh`.
+Nothing here changes the cluster: it reads, computes, and writes its own output files.
 
 ## Facts
 
-Identity (baseline-diffed):
+Identity (diffed against the previous run):
 
 ```
-node                         (informational, excluded from the diff)
-driver                       nvidia-smi driver version
-cuda_max                     nvidia-smi "CUDA Version"
-module.conda / module.cuda / module.cudnn     versions loaded after sourcing ~/load_conda_cuda.sh
-cuda_default                 the marked (D) cuda module
-partition.ai.DefaultTime / MaxTime / DefMemPerCPU / MaxMemPerCPU
-env.<name>.python / torch / torch_cuda / triton / jax     per PROBE_ENVS, from pip list (no imports)
-env.<name>.gpu_ok            1 if a tiny CUDA workload ran in that env (torch matmul / jax reduce)
-preamble.matches_example     1 if md5(~/load_conda_cuda.sh) == md5(<metrics checkout>/tooling/regression/cluster_preamble.sh.example)
+driver, cuda_max                                 nvidia-smi driver and "CUDA Version"
+partition.ai.{DefaultTime,MaxTime,DefMemPerCPU,MaxMemPerCPU}
+env.<e>.{python,torch,torch_cuda,triton}         one python one-liner per env in PROBE_ENVS
 ```
 
-Threshold (knob-checked):
+Threshold / rule (each a finding when violated):
 
 ```
-hollow_envs                  dirs under ~/.conda/envs that `conda env list` does not list      == 0
-env.<name>.exposed           files with BOTH atime and mtime older than PROBE_STALE_DAYS (45)   informational only (see below)
-home_pct                     myquota, `home` row, Use column (72.9% on 2026-09-03)              < PROBE_HOME_PCT_MAX (80)
-depot_pct                    myquota, `depot bouman` row (66.6%); df shows the whole NFS, not the share   < PROBE_DEPOT_PCT_MAX (90)
-slist_balance                gautschi GPU-hours                                                 > PROBE_BALANCE_MIN (2000)
-burn_per_week                previous balance − this balance, scaled to 7 days                  < PROBE_BURN_MAX (1000)
-scrontab.blocks              names of managed blocks present                                    contains mbirtorch-nightly and mbirtorch-probe
-scrontab.disabled            count of `#DISABLED:` lines                                        == 0
-nightly_log_age_h            age of the newest nightly-*.log                                    < 48
-www.unreadable               under www/mbirtorch, www/mbirjax, www/pcdrecon: files without o=r, dirs without o=rx   == 0
-www.world_writable           anything under /depot/bouman/www with o=w (one such entry exists today)   == 0
-www.dangerous                data/archive/secret types (npy npz h5 hdf5 tgz tar gz zip pkl pt pth env pem key) under the three project roots   == 0
+env.<e>.gpu_ok           1 only if that env printed a token after a real GPU matmul     == 1
+preamble.ok              ~/load_conda_cuda.sh == cluster_preamble.sh.example, comments and blank lines stripped   == 1
+hollow_envs              dirs under ~/.conda/envs with no bin/python or conda-meta/history (no conda needed)   == 0
+home_pct / scratch_files_pct / depot_pct     myquota rows                              < 80 / < 80 / < 90
+slist_balance            gautschi GPU-hours                                          > 2000
+scrontab.disabled        `#DISABLED:` lines                                          == 0
+scrontab.nightly         the mbirtorch-nightly block is present                      == 1
+nightly.log_age_h        newest nightly-*.log (skipped while the nightly is RUNNING)  < 48
+nightly.log_complete     its last line is one of the wrapper's exit messages          == 1
+nightly.unpushed         `git rev-list --count @{u}..HEAD` in the nightly's clone     == 0
+www.unreadable / www.world_writable / www.dangerous / www.escaping_symlinks           == 0
+depot_writable           PROBE_STATUS_DIR accepted a write                            == 1
 ```
 
-Why these forms and not the earlier ones (fact-check 2026-09-03): an exact `-perm 644/755` test flags
-every setgid directory (`2755`) and the frozen, read-only mbirjax tree, 317 false findings today; an
-"only HTML" rule flags the 99 asset files of the sphinx export under `www/mbirjax/preprocessing/`;
-and `www/cisym/` legitimately serves `.zip` templates, so the dangerous-type rule is scoped to the
-three project roots.  Purge exposure: atimes do move on the Lustre scratch (verified), but an in-use
-env always has thousands of never-imported files older than any window, so a count is not a finding;
-it is logged so a rebuild can be planned.  The findings that mean damage are `hollow_envs` and
-`env.<name>.gpu_ok`.  (ctime is useless here: every env file's ctime is 8 days old today, some
-metadata pass touched them all.)
+Informational (logged, never a finding): `module.conda/cuda/cudnn`, `cuda_default`
+(verified 2026-09-03 not to matter), `burn_per_week` (negative after a top-up),
+`nightly.last_line`, `www.symlinks`, `home_used`, `scratch_pct`, node, job, date.
 
-## Files
+Rules that came out of the fact-check and the review: the www permission audit tests "readable
+by others" and "world-writable", skipping symlinks, because an exact `-perm 644/755` test flags
+setgid directories, the frozen read-only mbirjax tree, and the always-777 symlink; the
+dangerous-type rule (`npy npz h5 hdf5 tgz tar gz zip pkl pt pth env pem key py sh ipynb`) is
+scoped to the three project roots and skips sphinx `_static/_sources/_downloads`; symlinks
+under the roots must resolve inside the web root.  Purge exposure is not measured: an in-use
+env always has thousands of never-imported files older than any window, `find` over them was
+the slowest step, and RCAC mails a week ahead; `hollow_envs` and `gpu_ok` are the checks that
+mean damage.
 
-- `tooling/regression/cluster_probe.sh` — the job script (bash; python one-liners only inside
-  the batch job, never on a login node).
-- `tooling/regression/cluster_baseline.txt` — the committed identity facts.
-- `tooling/regression/enable_probe.sh`, `disable_probe.sh` — the managed scrontab block,
-  copied from `enable_nightly.sh`.
-- `tooling/regression/status_nightly.sh` — three more lines: probe block present, age of the
-  last facts file, last verdict.
-- `tooling/regression/regression.env` — `PROBE_SCHEDULE`, `PROBE_WALLTIME`, `PROBE_ENVS`,
-  `PROBE_STATUS_DIR`, and the thresholds above.  Note home is at 72.9% today, so the 80%
-  threshold will fire within weeks unless something is moved; that is the intended first alert.
-- `tooling/regression/README.md` — a section.
-- depot: `/depot/bouman/data/cluster_status/{gautschi_facts.txt, gautschi_facts.prev.txt,
-  probe_status.txt, history/}` (group `bouman-data`, readable by every member).
-- `mbirtorch_plans/.claude/cluster_use.md` — a "live facts" pointer at the depot file, and
-  the instruction that a Claude session reads `probe_status.txt` first and treats a facts
-  file older than 8 days as "the probe is dead".
+## Slurm mechanics the script respects
 
-## What is deliberately not in it
+- A scron job runs with a clean environment and in `$HOME`; the script sources `/etc/profile`
+  and the preamble itself and resolves everything by absolute path.  `set -o pipefail`
+  without `-e` (a failing gatherer must not abort before the verdict), `set -u` only after the
+  profile sourcing.
+- Cancelling a scron job, or a submission failure, comments the entry out with `#DISABLED:`.
+- `scrontab -` re-registers every entry, so installing the probe gives the nightly a new job
+  id and log filename.  Harmless.
+- A hand `sbatch` with `--export=ALL` would mask environment problems; trials use
+  `--export=PROBE_MAIL=0` (only that variable), and the last step is a real scheduled firing.
 
-- No change to `run_regression.sh` and no second GPU job on nightly cadence.
-- No prevention of the scratch purge (Greg accepts rebuilds); the probe only warns early.
-- No dashboard; the facts file and the mail are the interface.
-- No gilbreth: its module set is unverified since the jax era and it is not metered.
+## Review outcome (2026-09-03)
 
-## Slurm mechanics the script must respect
+Four Opus launches failed on server overload (HTTP 529); the review was done by the default
+model instead.  Verdict: implement with the must-fix items.  Adopted, all of them:
 
-- A scrontab job runs with a clean environment ("the user environment variables are ignored",
-  Slurm 26.05 manual) and in `$HOME`: the script sources `/etc/profile` and the preamble itself,
-  uses absolute paths, and reads its knobs from `regression.env` by absolute path.
-- Cancelling a scron job comments its entry out (`#DISABLED:` prefix); so does a submission
-  failure.  The check is a grep for that prefix in `scrontab -l`, which works from inside a job.
-- `srun` inside the job would eat the script's stdin; the probe uses none.
-- The nightly's log directory is `$HOME/.mbirtorch/regression` (readable: same account).
-
-## Self-death
-
-The probe cannot report its own missed run.  Backstops: `status_nightly.sh` shows the facts
-file's age; the cluster guide tells every session to check it; the mbirtorch nightly's
-`#DISABLED:` scan is done by the probe and the probe's by the reader of the facts file.
-That is the accepted gap.
+1. Slurm's FAIL mail is subject-only → the probe mails its own report (the nightly's
+   `sendmail -t` block), every run, and keeps `--mail-type=FAIL,TIME_LIMIT` as the backstop.
+2. Trials must not export the login environment → `--export=PROBE_MAIL=0` plus one real
+   scheduled firing.
+3. A raw md5 of the preamble fires on every comment edit → comment- and blank-stripped
+   comparison against the checkout's own example.
+4. Monday 06:00 can overlap a measuring nightly → 08:00, and the log checks are skipped while
+   the nightly is RUNNING; `-n 14` for one GPU.
+5. Burn rate is negative after a top-up and undefined on the first run → informational.
+6. Add `nightly.log_complete` (mid-write death) and `nightly.unpushed` (push failures are
+   non-fatal by design).
+7. Drop the purge-exposure scan; make the module facts informational; drop the tautological
+   "probe block present" check.
+8. Diff identity facts against the previous run and auto-advance; no committed baseline.
+9. Mail every week; a missing mail closes the self-death gap more reliably than a file age.
+10. Tri-state facts, pass-only-if tests, `timeout` everywhere, an EXIT trap → no false PASS.
+11. Depot unwritable → home fallback plus a finding; atomic writes.
+12. `gpu_ok` needs a printed token, not an exit code; `hollow_envs` without conda.
+13. One python one-liner per env instead of `pip list` parsing; knobs sourced from
+    `regression.env` with per-run overrides.
+14. Separate enable/disable pair, sharing `lib_scron.sh` (the nightly's scripts are unchanged).
 
 ## Cost
 
-One GPU for three to five minutes per week, under half a GPU-hour a month.
+One GPU for two to three minutes per week (trial 1: 97 s); well under half a GPU-hour a month.
 
-## Verification before scheduling
+## Verification log
 
-1. `sbatch cluster_probe.sh` by hand; read the facts file and the report.
-2. Commit the printed baseline; a second run must pass with no findings.
-3. Break one knob on purpose (`PROBE_HOME_PCT_MAX=1` via `--export`) and confirm exit 1 and
-   a report listing that finding only.
-4. `enable_probe.sh`; `scrontab -l` shows the block; `status_nightly.sh` shows it.
-
-## Questions for the review
-
-1. Baseline-diff for identity facts versus thresholds only: is the diff worth its baseline
-   maintenance, or should identity facts merely be logged?
-2. Weekly: is any row worth a daily check, given the nightly already runs daily?
-3. Anything missing from the fact list, or anything there that is noise?
-4. The self-death gap: is there a cheap closure?
-5. The facts file is group-readable on depot: anything in it that should not be?
+- Trial 1 (job 15856399, h001, `--export=PROBE_MAIL=0`): 97 s.  Every check worked except
+  `myquota`, which prints nothing on a compute node; the three quota facts came back
+  UNKNOWN and the run ended `FINDINGS(3)` — the tri-state rule doing its job.  Driver
+  595.71.05 / CUDA 13.2, all three envs `gpu_ok=1` on torch 2.13.0+cu130, preamble matches,
+  nightly log 8 h old and complete, nothing unpushed, www clean, depot writable.
+- Cause of the `myquota` failure: it fetches its table from the cluster's internal aux
+  server over HTTPS, and the preamble's `HTTPS_PROXY` sends that request to squid, which
+  cannot reach it (confirmed on a login node: with the proxy set it prints only the header).
+  Fix: the probe runs `myquota` with the proxy variables unset and logs its raw output when
+  the home row is missing.  It also records the job's real log path from `scontrol`.
+- Trials 2–4 (jobs 15856565–7, submitted together with `--export=PROBE_MAIL=0,...`, ~60 s
+  each): trial 2 `PASS`, exit 0, quotas parsed (home 72.9%, scratch inodes 2.8%, depot
+  66.6%), identity facts unchanged against trial 1's file.  Trial 3 with
+  `PROBE_HOME_PCT_MAX=1`: `FINDINGS(1)`, exactly `home_pct=72.9 (must be < 1)`, exit 1.
+  Trial 4 with `PROBE_STATUS_DIR=/depot/nonexistent/...`: `FINDINGS(1)`,
+  `depot_writable=0`, output in `~/.mbirtorch/probe/`, exit 1.
+- Live scheduled firing (job 15856600): the block was installed at 11:55 with the one-off
+  schedule `58 11 * * *`; Slurm released the job at 11:58, it waited two minutes for a GPU,
+  ran at 12:00 on h001, `PASS`, and mailed the report to buzzard@purdue.edu (`mail sent`).
+  `enable_probe.sh` was then re-run with the default `0 8 * * 1`, so the first regular run
+  is Monday 2026-09-07 08:00.
+- Deployment note: the cluster checkout `~/PycharmProjects/mbirtorch_metrics` carries the
+  probe files as untracked/modified copies (identical to what is staged locally).  After
+  these are committed and pushed, update the cluster with
+  `git stash -u && git pull --ff-only && git stash drop` in that checkout.
+- Expected first real finding: home is at 72.9% of its 25 GB, so `home_pct` will cross the
+  80% threshold within weeks unless something moves off home.

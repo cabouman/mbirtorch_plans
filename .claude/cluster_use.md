@@ -18,6 +18,11 @@ member of the group** who has the `bouman` queue on gautschi.  Conventions:
 - The account is shared.  **Coordinate before heavy or long batch use** — everyone's
   interactive sessions, the nightlies and every batch job draw on one queue and, on
   gautschi, one metered GPU-hour balance.
+- **Live facts beat this guide's numbers.**  A weekly probe writes the cluster's current
+  driver, module, env-version, quota and balance facts to
+  `/depot/bouman/data/cluster_status/gautschi_facts.txt` (see
+  [Keeping it checked](#keeping-it-checked-the-weekly-probe)).  Read it, and
+  `probe_status.txt` beside it, before trusting a dated value here.
 
 ## Contents
 
@@ -40,6 +45,7 @@ member of the group** who has the `bouman` queue on gautschi.  Conventions:
 - [Job preflight — two lines that catch the two worst failures](#job-preflight-two-lines-that-catch-the-two-worst-failures)
 - [Failure signatures → what they actually mean](#failure-signatures-what-they-actually-mean)
 - [Don't](#dont)
+- [Keeping it checked — the weekly probe](#keeping-it-checked-the-weekly-probe)
 - [Legacy mbirjax — sunset checklist](#legacy-mbirjax-sunset-checklist)
 
 ## First-time setup (once per person)
@@ -725,6 +731,7 @@ shadowing all fail the same way, by running code you did not think you were runn
 | prompt shows `bash-5.1$`, **or `module: command not found`** | non-login shell: `/etc/profile` (hence all of `/etc/profile.d/*.sh`) was not sourced.  That directory supplies BOTH the prompt and the `module` function.  The preamble listed above sources `/etc/profile` itself when `module` is missing, so this no longer comes from `~/load_conda_cuda.sh`; any OTHER script that calls `module` in a non-login shell still shows it.  Use `remote_cluster/claude_bashrc`, or copy the guard from the top of the preamble. |
 | XQuartz: "Cannot establish any listening sockets" | stale `/tmp/.X0-lock` from a failed start — delete it and retry. |
 | a GUI window vanished when its app closed | the allocation was `srun <cmd>`, which ends with the command.  Hold it with a shell instead. |
+| no `[cluster-probe]` mail arrived on Monday | the weekly probe died: `scrontab -l` for a `#DISABLED:` line, `status_nightly.sh` for the last status age, `enable_probe.sh` to reinstall. |
 | *(legacy)* tests pass but prove nothing about the GPU kernels | `tests/test_pallas_kernels.py` silently runs in interpret mode when `_pallas_kernels.availability()` is False.  Assert availability first. |
 
 ## Don't
@@ -749,6 +756,31 @@ shadowing all fail the same way, by running code you did not think you were runn
   gilbreth is lightly used by the group; submit freely there.
 - **Don't assume an uncommitted fix reaches the nightly** — it fresh-clones from origin.
 - **Don't start new work on mbirjax** — it is legacy; port to mbirtorch.
+
+## Keeping it checked — the weekly probe
+
+The nightly proves the library; nothing else watched the cluster underneath it until
+2026-09-03.  Now `cluster_probe.sh` in `mbirtorch_metrics/tooling/regression/` runs from
+Greg's scrontab every Monday at 08:00 on one GPU (a few minutes; `enable_probe.sh` /
+`disable_probe.sh`; design record in `plans/mbirtorch_metrics/cluster_probe_plan.md`).
+
+| it catches | how |
+|---|---|
+| a nightly that died silently (scron entry `#DISABLED:`, job never submitted, log cut off mid-write, results never pushed) | newest nightly log younger than 48 h with a clean last line; `#DISABLED:` scan; unpushed commits in the nightly's metrics clone |
+| a driver or partition change, or an env whose torch / CUDA build moved | identity facts diffed against the previous run |
+| an env that can no longer initialise CUDA, or was hollowed by the scratch purge | a real GPU matmul per env; env directories without a python |
+| home, scratch-inode or depot quota creeping up; the GPU-hour balance draining | `myquota` and `slist`, with thresholds and the weekly burn |
+| the cluster preamble drifting from the repo example | comment-stripped comparison |
+| the public web root serving unreadable, world-writable, data/source, or escaping-symlink entries | `find` audit of the three project roots |
+
+How it reports: a mail to Greg **every run**, PASS or findings, so **a Monday without a probe
+mail means the probe itself is dead**; exit 1 on any finding, so Slurm's FAIL mail backs it
+up; `probe_status.txt` and the facts file on depot, readable by every member;
+`status_nightly.sh` prints the last verdict and warns when it is more than eight days old.
+Every fact is `key=value` or `key=UNKNOWN:<reason>`, and an UNKNOWN is a finding, so an
+errored check never reads as a pass.  What it does not do: touch anything, prevent the
+purge, run on gilbreth, or replace the human monthly glance at the balance trend and the
+dashboard.
 
 ## Legacy mbirjax — sunset checklist
 
