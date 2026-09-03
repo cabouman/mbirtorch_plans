@@ -36,7 +36,7 @@ mbirtorch's advantages over LEAP are these:
 9. Automated view selection, which chooses which views to acquire.
 10. Hyperspectral neutron tomography support.
 
-mbirtorch reached a common NRMSE target in 8 to 14 times fewer iterations than LEAP, at all three sizes tested on noisy data. Once compilation is excluded, mbirtorch's warm time to that target is 7.1 times faster than LEAP's at N = 512 and 7.9 times faster at N = 1024. LEAP's single-GPU projectors were faster than mbirtorch's at every size in the cost-per-iteration benchmark. At N = 1024, LEAP's forward projection took 6.314 s against mbirtorch's 8.636 s. On four GPUs at N = 1024 the two forward projections were within one percent of each other, at 2.189 s for mbirtorch and 2.214 s for LEAP. Ten iterations took 75.81 s for mbirtorch on four GPUs, against LEAP's own best of 192.7 s on one GPU. The quality result is one phantom at one noise level, so it does not by itself show which package reconstructs better in general. Every number in this paragraph comes from `plans/experiments/features/leap_comparison/results/leap_benchmark_results.md` and `plans/experiments/features/leap_comparison/results/quality_results.md`.
+mbirtorch reached a common NRMSE target in 8 to 14 times fewer iterations than LEAP, at all three sizes tested on noisy data. Once compilation is excluded, mbirtorch's warm time to that target is 6.6 to 7.1 times faster than LEAP's at N = 512 and 7.9 times faster at N = 1024. LEAP's single-GPU projectors were faster than mbirtorch's at every size in the cost-per-iteration benchmark. At N = 1024, LEAP's forward projection took 6.314 s against mbirtorch's 8.636 s. On four GPUs at N = 1024 the two forward projections were within one percent of each other, at 2.189 s for mbirtorch and 2.214 s for LEAP. Ten iterations took 75.81 s for mbirtorch on four GPUs, against LEAP's own best of 192.7 s on one GPU. The quality result is one phantom at one noise level, so it does not by itself show which package reconstructs better in general. Every number in this paragraph comes from `plans/experiments/features/leap_comparison/results/leap_benchmark_results.md` and `plans/features/leap_comparison/quality_results.md`.
 
 ---
 
@@ -60,8 +60,8 @@ References in this section are written against two pinned commits and two invent
 
 - LEAP file references link under `https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/`.
 - mbirtorch file references link under `https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/`.
-- `LEAP-inv` = `plans/features/leap_comparison_sources/leap_inventory.md`.
-- `MT-inv` = `plans/features/leap_comparison_sources/mbirtorch_inventory.md`.
+- `LEAP-inv` = `plans/features/leap_comparison/leap_comparison_sources/leap_inventory.md`.
+- `MT-inv` = `plans/features/leap_comparison/leap_comparison_sources/mbirtorch_inventory.md`.
 
 ### Geometries
 
@@ -389,7 +389,7 @@ The benchmark leaves the following unmeasured:
 
 ### Fixed image quality on noisy data
 
-This study measured iterations to a fixed image quality on noisy data, using the timing study's geometry and phantom positions rescaled to attenuation values of 0.02, 0.01, and 0.04 per mm. Poisson noise at 10000 counts per pixel was added to the sinogram, and both libraries reconstructed from that same noisy sinogram and the same transmission weights. Each library started from its own direct reconstruction, then ran for exactly k iterations per point, scored by NRMSE against the voxelized phantom inside the inscribed cylinder. mbirtorch, not LEAP, forward projected the sinogram, which is an inverse crime, but a symmetric one, because the two projectors agree to 0.052 percent. The source for this subsection and the next is `plans/experiments/features/leap_comparison/results/quality_results.md`.
+This study measured iterations to a fixed image quality on noisy data, using the timing study's geometry and phantom positions rescaled to attenuation values of 0.02, 0.01, and 0.04 per mm. Poisson noise at 10000 counts per pixel was added to the sinogram, and both libraries reconstructed from that same noisy sinogram and the same transmission weights. Each library started from its own direct reconstruction, then ran for exactly k iterations per point, scored by NRMSE against the voxelized phantom inside the inscribed cylinder. mbirtorch, not LEAP, forward projected the sinogram, which is an inverse crime, but a symmetric one, because the two projectors agree to 0.052 percent. The source for this subsection and the next is `plans/features/leap_comparison/quality_results.md`.
 
 A parameter sweep at N = 256 found each library's best setting, confirmed against boundary probes so that neither winner sits at the edge of its grid:
 
@@ -422,6 +422,29 @@ The next table gives, for each size, the target NRMSE and the first iteration co
 | 1024 | 0.05788 | LEAP | 40 | 0.05675 | 703.057 | 753.106 |
 | 1024 | 0.05788 | mbirtorch | 5 | 0.04898 | 127.916 | 95.376 |
 
+The warm time column above carries over a direct-reconstruction time from the earlier timing study. This study's own direct reconstruction ran once per process, as that process's first GPU work, so it always paid compilation. A later run removed that limitation. It warmed each process first by discarding one direct reconstruction and two iterative reconstructions, at k = 3 and k = 5, before timing anything. Every run timed after that warm-up is free of compilation.
+
+The next table repeats the time-to-target comparison on that warm clock, for N = 256 and N = 512. The ratio is the LEAP warm time divided by the mbirtorch warm time.
+
+| N | target NRMSE | library | first k at target | warm time (s) | ratio |
+| --- | --- | --- | --- | --- | --- |
+| 256 | 0.04633 | LEAP | 100 | 7.921 | — |
+| 256 | 0.04633 | mbirtorch | 7 | 2.350 | 3.4 |
+| 512 | 0.03980 | LEAP | 100 | 112.851 | — |
+| 512 | 0.03980 | mbirtorch | 10 | 17.020 | 6.6 |
+
+The N = 1024 warm run measured only k = 5 and k = 10, not the full range measured at the other two sizes. Its target is therefore looser than the cold-process target, at 0.10188 against 0.05788. That row is not comparable to the cold-process N = 1024 row, so it is left out of the table above.
+
+The same warm run also measured each library's direct-reconstruction time on its own, rather than carrying it over from the timing study.
+
+| N | LEAP warm direct (s) | mbirtorch warm direct (s) |
+| --- | --- | --- |
+| 256 | 0.02988 | 0.02835 |
+| 512 | 0.29452 | 0.33461 |
+| 1024 | 4.28985 | 4.98876 |
+
+Each of these six times agrees within one percent with the timing-study value used earlier in this section to compute the warm time column.
+
 Two more measurements complete the comparison: each library's direct-reconstruction NRMSE on the noisy data, and its steady-state cost per iteration in this study.
 
 | N | LEAP `FBP` NRMSE | mbirtorch `recon_fdk` NRMSE |
@@ -438,20 +461,31 @@ Two more measurements complete the comparison: each library's direct-reconstruct
 
 mbirtorch's default stopping rule reaches a comparable result on its own, without the hand-tuned k values used above. With `max_iterations=100` and the default 0.2 percent relative-change rule, it stopped at 9, 10, and 12 iterations at N = 256, 512, and 1024, with NRMSE of 0.04357, 0.03887, and 0.03392. All three values were at or below that size's target.
 
-These results support five findings:
+Four figures show reconstructed slices at N = 512, in `plans/experiments/features/leap_comparison/results/`. Each one plots the phantom alongside LEAP and mbirtorch reconstructions on a common gray window of 0 to 0.045 per mm.
+
+- `quality_slices_matched_time_512.png` shows the phantom against LEAP at k = 14 and mbirtorch at k = 10, matched by wall time at about 16.8 s and 16.9 s. LEAP's NRMSE there is 0.07191 against mbirtorch's 0.03887. The LEAP panels show plainly more noise at that matched cost.
+- `quality_slices_matched_quality_512.png` shows the phantom against LEAP at k = 100 and mbirtorch at k = 10, matched by NRMSE instead of time, at 0.03902 against 0.03887.
+- `quality_slices_direct_512.png` shows the phantom against LEAP's `FBP` and mbirtorch's `recon_fdk`, the two direct reconstructions.
+- `quality_slices_difference_512.png` shows the absolute difference from the phantom for all five reconstructions, on one common scale set by the largest 99.9th-percentile difference among the panels.
+
+The NRMSE-against-wall-time plots listed in the sources below, `quality_nrmse_vs_time_256.png`, `_512.png`, and `_1024.png`, now hold the warm-process curves, which are monotone in time. The cold-process curves are kept alongside them under a `_coldprocess` suffix.
+
+These results support six findings:
 
 - mbirtorch reached the target in 8 to 14 times fewer iterations than LEAP, at every size.
 - Warm time to target favors mbirtorch by 3.3 times at N = 256, 7.1 times at N = 512, and 7.9 times at N = 1024.
-- Measured time, which includes compilation, is 1.6 times slower for mbirtorch at N = 256 and 5.5 times faster at N = 512 and N = 1024.
+- Measured time, which includes compilation, is 1.6 times slower for mbirtorch at N = 256 and 5.5 times faster at N = 512 and N = 1024. At N = 256 the compilation cost is fixed while the run itself is short, so that fixed cost is a large fraction of the total time.
+- Once the process is warm, mbirtorch reaches the target 3.4 times faster than LEAP at N = 256 and 6.6 times faster at N = 512.
 - mbirtorch's best NRMSE was lower than LEAP's at every size.
 - The default stop rule stopped at or below the target every time.
 
-Six caveats qualify this comparison:
+Seven caveats qualify this comparison:
 
 - LEAP was still descending at the last k measured at every size, so the target is set by where measurement stopped, and LEAP's best NRMSE may lie beyond it.
 - The TV sweep was a ten-point grid at N = 256, applied unchanged at the larger sizes.
 - RWLS has no `numSubsets` argument, so ordered-subsets acceleration was not available for this algorithm.
-- No warm direct reconstruction was measured in this study.
+- A warm direct reconstruction has since been measured for both libraries at all three sizes, and each value agrees with the borrowed value used above to within one percent.
+- The cold-process measured-time column runs backwards at small k, because both the k = 1 and the k = 2 runs pay a `torch.compile` cost. mbirtorch's default partition sequence introduces a new pixel-subset shape at iteration 2 ([mbirtorch/_utils.py:104](https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/mbirtorch/_utils.py#L104)). The compiled projectors use automatic dynamic shapes, so the first shape is specialized and the second distinct shape triggers one recompilation. The measured excess at N = 512 was 6.966 s at k = 1 and 8.344 s at k = 2, and it vanished at k = 3 and beyond.
 - N = 1024 has four k values and one steady-state run.
 - The comparison used one phantom, one noise draw, and one noise level.
 
@@ -484,7 +518,7 @@ A real scan with imperfect geometry would test both packages under calibration e
 
 A study at more than one noise level would show whether the iteration gap and the smoothing-strength result above hold beyond 10000 counts per pixel.
 
-The check of mbirtorch's automatic device policy for bare projector calls is done. Its steady-state penalty against a pinned four-device layout was 3.4 percent at N = 1024 (`plans/experiments/features/leap_comparison/results/quality_results.md`).
+The check of mbirtorch's automatic device policy for bare projector calls is done. Its steady-state penalty against a pinned four-device layout was 3.4 percent at N = 1024 (`plans/features/leap_comparison/quality_results.md`).
 
 ---
 
@@ -637,7 +671,7 @@ LEAP also uses multiple GPUs, so this is a difference of kind rather than a capa
 
 The head-to-head benchmark measured both designs at N = 1024. mbirtorch on four GPUs was faster than LEAP on four GPUs for back projection, direct reconstruction, and ten iterations, and the two were within one percent for forward projection.
 
-The same benchmark qualifies the automatic part of this strength, which is the automatic choice of GPU count. A bare projector call uses one device until a reconstruction entry point runs the device policy and widens the layout. A script that only calls `forward_project` or `back_project` therefore gets one GPU on a four-GPU node. Once the layout is settled, the automatic choice costs little: its steady-state penalty against a layout pinned to four devices was 3.4 percent at N = 1024 (`plans/experiments/features/leap_comparison/results/quality_results.md`).
+The same benchmark qualifies the automatic part of this strength, which is the automatic choice of GPU count. A bare projector call uses one device until a reconstruction entry point runs the device policy and widens the layout. A script that only calls `forward_project` or `back_project` therefore gets one GPU on a four-GPU node. Once the layout is settled, the automatic choice costs little: its steady-state penalty against a layout pinned to four devices was 3.4 percent at N = 1024 (`plans/features/leap_comparison/quality_results.md`).
 
 ### 2. An exact adjoint pair, checked automatically
 
@@ -651,7 +685,7 @@ LEAP also ships matched projector pairs, and its feature list names them first (
 
 mbirtorch's `recon()` minimizes a data term plus a qGGMRF prior by Multi-Granular Vectorized Coordinate Descent ([mbirtorch/tomography_model.py:3130](https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/mbirtorch/tomography_model.py#L3130)). It stops when the relative change between iterations falls below a threshold that defaults to 0.2 percent, rather than when a fixed iteration count runs out. It sets the noise and prior parameters automatically from two user parameters, `sharpness` and `snr_db` ([mbirtorch/tomography_model.py:2086-2186](https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/mbirtorch/tomography_model.py#L2086-L2186)).
 
-The stopping rule is qualified by the default iteration cap. `max_iterations` defaults to 15, this repository's partition-sequence plan recommends raising it to roughly 25 to 50, and its flash-remediation study records about 20 iterations to reach the 0.2 percent stop. The cap therefore often binds before the stopping rule fires. In the fixed-quality noisy-data study, with `max_iterations` raised to 100, the rule stopped at 9, 10, and 12 iterations at N = 256, 512, and 1024, at or below that study's target every time (`plans/experiments/features/leap_comparison/results/quality_results.md`).
+The stopping rule is qualified by the default iteration cap. `max_iterations` defaults to 15, this repository's partition-sequence plan recommends raising it to roughly 25 to 50, and its flash-remediation study records about 20 iterations to reach the 0.2 percent stop. The cap therefore often binds before the stopping rule fires. In the fixed-quality noisy-data study, with `max_iterations` raised to 100, the rule stopped at 9, 10, and 12 iterations at N = 256, 512, and 1024, at or below that study's target every time (`plans/features/leap_comparison/quality_results.md`).
 
 LEAP has regularized weighted least squares, which is a comparable objective. The two packages therefore differ in how they stop and how they set parameters, not in the objective. No LEAP algorithm takes a tolerance argument, and convergence is controlled only by `numIter` (`LEAP-inv` section 6.4). LEAP also asks the user to choose regularizer weights directly. mbirtorch derives those weights instead.
 
@@ -727,8 +761,8 @@ mbirtorch is about one month old as a public package and has no external issue h
 
 The following sources support every claim above:
 
-1. `plans/features/leap_comparison_sources/leap_inventory.md`, the sourced LEAP inventory, copied into this repository
-2. `plans/features/leap_comparison_sources/mbirtorch_inventory.md`, the sourced mbirtorch inventory, copied into this repository
+1. `plans/features/leap_comparison/leap_comparison_sources/leap_inventory.md`, the sourced LEAP inventory, copied into this repository
+2. `plans/features/leap_comparison/leap_comparison_sources/mbirtorch_inventory.md`, the sourced mbirtorch inventory, copied into this repository
 3. https://github.com/LLNL/LEAP/tree/0c8846f42b2e59340d5559fc1271d590a292f9a0 , the LEAP v1.26 tree that every LEAP reference above is pinned to
 4. `https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/` , the base URL that LEAP file references are written against
 5. `https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/` , the base URL that mbirtorch file references are written against
@@ -761,8 +795,13 @@ The following sources support every claim above:
 32. `plans/experiments/features/leap_comparison/quality_gautschi.sbatch`, the parameter sweep, curves, and default-stop job at all three sizes
 33. `plans/experiments/features/leap_comparison/quality_probe_gautschi.sbatch`, the boundary-probe job at N = 256
 34. `plans/experiments/features/leap_comparison/leap_cmp_autopin_gautschi.sbatch`, the automatic-against-pinned device-policy job at N = 1024
-35. `plans/experiments/features/leap_comparison/results/quality_results.md`, the noisy image-quality results
+35. `plans/features/leap_comparison/quality_results.md`, the noisy image-quality results
 36. `plans/experiments/features/leap_comparison/results/quality_nrmse_vs_time_256.png`, `_512.png`, and `_1024.png`, the NRMSE-against-wall-time curves at each size
+37. `plans/experiments/features/leap_comparison/quality_warm_gautschi.sbatch`, the warm-process re-measurement job
+38. `plans/experiments/features/leap_comparison/results/quality_warm_results.jsonl`, the warm-process curves, the measured warm direct reconstructions, and the N = 512 slice sets
+39. `plans/experiments/features/leap_comparison/results/quality_slices_matched_time_512.png`, `quality_slices_matched_quality_512.png`, `quality_slices_direct_512.png`, and `quality_slices_difference_512.png`, the N = 512 reconstruction-slice figures
+40. `plans/experiments/features/leap_comparison/results/slices_512/`, the raw slice arrays those figures were drawn from
+41. `plans/experiments/features/leap_comparison/results/quality_nrmse_vs_time_256_coldprocess.png`, `_512_coldprocess.png`, and `_1024_coldprocess.png`, the cold-process NRMSE-against-wall-time curves kept for comparison
 
 Three earlier records in this repository mention LEAP, and all three are cited above.
 

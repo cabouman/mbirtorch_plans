@@ -2,13 +2,15 @@
 
 Measured 2026-09-03 on the Purdue gautschi cluster, one NVIDIA H100 80GB HBM3
 per job except the device-policy check, which used four.  Every number below is
-read from the JSON files in this directory:
+read from the JSON files in
+`../../experiments/features/leap_comparison/results/`:
 
 | file | slurm job | what it holds |
 |---|---|---|
 | `quality_results.jsonl` | 15855240 | the sweep, the curves at N = 256, 512 and 1024, the steady-state times, the default-stop runs |
 | `quality_probe_results.jsonl` | 15855290 | the check that the sweep winners are not sitting on a grid boundary |
 | `autopin_results.jsonl` | 15855229 | mbirtorch's automatic device policy against a pinned four-device layout |
+| `quality_warm_results.jsonl` | 15856252 | the warm-process curves, the measured warm direct reconstructions, and the N = 512 slice sets |
 
 Software and hardware are as in `leap_benchmark_results.md`: LEAP 1.26 built
 from source, mbirtorch 0.0.2 at commit 26bd0ea, torch 2.13.0+cu130, Python
@@ -118,14 +120,16 @@ noisier answer than they started from.
 
 ![NRMSE against wall time at N = 512](../../experiments/features/leap_comparison/results/quality_nrmse_vs_time_512.png)
 
-The same figure is in this directory for N = 256
-(`quality_nrmse_vs_time_256.png`) and N = 1024
-(`quality_nrmse_vs_time_1024.png`).
+The cold-process figures are kept under a `_coldprocess` suffix
+(`quality_nrmse_vs_time_256_coldprocess.png`, `..._512_coldprocess.png`,
+`..._1024_coldprocess.png`); the unsuffixed names now hold the warm-process
+curves of the section below.
 
-Wall time is the direct reconstruction plus k iterations, as measured.  The
-dashed curves in the figure remove mbirtorch's one-time compilation by using its
-steady-state cost per iteration instead; LEAP has no such cost and its two
-curves nearly coincide.
+Wall time is the direct reconstruction plus k iterations, as measured in a
+process whose runs ascend in k, so the k = 1 and k = 2 entries carry
+mbirtorch's compilation and the curve runs backwards at its left end.  The
+warm-process section below re-measures all of this with that cost removed; the
+NRMSE values are identical and only the times change.
 
 | k | LEAP NRMSE | LEAP time (s) | mbirtorch NRMSE | mbirtorch time (s) |
 |---|---|---|---|---|
@@ -261,6 +265,193 @@ measured, so its curve had not flattened and a longer run might do better than
 the target it set.  At N = 1024 it reaches the target at k = 40, also the last
 point measured.  mbirtorch's curve is flat from k = 20 onward at every size.
 
+## Warm-process re-measurement (job 15856252)
+
+Greg spotted that the measured mbirtorch curve above runs backwards at its left
+end: the k = 1 run is slower than the k = 5 run.  That is a property of the run
+order, not of the timer, and the cause is worth recording because it will recur
+in any study that sweeps iteration counts.
+
+**Why two compilations, and why at iterations 1 and 2.**  mbirtorch's default
+partition sequence is `[2, 4, 6] + [7, 8, 9, 10] * 25`
+(`mbirtorch/_utils.py`, line 104), indexing into the default granularity
+`[1, 2, 4, 8, 16, 32, 64, 128, 128, 128, 128]`.  So iteration 1 sweeps 4 pixel
+subsets, iteration 2 sweeps 16, iteration 3 sweeps 64, and iterations 4 onward
+sweep 128.  The subset count sets the pixel-batch shape the projector kernels
+see, and `maybe_compile` in `mbirtorch/projectors.py` wraps those kernels with
+`torch.compile(fn)` at its default `dynamic=None`, which is automatic dynamic
+shapes: the first shape is specialized, the *second* distinct shape triggers one
+recompilation to a shape-general kernel, and every later shape reuses that.  Two
+compilation events, at iterations 1 and 2 — exactly where the excess time
+appears, and nowhere else.
+
+The warm re-run measures that directly.  Each process now discards one direct
+reconstruction and two reconstructions (k = 3 and k = 5) before any timing.
+Every NRMSE is identical to the cold run to five decimals, so only the clock
+changed:
+
+| k | warm iterations (s) | cold iterations (s) | cold minus warm (s) |
+|---|---|---|---|
+| 1 | 2.556 | 9.522 | +6.966 |
+| 2 | 3.457 | 11.801 | +8.344 |
+| 3 | 4.688 | 4.650 | -0.038 |
+| 5 | 8.118 | 8.094 | -0.023 |
+| 7 | 11.536 | 11.526 | -0.010 |
+| 10 | 16.683 | 16.657 | -0.026 |
+| 15 | 25.263 | 25.224 | -0.039 |
+| 20 | 33.826 | 33.805 | -0.020 |
+| 30 | 50.956 | 50.946 | -0.010 |
+| 50 | 85.172 | 85.132 | -0.040 |
+| 75 | 127.882 | 128.100 | +0.218 |
+| 100 | 170.808 | 170.740 | -0.067 |
+
+The excess is 6.966 s at k = 1 and 8.344 s at k = 2 and then vanishes: every
+k >= 3 agrees with the cold run to better than 0.07 s except k = 75, which
+differs by 0.218 s.  Total one-time cost 15.31 s at N = 512.
+
+The discarded warm-up runs, timed so the record says what they cost.  The
+mbirtorch k = 3 run is the expensive one at every size and its k = 5 run is
+already clean, which is the same statement as the table above.  LEAP has nothing
+to compile and its warm-up runs cost what its timed runs do.
+
+| N | library | discarded direct (s) | discarded k = 3 (s) | discarded k = 5 (s) |
+|---|---|---|---|---|
+| 256 | leap | 0.035 | 0.406 | 0.461 |
+| 256 | mbirtorch | 6.721 | 12.212 | 1.455 |
+| 512 | leap | 0.300 | 4.463 | 6.573 |
+| 512 | mbirtorch | 3.409 | 9.258 | 8.052 |
+| 1024 | leap | 4.305 | 67.850 | 102.172 |
+| 1024 | mbirtorch | 8.049 | 80.615 | 95.714 |
+
+### Warm direct reconstructions, finally measured
+
+Best of three in each process.  These are the numbers the target table above had
+to borrow from the timing study, and they confirm the borrowing: mbirtorch
+0.02835 against 0.02819 s at N = 256, 0.33461 against 0.33642 at N = 512,
+4.98876 against 4.98008 at N = 1024, all within one percent.
+
+| N | library | best of three (s) | the three runs (s) | NRMSE |
+|---|---|---|---|---|
+| 256 | leap | 0.02988 | 0.0305, 0.0299, 0.0301 | 0.09987 |
+| 256 | mbirtorch | 0.02835 | 0.0303, 0.0285, 0.0284 | 0.11237 |
+| 512 | leap | 0.29452 | 0.2953, 0.2945, 0.2946 | 0.11810 |
+| 512 | mbirtorch | 0.33461 | 0.3390, 0.3346, 0.3348 | 0.14153 |
+| 1024 | leap | 4.28985 | 4.2916, 4.2899, 4.2903 | 0.15638 |
+| 1024 | mbirtorch | 4.98876 | 5.0009, 4.9893, 4.9888 | 0.19245 |
+
+### Warm-process curves
+
+Wall time is the warm direct reconstruction plus k iterations.  Both curves are
+now monotone in time.
+
+![NRMSE against wall time at N = 512, warm process](../../experiments/features/leap_comparison/results/quality_nrmse_vs_time_512.png)
+
+**N = 512**
+
+| k | LEAP NRMSE | LEAP warm time (s) | mbirtorch NRMSE | mbirtorch warm time (s) |
+|---|---|---|---|---|
+| 1 | 0.09909 | 2.467 | 0.13549 | 2.893 |
+| 2 | 0.09359 | 3.578 | 0.10826 | 3.794 |
+| 3 | 0.09091 | 4.691 | 0.06788 | 5.025 |
+| 5 | 0.08623 | 6.918 | 0.04632 | 8.455 |
+| 7 | 0.08247 | 9.143 | 0.04113 | 11.874 |
+| 10 | 0.07760 | 12.479 | 0.03887 | 17.020 |
+| 15 | 0.07060 | 18.041 | 0.03798 | 25.600 |
+| 20 | 0.06464 | 23.604 | 0.03778 | 34.163 |
+| 30 | 0.05548 | 34.729 | 0.03769 | 51.293 |
+| 50 | 0.04594 | 57.030 | 0.03765 | 85.509 |
+| 75 | 0.04127 | 85.282 | 0.03763 | 128.219 |
+| 100 | 0.03902 | 112.851 | 0.03762 | 171.145 |
+
+**N = 256**
+
+| k | LEAP NRMSE | LEAP warm time (s) | mbirtorch NRMSE | mbirtorch warm time (s) |
+|---|---|---|---|---|
+| 1 | 0.08804 | 0.178 | 0.10754 | 0.273 |
+| 2 | 0.08400 | 0.256 | 0.08456 | 0.363 |
+| 3 | 0.08205 | 0.334 | 0.06131 | 0.590 |
+| 5 | 0.07852 | 0.490 | 0.04833 | 1.472 |
+| 7 | 0.07564 | 0.647 | 0.04489 | 2.350 |
+| 10 | 0.07195 | 0.882 | 0.04321 | 3.668 |
+| 15 | 0.06688 | 1.273 | 0.04249 | 5.863 |
+| 20 | 0.06288 | 1.664 | 0.04234 | 8.039 |
+| 30 | 0.05737 | 2.447 | 0.04228 | 12.407 |
+| 50 | 0.05158 | 4.258 | 0.04227 | 21.142 |
+| 75 | 0.04783 | 7.277 | 0.04226 | 32.101 |
+| 100 | 0.04542 | 7.921 | 0.04226 | 43.007 |
+
+**N = 1024** (two iteration counts only)
+
+| k | LEAP NRMSE | LEAP warm time (s) | mbirtorch NRMSE | mbirtorch warm time (s) |
+|---|---|---|---|---|
+| 5 | 0.11085 | 106.823 | 0.04898 | 100.684 |
+| 10 | 0.09988 | 192.611 | 0.03498 | 185.862 |
+
+### Iterations and time to the common target, on the warm clock
+
+The same rule as before, applied to the warm curves: 1.02 times the larger of
+the two libraries' best NRMSE among the k that were measured.  The table two
+sections above uses the cold-process clock; this one uses the warm clock.
+
+| N | target NRMSE | library | first k at or below target | NRMSE there | warm time (s) |
+|---|---|---|---|---|---|
+| 256 | 0.04633 | LEAP | 100 | 0.04542 | 7.921 |
+| 256 | 0.04633 | mbirtorch | 7 | 0.04489 | 2.350 |
+| 512 | 0.03980 | LEAP | 100 | 0.03902 | 112.851 |
+| 512 | 0.03980 | mbirtorch | 10 | 0.03887 | 17.020 |
+| 1024 | 0.10188 | LEAP | 10 | 0.09988 | 192.611 |
+| 1024 | 0.10188 | mbirtorch | 5 | 0.04898 | 100.684 |
+
+At N = 256 and N = 512 the target is identical to the cold-process one, because
+the NRMSE values are identical and only the clock changed; mbirtorch reaches it
+**3.4 times faster** at N = 256 and **6.6 times faster** at N = 512.
+
+**The N = 1024 row of this table is not comparable to the cold-process one.**
+The warm run measured only k = 5 and k = 10 there, so LEAP's best is 0.09988
+rather than the 0.05675 it reached at k = 40 in the cold run, and the target is
+correspondingly looser (0.10188 against 0.05788).  For an N = 1024 target read
+the cold-process table.  What the warm N = 1024 points show without any target
+argument is that mbirtorch at k = 10 (NRMSE 0.03498 in 185.862 s) is already
+better than LEAP's best cold-run result at k = 40 (0.05675 in 703.057 s), at a
+quarter of the time.
+
+## Reconstruction images at N = 512
+
+The slices are in `../../experiments/features/leap_comparison/results/slices_512/` as .npy, three planes per volume, for the
+phantom and five reconstructions.  A note on the planes: **no axis-aligned plane
+contains both inner sphere centres.**  Sphere A (value 0.5) is cut by coronal
+planes with y between -45 and 5 mm and sphere B (value 2.0) by planes with y
+between 17 and 53 mm, and those ranges are disjoint; the z ranges are disjoint
+too.  So instead of one coronal slice through both, each figure has three rows:
+the centre axial slice at z = N/2 (which cuts only the large sphere, because
+sphere A is exactly tangent to that plane), a coronal plane through sphere A, and
+a coronal plane through sphere B, with the zoom inset on the sphere in that row.
+
+| panel | NRMSE | warm wall time (s) |
+|---|---|---|
+| phantom | 0.00000 | 0.000 |
+| leap_direct | 0.11810 | 0.295 |
+| mbirtorch_direct | 0.14153 | 0.335 |
+| leap_iterative_k14 | 0.07191 | 16.806 |
+| mbirtorch_iterative_k10 | 0.03887 | 16.928 |
+| leap_iterative_k100 | 0.03902 | 112.793 |
+
+![matched wall time at N = 512](../../experiments/features/leap_comparison/results/quality_slices_matched_time_512.png)
+
+Figures, all reconstructions on a common gray window of 0 to 0.045 per mm:
+
+* `quality_slices_matched_time_512.png` — phantom, LEAP k = 14, mbirtorch
+  k = 10.  Matched wall time, 16.81 s against 16.93 s: at the same cost
+  mbirtorch's error is 0.03887 against LEAP's 0.07191, and the difference shows
+  plainly as noise in the LEAP panels.
+* `quality_slices_matched_quality_512.png` — phantom, LEAP k = 100, mbirtorch
+  k = 10.  Matched quality, 0.03902 against 0.03887: LEAP needs 112.79 s to
+  mbirtorch's 16.93 s, a factor of 6.7.
+* `quality_slices_direct_512.png` — phantom, LEAP `FBP`, mbirtorch `recon_fdk`.
+* `quality_slices_difference_512.png` — absolute difference from the phantom for
+  all five reconstructions on one common scale, chosen as the largest 99.9th
+  percentile over the panels drawn and printed in the figure title.
+
 ## mbirtorch with its own stopping rule left in place
 
 `recon(..., max_iterations=100)` with the default
@@ -330,10 +521,12 @@ lead device.
    would have run the direct reconstruction three times per process, as the
    iterative one was; that was not done.
 
-3. **The wall times for small k are inflated by compilation** in whichever run
-   comes first in a process, and the runs ascend in k, so the small-k runs carry
-   it.  Every conclusion above is therefore stated on all three clocks rather
-   than one.
+3. **The wall times for small k in the cold-process tables are inflated by
+   compilation** in whichever run comes first in a process, and the runs ascend
+   in k, so the small-k runs carry it.  That is now measured rather than
+   estimated, in the warm-process section: 6.966 s at k = 1 and 8.344 s at
+   k = 2 at N = 512, and nothing at k >= 3.  The cold-process tables are kept
+   as they were measured; read the warm-process tables for a clock without it.
 
 4. **LEAP's curve never reached a converged optimum.**  It was still
    descending at the last measured point at all three sizes — k = 100 at
@@ -349,6 +542,27 @@ lead device.
    hours per library.  The N = 1024 rows are a confirmation of the shape found
    at the two smaller sizes, not an independent measurement of equal density.
 
-6. **One phantom, one noise level, one seed.**  Nothing here separates the two
+6. **LEAP's warm k = 75 point at N = 256 is out of line with its neighbours**:
+   7.247 s against 4.258 s at k = 50 and 7.891 s at k = 100, where a linear
+   cost would give about 6.4 s.  The cold-process run at the same point read
+   5.915 s.  It looks like a transient on the node rather than a property, and
+   it does not touch any conclusion: the k = 100 point that sets the target
+   reads 7.891 s warm against 7.861 s cold.
+
+7. **The N = 1024 warm curve has only k = 5 and k = 10**, so its common target
+   is much looser than the cold-process one and the two N = 1024 target rows
+   must not be compared.  Twelve iteration counts there would have cost about
+   five hours per library.
+
+8. **This document was moved while this study was running.**  Another session
+   relocated it from
+   `plans/experiments/features/leap_comparison/results/quality_results.md` to
+   `plans/features/leap_comparison/quality_results.md` and committed it there
+   (commit 0da862f).  The warm-process and image sections were written into the
+   relocated copy rather than the old path, so there is one document, not two.
+   The JSON files, figures and slices all remain under
+   `plans/experiments/features/leap_comparison/results/`.
+
+9. **One phantom, one noise level, one seed.**  Nothing here separates the two
    libraries' image quality in general; it compares two particular algorithms at
    their best setting on one problem.
