@@ -301,6 +301,18 @@ sinogram with `correct_det_rotation`.  Both routes approximate the same rotation
 plane.  The resampling route costs one interpolation of the data and leaves the projectors
 unchanged.
 
+A resampled sinogram must not cost a second full-size array.  Greg set this constraint on
+2026-09-03.  A production sinogram can be tens of gigabytes, so a correction that returns a new
+array of the same size doubles the host memory of the run.  `correct_det_rotation` already moves
+the views to a device one batch at a time through `pipeline.map_view_batches`, but it assembles a
+new host array for the result (`mbirtorch/preprocess/utilities.py:265-292`).  The calibration
+corrections should instead write each corrected batch back over the input views, or stream the
+batches straight into the device-resident sinogram that the reconstruction will use.  The
+`parameter_sweep` and estimator paths already avoid the copy, because they resample only the
+reduced problem.  A longer-term alternative is to let the projectors absorb a small detector
+rotation, as LEAP's cone-beam kernels do, so that no resampling is needed.  That is a larger
+project and is not part of this plan.
+
 ### Search and the reduced problem
 
 Each parameter is searched with one coarse pass followed by a bracketed polish.  The coarse pass
