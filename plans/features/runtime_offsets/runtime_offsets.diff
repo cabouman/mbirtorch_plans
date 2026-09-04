@@ -1,0 +1,221 @@
+diff --git a/mbirtorch/_utils.py b/mbirtorch/_utils.py
+index 89009d5..317cdcb 100644
+--- a/mbirtorch/_utils.py
++++ b/mbirtorch/_utils.py
+@@ -60,8 +60,14 @@ _forward_model_defaults_dict = {
+     'sinogram_shape': Param(None, True),
+     'delta_det_channel': Param(1.0, True),
+     'delta_det_row': Param(1.0, True),
+-    'det_row_offset': Param(0.0, True),
+-    'det_channel_offset': Param(0.0, True),
++    # The two detector offsets are RUNTIME inputs: each geometry's
++    # _view_batch_args turns them into 0-dimensional tensors on the calling
++    # device, so a compiled body reads the current value as data and torch
++    # never guards on it.  Nothing else in the model is derived from them --
++    # not the psf radii, not the recon shape, not the damping profile -- so
++    # changing one needs no projector rebuild and the flag is False.
++    'det_row_offset': Param(0.0, False),
++    'det_channel_offset': Param(0.0, False),
+     'sigma_y': Param(1.0, False),
+     'alu_unit': Param(None, False),
+     'alu_value': Param(1.0, False),
+diff --git a/mbirtorch/cone_beam.py b/mbirtorch/cone_beam.py
+index cf5ad5e..b11e98b 100644
+--- a/mbirtorch/cone_beam.py
++++ b/mbirtorch/cone_beam.py
+@@ -394,7 +394,7 @@ class ConeBeamModel(TomographyModel):
+             fwd_body = _cone_forward_view_batch
+         return fwd_body, back_body
+ 
+-    def _view_batch_args(self):
++    def _view_batch_args(self, device=None):
+         gp_names = ['delta_det_row', 'delta_det_channel', 'det_row_offset',
+                     'det_channel_offset', 'source_detector_dist', 'delta_voxel',
+                     'voxel_row_aspect', 'voxel_slice_aspect', 'recon_slice_offset',
+@@ -408,7 +408,13 @@ class ConeBeamModel(TomographyModel):
+                     num_slices=recon_shape[2], delta_voxel=dv,
+                     delta_voxel_row=vra * dv, delta_voxel_slice=vsa * dv,
+                     delta_det_channel=ddc, delta_det_row=ddr,
+-                    det_channel_offset=dco, det_row_offset=dro,
++                    # 0-dim tensors, not floats, so the compiled bodies read
++                    # the current offsets as data and changing either costs no
++                    # retrace (see TomographyModel._runtime_scalar).
++                    det_channel_offset=self._runtime_scalar(
++                        'det_channel_offset', dco, device),
++                    det_row_offset=self._runtime_scalar(
++                        'det_row_offset', dro, device),
+                     recon_slice_offset=rso, magnification=self.get_magnification(),
+                     source_detector_dist=sdd, use_curved_detector=curved,
+                     psf_radius=psf_radius, bp_psf_radius=bp_psf_radius)
+diff --git a/mbirtorch/multiaxis_parallel.py b/mbirtorch/multiaxis_parallel.py
+index 7c15c9e..b25c542 100644
+--- a/mbirtorch/multiaxis_parallel.py
++++ b/mbirtorch/multiaxis_parallel.py
+@@ -268,7 +268,10 @@ class MultiAxisParallelModel(TomographyModel):
+         # are the only bodies.
+         return _multiaxis_forward_view_batch, _multiaxis_back_view_batch
+ 
+-    def _view_batch_args(self):
++    def _view_batch_args(self, device=None):
++        # ``device`` is accepted (the drivers pass it) and unused: this
++        # geometry still hands its offsets over as python floats, so it keeps
++        # the one-time retrace the tensor form removes for parallel and cone.
+         gp_names = ['delta_det_row', 'delta_det_channel', 'det_row_offset',
+                     'det_channel_offset', 'delta_voxel', 'voxel_row_aspect',
+                     'voxel_slice_aspect', 'recon_slice_offset']
+diff --git a/mbirtorch/parallel_beam.py b/mbirtorch/parallel_beam.py
+index 32102f2..cc01ead 100644
+--- a/mbirtorch/parallel_beam.py
++++ b/mbirtorch/parallel_beam.py
+@@ -275,7 +275,7 @@ class ParallelBeamModel(TomographyModel):
+             fwd_body = _parallel_forward_view_batch
+         return fwd_body, back_body
+ 
+-    def _view_batch_args(self):
++    def _view_batch_args(self, device=None):
+         gp_names = ['delta_det_channel', 'det_channel_offset', 'delta_voxel',
+                     'voxel_row_aspect']
+         delta_det_channel, det_channel_offset, delta_voxel, voxel_row_aspect = \
+@@ -285,7 +285,11 @@ class ParallelBeamModel(TomographyModel):
+         return dict(num_rows=recon_shape[0], num_cols=recon_shape[1],
+                     num_channels=num_channels,
+                     delta_det_channel=delta_det_channel,
+-                    det_channel_offset=det_channel_offset,
++                    # A 0-dim tensor, not a float, so the compiled bodies read
++                    # the current offset as data and changing it costs no
++                    # retrace (see TomographyModel._runtime_scalar).
++                    det_channel_offset=self._runtime_scalar(
++                        'det_channel_offset', det_channel_offset, device),
+                     delta_voxel=delta_voxel,
+                     delta_voxel_row=voxel_row_aspect * delta_voxel,
+                     psf_radius=self.get_psf_radius())
+diff --git a/mbirtorch/projectors.py b/mbirtorch/projectors.py
+index fdf9560..a877bf1 100644
+--- a/mbirtorch/projectors.py
++++ b/mbirtorch/projectors.py
+@@ -558,11 +558,14 @@ class Projectors:
+         """
+         m = self.model
+         v0, v1 = view_range
+-        args = m._view_batch_args()
++        view_params = self._view_params_per_dev[dev_index]
++        # This owner's device, so a geometry that hands a scalar over as a
++        # TENSOR builds it where this call's arrays already live -- every
++        # device of a sharded run gets its own copy of the value.
++        args = m._view_batch_args(device=view_params.device)
+         fwd_body = self._fwd_body_per_dev[dev_index]
+         vb_size = self._effective_view_batch(fwd_body, pixel_indices.shape[0],
+                                              band_values.shape[-1], args)
+-        view_params = self._view_params_per_dev[dev_index]
+         out = accumulate_into
+         # Whether this call adds into a block it was handed or fills one of its
+         # own, decided ONCE here rather than per view batch: an accumulating
+@@ -615,11 +618,12 @@ class Projectors:
+         """
+         m = self.model
+         v0, v1 = view_range
+-        args = m._view_batch_args()
++        view_params = self._view_params_per_dev[dev_index]
++        # This owner's device, for the reason the forward loop above gives.
++        args = m._view_batch_args(device=view_params.device)
+         back_body = self._back_body_per_dev[dev_index]
+         vb_size = self._effective_view_batch(back_body, pixel_indices.shape[0],
+                                              local_sino.shape[1], args)
+-        view_params = self._view_params_per_dev[dev_index]
+         out = None
+         for v in range(v0, v1, vb_size):
+             view_params_batch = view_params[v:min(v + vb_size, v1)]
+diff --git a/mbirtorch/tomography_model.py b/mbirtorch/tomography_model.py
+index c830bd3..16076ec 100644
+--- a/mbirtorch/tomography_model.py
++++ b/mbirtorch/tomography_model.py
+@@ -32,6 +32,7 @@ from ._utils import _AUTO_REGULARIZATION_PARAM_NAMES, recon_param_names
+ from .parameter_handler import ParameterHandler
+ from .projectors import Projectors, maybe_compile
+ 
++_F32 = torch.float32
+ _F32_EPS = float(np.finfo(np.float32).eps)
+ 
+ # ── the multi-device forward's cylinder transfer ─────────────────────────────
+@@ -294,12 +295,63 @@ class TomographyModel(ParameterHandler):
+             f'{type(self).__name__} defines no per-view-batch projection '
+             'bodies.')
+ 
+-    def _view_batch_args(self):
++    def _view_batch_args(self, device=None):
+         """The eager argument dict for this geometry's bodies: every
+         parameter read happens HERE, outside the traced region, per call --
+-        never frozen at build time (the stale-bind lesson)."""
++        never frozen at build time (the stale-bind lesson).
++
++        ``device`` is the device the bodies will run on for this call; the
++        drivers pass the device of the view parameters they are about to use,
++        so a sharded run gets each device's own copy of any scalar that is
++        handed over as a tensor (see :meth:`_runtime_scalar`).  None means the
++        model's own device, which is what every non-driver caller wants."""
+         raise NotImplementedError
+ 
++    def _runtime_scalar(self, name, value, device=None):
++        """``value`` as a 0-dimensional float32 tensor on ``device``.
++
++        A geometry passes a scalar through this when the scalar must be a
++        RUNTIME input to the compiled bodies rather than a constant baked into
++        them.  torch.compile guards a python float by VALUE -- change the
++        float and the body is traced again -- but it guards a tensor only by
++        dtype, device, shape and layout, all of which are the same for every
++        value here.  So a scalar handed over this way can change as often as
++        the caller likes without costing a single retrace.
++
++        The tensors are memoized per (name, value, device) because the drivers
++        ask for them on every projection call and a fresh allocation plus a
++        four-byte host-to-device copy per call is pure waste when the value
++        almost never changes.  The memo is small and is emptied wholesale once
++        it grows past its cap, so a caller sweeping thousands of values cannot
++        make it grow without bound.
++
++        ``name`` IS PART OF THE KEY, and that is the whole reason it exists:
++        without it two arguments that happen to hold the same number would get
++        the SAME tensor object, and dynamo installs an ALIASING guard on
++        arguments it sees as one object ("det_channel_offset is
++        det_row_offset").  Changing one of the two then breaks that guard and
++        the body is traced again -- exactly the retrace this method removes.
++        Measured on the cone bodies, whose two offsets both default to 0.0.
++        """
++        dev = self.torch_device if device is None else torch.device(device)
++        key = (str(name), float(value), str(dev))
++        cache = getattr(self, '_runtime_scalar_cache', None)
++        if cache is None:
++            cache = self._runtime_scalar_cache = {}
++        hit = cache.get(key)
++        if hit is not None:
++            return hit
++        if len(cache) >= self._RUNTIME_SCALAR_CACHE_MAX:
++            cache.clear()
++        tensor = torch.tensor(float(value), dtype=_F32, device=dev)
++        cache[key] = tensor
++        return tensor
++
++    #: How many (name, value, device) scalars :meth:`_runtime_scalar`
++    #: memoizes before it empties the memo.  One value per scalar per device
++    #: is the steady state; the cap only bounds a sweep.
++    _RUNTIME_SCALAR_CACHE_MAX = 256
++
+     def _transient_cols(self, band_cols):
+         """The column count of this geometry's dominant per-view transient,
+         for the driver's view-batch budget.  The base tracks the runtime
+diff --git a/mbirtorch/translation_model.py b/mbirtorch/translation_model.py
+index eea5f81..7209e54 100644
+--- a/mbirtorch/translation_model.py
++++ b/mbirtorch/translation_model.py
+@@ -284,7 +284,10 @@ class TranslationModel(TomographyModel):
+         # bodies are the only bodies.
+         return _translation_forward_view_batch, _translation_back_view_batch
+ 
+-    def _view_batch_args(self):
++    def _view_batch_args(self, device=None):
++        # ``device`` is accepted (the drivers pass it) and unused: this
++        # geometry still hands its offsets over as python floats, so it keeps
++        # the one-time retrace the tensor form removes for parallel and cone.
+         gp_names = ['delta_det_row', 'delta_det_channel', 'det_row_offset',
+                     'det_channel_offset', 'source_detector_dist', 'delta_voxel',
+                     'voxel_row_aspect', 'voxel_slice_aspect']
