@@ -1,4 +1,8 @@
 *.npz
+*.npy
 *.json
+*.jsonl
 *.pptx
 *.log
+*.png
+*.sbatch
