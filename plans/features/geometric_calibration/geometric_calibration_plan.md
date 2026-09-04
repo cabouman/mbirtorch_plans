@@ -217,7 +217,16 @@ coordinate `y` as well as `x`, and the flat-detector channel coordinate `u = pix
 depends on `y` through `pixel_mag` (`mbirtorch/cone_beam.py:75` and `:93`).  A band of rows around
 the center row removes that cone-angle error.  The larger error is the fan angle.  The central
 plane of a circular cone-beam scan is a fan beam, and there the conjugate of the ray at view angle
-`beta` and fan angle `gamma` lies at `beta + pi + 2 * gamma`.  Mirroring the view at `beta + pi`
+`beta` and fan angle `gamma` lies at `beta + pi - 2 * gamma` in mbirtorch's conventions.  (Corrected
+2026-09-04 during Increment 2.  The textbook form is `beta + pi + 2 * gamma`, and the sign depends
+on the conventions for the fan angle and the rotation direction.  In `cone_beam._cone_pixel_xy_mag`
+the rotated coordinates are `x = cos(beta) x~ - sin(beta) y~` and `y = sin(beta) x~ + cos(beta) y~`,
+with the magnification `sdd / (sid - y)`, so the source at view `beta` sits at
+`sid * (sin(beta), cos(beta))` in the object frame and the fan angle `gamma` opens toward `+x`.
+Following the ray through the source circle to its second crossing gives the opposite source at
+`beta + pi - 2 * gamma`.  A numerical check over 200 random rays agreed to 2e-13, and the estimator
+built with the textbook sign gave a score minimum 5.9 to 186 times higher on synthetic data; see
+`increment_2_findings.md`.)  Mirroring the view at `beta + pi`
 therefore pairs each channel with the wrong ray, by an amount that grows with the distance from
 the center channel, which is why LEAP uses fan-specific cost functions
 (`../leap_comparison/leap_comparison_sources/leap_inventory.md:318`).  The method is therefore
@@ -878,6 +887,17 @@ comparison package is `mbirjax`, in the same research directory, where `mbirjax/
 `mbirjax/parameter_handler.py`, and `tests/test_utilities.py` are cited.  LEAP files are cited
 with a `LEAP` prefix, and they lie in `src/` and `documentation/` of the LEAP tree at the commit
 named at the top of this plan.
+
+## Corrections after acceptance
+
+1. 2026-09-04, Increment 2: the conjugate-ray relation under "Scoring" is `beta + pi - 2 * gamma`
+   in mbirtorch's conventions, not `beta + pi + 2 * gamma`.  The justification is given in place.
+2. 2026-09-04, Increment 2: the fallback under "Risks and open questions", where `method='auto'`
+   warns and falls back to the derivative-filter method for a scan without a full rotation, is
+   open.  The motivation section records that the derivative reconstruction is featureless noise
+   only for a scan of 360 degrees or more.  Greg decided on 2026-09-04 that Increment 3 extends
+   the conjugate-view method to short scans instead, and `method='auto'` raises an error on such
+   a scan until then.  See `increment_2_findings.md`.
 
 ## Changes in v3
 
