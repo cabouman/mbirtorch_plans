@@ -686,7 +686,7 @@ API change, and `docs/source/usr_parameters.rst` must change with it.
 
 Every day estimate below is rough.
 
-**Increment 1.  Calibration module skeleton.  Rough estimate 4 days.** This increment creates
+**Increment 1. COMPLETE 2026-09-04.  Calibration module skeleton.  Rough estimate 4 days.** This increment creates
 `mbirtorch/preprocess/geometry_calibration.py` with `CalibrationResult`,
 `build_reduced_problem`, `parameter_sweep`, `apply_calibration`, and `check_rotation_direction`,
 and exports it from `mbirtorch/preprocess/__init__.py`.  It has four gates.  `parameter_sweep`
