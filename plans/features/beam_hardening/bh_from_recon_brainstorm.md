@@ -47,7 +47,7 @@ The work divides into modifications of the existing routines and alternatives to
 
 Four modifications are proposed, in order of cost: 
  * run the existing fit on a reduced problem; 
- * choose its ridge strength by an image score, which replaces tuning by eye; 
+ * choose its ridge strength by an image score, in place of its fixed default; 
  * add an image-score warning to the alternation of correction and reconstruction; 
  * replace the division-form correction by a subtraction form whose nonlinear coefficients are fit in the image domain with the sinogram fit as
 a data term.  
@@ -96,8 +96,8 @@ section proposes two rules and an experiment that tests them.
 Two cheaper deliverables come first, because neither has been measured:
 
 - a synthetic case with polychromatic hardening, which the repository does not have today;
-- a sweep of the existing fit's ridge strength scored on the image, which replaces the tuning a
-  user does by eye today.
+- a sweep of the existing fit's ridge strength scored on the image, which replaces a fixed
+  default with a per-scan value and measures a sensitivity that has not been measured.
 
 `brainstorm_physics.md` recommends changing the model itself, and its numbers are these.  The
 existing model is a cubic polynomial in the plastic and metal path lengths.  A physical family
@@ -137,8 +137,13 @@ own level (`mar.py:818-824`).  This page calls that the division form.
 `recon_plastic_metal` (`mbirtorch/tomography_model.py:420-580`) drives the correction.  It makes
 one direct reconstruction, then alternates the correction with a full MBIR reconstruction for
 `num_BH_iterations` passes, feeding each pass's reconstruction to the next segmentation.  The
-hyperparameters `order`, `alpha`, `beta`, `gamma`, and `num_metal` are set by hand.  The MBIR
-passes can take the MAR weights of `gen_weights_mar`, which discount rays through metal.
+hyperparameters `order`, `alpha`, `beta`, `gamma`, and `num_metal` are keyword arguments with
+fixed defaults: `num_metal` 1, `order` 3, `alpha` 1, `beta` 0.002, and `gamma` 0.1
+(`tomography_model.py:421-422`, `mar.py:741`).  The routine runs with those defaults and
+without intervention.  The docstring's example passes `beta` 0.005
+(`tomography_model.py:474`), which is the only other value in the repository, and no sweep of
+the defaults on real data is recorded.  The MBIR passes can take the MAR weights of
+`gen_weights_mar`, which discount rays through metal.
 
 Three facts about this code shape everything below.
 
@@ -261,8 +266,12 @@ full correction is measured in experiment 3.
 ### Modification 2: choose the ridge strength and the floor by an image score
 
 The proposal is a one-dimensional search over the existing fit's ridge strength `beta`, and
-optionally its floor `gamma`, scored on a reduced reconstruction, which automates the tuning a
-user does by eye today.  `brainstorm_physics.md` ranks this above any coefficient search, and
+optionally its floor `gamma`, scored on a reduced reconstruction, which replaces the fixed
+default with a per-scan value.  The routine runs with its defaults and without intervention
+today, and the sensitivity of its result to `beta` has not been measured on real data
+(`brainstorm_skeptic.md`).  `brainstorm_search.md` describes this sweep as replacing tuning by
+eye, but nothing in the code or the docs records per-scan tuning, so that description is not
+used here.  `brainstorm_physics.md` ranks this above any coefficient search, and
 `brainstorm_search.md` and `brainstorm_pipeline.md` call it the cheapest useful step.  Each
 candidate costs one solve of the fit's small normal equations, one active-set pass, one
 elementwise correction, and one direct reconstruction of the reduced slab.  A golden-section
@@ -293,9 +302,9 @@ only approximately and the fine level should confirm it.
 Supporting experiments.  On the synthetic case, sweep β from 2e-5 to 2e-2 on three slices of the
 reduced problem and record the argmin against the β that minimizes the plastic-region error
 against the monochromatic truth.  On the NSI metal scan, sweep β over the same five decades,
-record the argmin and the depth of the score curve, and compare both against the value a user
-chooses by eye.  Stop if the curve's depth is within the even-view and odd-view floor, which
-means the surface is flat and the sweep only confirms the default, or if the minimum sits at the
+record the argmin and the depth of the score curve, and compare both against the default of
+0.002 and the docstring example's 0.005.  Stop if the curve's depth is within the even-view
+and odd-view floor, which means the surface is flat and the sweep only confirms the default, or if the minimum sits at the
 edge of least regularization, which is the signal-removal trap of modification 4.
 
 ### Modification 3: an image-score warning inside the alternation
