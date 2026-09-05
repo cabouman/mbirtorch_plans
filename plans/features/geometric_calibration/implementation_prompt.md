@@ -1,126 +1,139 @@
-# Implementation prompt: geometric calibration utilities, Increment 3
+# Implementation prompt: geometric calibration, the reconstruction estimator
 
-This file starts a new session that continues the geometric calibration plan at Increment 3.  It
-points to the files that hold the details and repeats none of them.  Paths are relative to the
-root of the `mbirtorch_plans` repository unless a path starts with `mbirtorch/`, which means the
-sibling `mbirtorch` repository.
+This file starts a new session on the geometric calibration feature.  Paths are relative to the
+root of the `mbirtorch_plans` repository unless said otherwise.  mbirtorch file paths follow the
+plans' convention: they are given from the package directory, so
+`mbirtorch/preprocess/geometry_calibration.py` means
+`mbirtorch/mbirtorch/preprocess/geometry_calibration.py` in the sibling repository.
+
+## Current task
+
+Check the status line of `plans/features/geometric_calibration/geometric_calibration_plan_v2.md`
+and of `estimate_by_recon_plan.md` in the same directory.  While either reads DRAFT, the only
+task is to collect Greg's review comments on that plan, apply them, and set the status line to
+APPROVED with the date when he says so; run no job before both read APPROVED.  On approval, also
+stamp the headers of `closed/geometric_calibration_plan.md` and `closed/status_2026-09-05.md`
+with one line: superseded by `geometric_calibration_plan_v2.md`, 2026-09-05.
+
+Once both plans read APPROVED, execute `geometric_calibration_plan_v2.md` from its Increment 1,
+which is the estimator plan of `estimate_by_recon_plan.md`.  Its sub-increments are numbered 1.1
+to 1.5, and the first, 1.1, is one cluster job: the fine far-slice sweep that settles whether
+reconstruction quality on the no-metal NSI scan prefers 0.130 or 0.167 degrees, and that picks
+the blur default from data.  Stop for Greg's review at the end of every increment and
+sub-increment.
+
+The public function under construction is `estimate_geometry_from_recon`.  The two
+`estimate_by_recon` file names keep their earlier short form.
 
 ## Where to run
 
 Start the session with the `mbirtorch` repository as the working directory, so that the project
 memory for that directory loads.  The memory index records the local test environment, the
-cluster access that works, the LEAP environment on the cluster, and the shared-checkout
-protocol.  `mbirtorch_plans` and `mbirtorch_metrics` are sibling checkouts; `mbirjax` is a
-read-only reference.  `.claude/initial_prompt.md` describes the roles of these repositories.
+cluster access that works, and the shared-checkout protocol.  `mbirtorch_plans` and
+`mbirtorch_metrics` are sibling checkouts; `mbirjax` is a read-only reference.
+`mbirtorch_plans/.claude/initial_prompt.md` describes the roles of these repositories.
 
 ## Read first, in this order
 
-1. `.claude/claude_prompt.md`: how Greg wants to work, and what he relies on the session for.
-2. `.claude/writing_style.md`: mandatory for every durable record, code comment, and summary.
-   Reread it before drafting anything, and again before the revision pass it requires.
-   `.claude/writing_style_charlie.md` holds more examples of the same rules.
-3. `.claude/lessons.md`: engineering rules from the sharding effort and the torch port.
-4. `plans/features/geometric_calibration/geometric_calibration_plan.md`: the plan of record,
-   version 3, accepted on 2026-09-03, with one correction after acceptance recorded at its end.
-5. `plans/features/geometric_calibration/increment_1_findings.md` and
-   `increment_2_findings.md`: what Increments 1 and 2 built, what was measured, the decisions
-   Greg made, and the questions Increment 3 answers.  Read both in full.  The experiment
-   records they cite are in `plans/experiments/features/geometric_calibration/`.
-6. `mbirtorch/mbirtorch/preprocess/geometry_calibration.py` and
-   `mbirtorch/tests/test_geometry_calibration.py`: the code as it stands, with 40 test cases.
-   The module's docstrings state the contracts, and the conjugate-view section at its end is
-   what Increment 3 extends.
-7. `.claude/cluster_use.md` and `.claude/gpu-resources.md`: how to run cluster jobs.  The
-   record `calibration_512_gautschi.md` in the experiments directory shows a working job of this
-   feature, and the memory note on cluster access gives the environment that holds LEAP and
-   mbirtorch together.
+The files below are the required background, and the first two are in
+`mbirtorch_plans/.claude/`:
 
-## What Increment 3 is, as Greg decided it on 2026-09-04
+1. `mbirtorch_plans/.claude/claude_prompt.md`: how Greg wants to work, and what he relies on the
+   session for.
+2. `mbirtorch_plans/.claude/writing_style.md`: mandatory for every durable record, code comment,
+   and summary.  Reread it before drafting anything, and again before the revision pass it
+   requires.
+3. Skim `mbirtorch_plans/.claude/lessons.md`: engineering rules from the sharding effort and the
+   torch port.
+4. `plans/features/geometric_calibration/geometric_calibration_plan_v2.md`: the plan of record,
+   including its "Terms and scans" section.
+5. `plans/features/geometric_calibration/estimate_by_recon_plan.md` and `estimate_by_recon.md`:
+   the estimator's plan and its design, including the mechanism section the gates rest on.
+6. `plans/features/geometric_calibration/executive_summary_2026-09-05.md`: the state of the
+   feature and the evidence in short form.
+7. `mbirtorch/preprocess/geometry_calibration.py`: the module as it stands, with v1's Increment
+   6 edits staged and uncommitted.
+8. `mbirtorch_plans/.claude/cluster_use.md` and `mbirtorch_plans/.claude/gpu-resources.md`: how
+   to run cluster jobs.
 
-Greg answered the three questions at the end of `increment_2_findings.md`, and Increment 3
-differs from the plan's text in these ways:
+The closed campaign's pages are in `plans/features/geometric_calibration/closed/`, and its
+experiment scripts and records in `plans/experiments/features/geometric_calibration/closed/`.
+Read them when a cited number or a harness pattern is needed, not as a prerequisite.
 
-1. Extend the conjugate-view method to short scans of 180 degrees plus the fan angle.  Only the
-   rays measured from both sides are paired, and the rest are excluded from the comparison.  The
-   findings page of Increment 2 gives the geometry: the paired rays form a triangle in the view
-   and channel plane, the views that hold any are two wedges each twice the full fan angle wide,
-   and the paired rays are about a tenth of all rays at a 20 degree fan.  Three cautions from
-   that page apply.  The score's rectangular region, circular shift, and per-pair normalization
-   need a mask per pair.  The pairs are one-sided, which on a full rotation raised the error
-   tenfold, so score each pair in both directions or interpolate the partner views with a cubic
-   kernel, and measure which.  A parallel-beam scan over exactly a half rotation has no opposite
-   views at all.  The coverage check must change from refusing such a scan to accepting it when
-   enough rays have partners.  Golden-angle view orderings over a full rotation already work, and
-   a test covers them.
-2. The derivative-filter method is not needed for anything the feature now requires, and the
-   question of whether it is useful for something else is open.  The conjugate method covers the
-   channel offset and the detector rotation on full rotations, and the residual method of
-   Increment 4 is the fallback for any geometry.  The findings page names what would settle the
-   question: a measurement of the derivative score's minimum on a short scan, with Parker
-   weighting, and whether a cone-beam initializer is wanted on real data with lateral truncation.
-   If the session finds a use, propose it with its cost before building it; otherwise leave it
-   out and say so on the findings page.
-3. Offset scans, whose detector is displaced by hundreds of channels, are deferred to the work
-   that adds the direct-reconstruction weighting they also need.
+## Harness starting points
 
-The search machinery the plan assigned to Increment 3, the coarse pass and the golden-section
-polish, exists already in `_search_minimum`, and the search window moves when the coarse
-minimum sits at an edge.  The cluster record already holds the wall times the plan asks for at
-N = 512.  The plan's gate of about fifteen evaluations is exceeded by the search as built, which
-costs 35 evaluations and twice that with the second pass on cone beam, so the gates of Increment
-3 need restating on the findings page before they are claimed.
+The pointers below say where the working patterns are:
 
-## Constraints the plan records
+- The fine-sweep job of sub-increment 1.1 is the far-slice job rerun on a fine grid.
+  `plans/experiments/features/geometric_calibration/closed/real_scan_rotation_recon.py` shows
+  the slice reconstruction and figure pattern, and `closed/real_scan_band_height.py` in the same
+  directory shows the loading, recording, and memory pattern.
+- The scan-loader modules those jobs import are in that same `closed/` directory:
+  `real_scan_validation.py` and `real_scan_followup.py`.  A new job script at the experiments
+  directory's top level cannot import them directly; either add the `closed/` directory to
+  `sys.path` at the top of the script, or rely on the cluster layout, where everything is flat.
+- On gautschi the submit directory is `/scratch/gautschi/buzzard/leap_cmp`, which holds the
+  extracted scans, the venv with both mbirtorch and LEAP, flat copies of the loader modules, and
+  the batch-file precedents.  The local `closed/` copies and the cluster copies have diverged in
+  location, so before submitting a job that imports a loader, compare the cluster copy of each
+  imported module against the local `closed/` copy and report any difference.
+- The live synthetic harness is
+  `plans/experiments/features/geometric_calibration/rotation_zero_point_synthetic.py`; the
+  estimator plan's sub-increment 1.2 extends it with a no-slab phantom.
+- The LEAP cross-generation harness is `leap_axis_tilt.py` in the same directory, with its
+  record's caution about asymmetric objects.
+- Real-scan jobs on the NSI scans request two GPUs for host memory, as every batch file in
+  `closed/` shows.
 
-Follow the plan's increments in order, and stop for Greg's review at the end of each increment.
-Each increment names its files, its tests, and its gates.  A gate that needs a GPU runs on the
-cluster as a batch job.
+## Constraints the plans record
 
-A sinogram correction must not allocate a second full-size sinogram.  Stream view batches and
-write the result in place, or stream into the device-resident sinogram.  `reduce_sinogram` and
-`apply_calibration` show the pattern.
+Follow the increments in the order the plan of record states, and stop for Greg's review at each
+stop it names.  Each increment names its files, its tests, and its gates; a gate that needs a
+GPU runs as a cluster batch job.  A sinogram correction must not allocate a second full-size
+sinogram.  Do not put references to the plan or to increments in code or comments.  Do not
+duplicate geometry arithmetic that the model classes own.  Scripts and job files go in
+`plans/experiments/features/geometric_calibration/`, with run parameters at the top and no
+command-line arguments.  Findings pages go in `plans/features/geometric_calibration/`.  A
+measured number appears in a durable record only after it was read from its source in the same
+session, with the source cited beside it.  This repository ignores `.png`, `.sbatch`, and
+`.jsonl` files, so a record transcribes what it needs from them.
 
-Do not put references to the plan, to increments, or to release timing in code or comments; they
-go stale.  Do not duplicate geometry arithmetic that the model classes own; `recon_slice_z`,
-`nearest_recon_slice`, and `pixel_magnification_bounds` were added to the models for that
-reason, and a new need should be met the same way.
-
-Scripts and job files for this work go in `plans/experiments/features/geometric_calibration/`,
-with run parameters at the top of each script and no command-line arguments.  Findings pages and
-status updates go in `plans/features/geometric_calibration/`.  Run detail goes in script comments
-or in a companion `.md` file with the same base name as the script.  A measured number appears in
-a durable record only after it was read from its source in the same session, with the source
-cited beside it.  This repository ignores `.png`, `.sbatch`, and `.jsonl` files, so a record
-transcribes what it needs from them.
+Three validation rules and two cautions from the closed campaign apply to every new measurement.
+A synthetic rotation is injected at four times the detector resolution or through LEAP's
+modular-beam projector, never by resampling at the detector's own resolution with the kernel
+under test.  Real-scan gates use quantities that need no ground truth where possible.  A deep
+score minimum is not a right answer without such a check.  The two cautions: a deterministic
+search returns points of its own lattice on a flat curve, so identical digits across runs mean
+the lattice and not the data (`closed/real_scan_band_reach.md`); and rotations that displace the
+edge pixel by less than one pixel sit where the resampling kernel's own bias dominates
+(`rotation_zero_point_synthetic.md`).
 
 ## Working with the shared checkouts
 
-Other sessions edit and commit in the `mbirtorch` checkout at the same time.  Do code work on the
-`geometric_calibration` branch, never on `greg_dev` directly.  Do not run the full test suite
-while another session may be running it.  Before reporting, check `git status` and report the
-staged list as it is at that moment.
+Other sessions edit and commit in the `mbirtorch` checkout at the same time.  Do code work on
+the `geometric_calibration` branch, never on `greg_dev` directly.  Do not run the full test
+suite while another session may be running it.  Before reporting, check `git status` and report
+the staged list as it is at that moment.
 
 ## Git protocol: stage, but do not commit without authorization
 
-Stage a file with `git add` when it is finished and verified, so that `git status` shows what is
-ready for review.  Do not run `git commit` or `git push` unless Greg authorizes it in the
-conversation.  An authorization covers only the files and the commit it names; it does not carry
-over to later work.  When authorized, use the commit attribution line that the session's
+Stage a file with `git add` when it is finished and verified.  Do not run `git commit` or
+`git push` unless Greg authorizes it in the conversation, and an authorization covers only the
+files and the commit it names.  When authorized, use the commit attribution line the session's
 instructions specify, and report the commit hash.
 
 ## Reviews and delegation
 
-Use Opus subagents for drafting, harness writing, inventories, and result extraction, and keep
-the main session for judgment: reviewing a harness before it runs, ruling on results, and reading
-the final record.  Have a subagent review new code against the projector source before the tests
-are final; the Increment 2 review found the conjugate-ray sign and three defects that way.
-Before a findings page or a plan revision is called done, run a panel of three reviewers on it:
-one for accuracy against sources, one for reasoning and design, and one for style against
-`.claude/writing_style.md`.  Apply the reviews in one pass, then read the result yourself.
+Use Opus subagents for drafting, harness writing, inventories, and result extraction.  Keep the
+main session for judgment: it reviews a harness before the harness runs, rules on results, and
+reads the final record.  Have a subagent review new estimator code against the module and the
+projector source before the tests are final.  Before a findings page or a plan revision is
+called done, run a panel of three reviewers on it.  The three charges are accuracy against
+sources, reasoning, and style.  Apply their findings in one pass, then read the result yourself.
 
 ## Reporting
 
-Keep chat summaries short and plain, in the style guide's form.  Lead with the outcome, then what
-was verified, then what is staged, then what is left.  Put measurements in a findings page, not in
-the chat.  When Greg asks to see an estimator in action, `estimators_in_action.py` in the
-experiments directory draws figures that can be sent to him.
+Keep chat summaries short and plain, in the style guide's form.  Lead with the outcome, then
+what was verified, then what is staged, then what is left.  Put measurements in a findings page,
+not in the chat.  `estimators_in_action.py` in the experiments directory draws figures when Greg
+asks to see an estimator working.

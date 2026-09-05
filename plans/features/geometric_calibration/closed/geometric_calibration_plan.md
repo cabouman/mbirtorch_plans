@@ -717,7 +717,7 @@ to within one voxel, at every binning factor tested.  `build_reduced_problem` ra
 factor does not divide the detector counts, tested at an odd channel count.  `apply_calibration`
 is the only function that changes state.
 
-**Increment 2.  Conjugate-view method.  Rough estimate 4 days.** This increment adds the
+**Increment 2. COMPLETE 2026-08-04. Conjugate-view method.  Rough estimate 4 days.** This increment adds the
 opposite-view comparison for `det_channel_offset` and `det_rotation`, plus `conjugate_difference`
 as a diagnostic image.  It has three gates.  On parallel-beam synthetic data the estimate recovers
 a known offset to better than 0.1 channel.  On cone-beam synthetic data at a full fan angle of 20
