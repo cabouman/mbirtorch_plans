@@ -1,7 +1,7 @@
 # Geometric calibration, plan of record v2
 
-Date: 2026-09-05.  Status: DRAFT, awaiting Greg's approval; a panel of three reviewed the first
-draft and this version applies their findings.  This plan supersedes
+Date: 2026-09-05.  Status: APPROVED by Greg on 2026-09-05.  A panel of three reviewed the
+first draft, and this version applies their findings.  This plan supersedes
 `closed/geometric_calibration_plan.md`, called v1 below.  The estimator this plan builds first
 has its own detailed plan, `estimate_by_recon_plan.md` in this directory, whose increments are
 numbered 1.1 to 1.5 here.  The current evidence is summarized in

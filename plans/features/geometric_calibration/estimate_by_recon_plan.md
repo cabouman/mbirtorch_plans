@@ -1,6 +1,6 @@
 # `estimate_geometry_from_recon`: implementation plan
 
-Date: 2026-09-05.  Status: DRAFT v2, awaiting Greg's review.  Version 1 had a panel review of
+Date: 2026-09-05.  Status: APPROVED by Greg on 2026-09-05.  Version 1 had a panel review of
 three, for accuracy, reasoning, and style, and this version applies their findings.  Greg chose
 the function name `estimate_geometry_from_recon` on 2026-09-05, and the two `estimate_by_recon`
 file names keep the earlier short form.  The design this plan implements is

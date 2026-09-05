@@ -8,14 +8,13 @@ plans' convention: they are given from the package directory, so
 
 ## Current task
 
-Check the status line of `plans/features/geometric_calibration/geometric_calibration_plan_v2.md`
-and of `estimate_by_recon_plan.md` in the same directory.  While either reads DRAFT, the only
-task is to collect Greg's review comments on that plan, apply them, and set the status line to
-APPROVED with the date when he says so; run no job before both read APPROVED.  On approval, also
-stamp the headers of `closed/geometric_calibration_plan.md` and `closed/status_2026-09-05.md`
-with one line: superseded by `geometric_calibration_plan_v2.md`, 2026-09-05.
+Both plans read APPROVED as of 2026-09-05:
+`plans/features/geometric_calibration/geometric_calibration_plan_v2.md` and
+`estimate_by_recon_plan.md` in the same directory.  The superseded stamps on
+`closed/geometric_calibration_plan.md` and `closed/status_2026-09-05.md` are in place.  If any
+of those four status lines reads otherwise, stop and ask Greg before running anything.
 
-Once both plans read APPROVED, execute `geometric_calibration_plan_v2.md` from its Increment 1,
+Execute `geometric_calibration_plan_v2.md` from its Increment 1,
 which is the estimator plan of `estimate_by_recon_plan.md`.  Its sub-increments are numbered 1.1
 to 1.5, and the first, 1.1, is one cluster job: the fine far-slice sweep that settles whether
 reconstruction quality on the no-metal NSI scan prefers 0.130 or 0.167 degrees, and that picks

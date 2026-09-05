@@ -1,7 +1,7 @@
 # Geometric calibration utilities
 
-Date: 2026-09-03.  Status: DRAFT v3, revised 2026-09-03 after Greg's review of v2, awaiting
-approval.
+Date: 2026-09-03.  Status: SUPERSEDED by `../geometric_calibration_plan_v2.md`, 2026-09-05.
+It was DRAFT v3, revised 2026-09-03 after Greg's review of v2.
 
 Every `mbirtorch` file:line citation below is against the working tree at commit `39a9eff`.  That
 tree was clean when this plan was written.  Citations that begin with `LEAP` are against LEAP
