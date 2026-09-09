@@ -6,9 +6,13 @@ is installed and a display is available:
     cd plans/experiments/geometry_viewer
     python gv_show_example.py
 
-The window has a view slider, a "source path" toggle that draws the source's
-trajectory over all views, and a "3D zoom to volume" toggle.  The 3D panel can
-be rotated with the mouse.  Closing the window ends the script.
+The window has a view slider and three toggles.  "source path" draws the
+source's trajectory over all views.  "3D zoom to volume" switches the 3D panel
+between the whole scan and a cube around the volume.  "angle-0 reference",
+on by default, draws the source and the detector at their zero-angle position
+as faint dotted outlines, with a dotted central ray whose arrowhead shows the
+projection direction at angle 0.  The 3D panel can be rotated with the mouse.
+Closing the window ends the script.
 
 To view your own model instead, replace the block under "Build the model" with
 the model you have, for example the one that a scanner reader returns:

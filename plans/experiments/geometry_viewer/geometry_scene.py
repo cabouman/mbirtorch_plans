@@ -37,6 +37,11 @@ picture, because that is what the projector does, and returns drawable
 primitives in the user's picture, because that is what a drawing needs.  The
 conversion is the inverse of the view's action on the object.
 
+One more view is drawable beside the scan's own views.  ``reference_view``
+returns the primitives of the position the view action's identity gives, which
+is the source and the detector at angle 0.  A drawing uses it as a fixed
+reference for the view it shows.
+
 Two positions in a drawing are choices and not geometry.  A parallel projection
 has no source position, and a cone geometry with an infinite source-detector
 distance has neither a source nor a detector position.  Both cases place the
@@ -1123,6 +1128,47 @@ class GeometryScene:
         sense = (CLOCKWISE_FROM_PLUS_Z if sweep < 0.0
                  else COUNTERCLOCKWISE_FROM_PLUS_Z)
         return arc, sense
+
+    def reference_view(self):
+        """The drawable primitives of the zero-angle reference position.
+
+        This is where the source and the detector sit when the view action is
+        the identity.  A drawing of one view cannot say which way the geometry
+        projects at angle 0, and a user reads every view angle from that
+        position, so a viewer draws it as a fixed reference.
+
+        The identity differs by geometry kind.  It is angle 0 and z shift 0 for
+        the parallel and cone geometries, azimuth 0 for the multiaxis geometry,
+        and a zero translation vector for the translation geometry.  The
+        multiaxis reference keeps the elevation of view 0, because a multiaxis
+        geometry has no position free of elevation: its rays are tilted out of
+        the xy plane in every view.
+
+        The reference is built by replacing view 0's own view parameters with
+        the identity and taking that copy's view 0.  Every entry therefore
+        means what the same entry of :meth:`view` means, and a scan whose view
+        0 is already the identity gets its own view 0 back.
+
+        Returns:
+            ViewScene: the primitives, with ``view_index`` 0.
+        """
+        if self.kind == 'parallel':
+            angles = self.angles.copy()
+            angles[0] = 0.0
+            overrides = dict(angles=angles)
+        elif self.kind == 'cone':
+            view_params = np.stack([self.angles, self.z_shifts], axis=1)
+            view_params[0] = 0.0
+            overrides = dict(view_params_array=view_params)
+        elif self.kind == 'multiaxis':
+            angles = np.stack([self.angles, self.elevations], axis=1)
+            angles[0, 0] = 0.0
+            overrides = dict(angles=angles)
+        else:
+            vectors = self.translation_vectors.copy()
+            vectors[0] = 0.0
+            overrides = dict(translation_vectors=vectors)
+        return self.with_parameters(overrides).view(0)
 
     def _ray_directions_all_views(self):
         """The central ray's unit direction in the projector frame, (V, 3).

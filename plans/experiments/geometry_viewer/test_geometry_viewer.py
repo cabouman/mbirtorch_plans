@@ -38,9 +38,10 @@ CONFIGS_BY_NAME = {cfg['name']: cfg for cfg in probe.CONFIGS}
 #: the detector face, and the text panel.
 EXPECTED_PANEL_COUNT = 5
 
-#: The three widget axes a figure builds beside the panels: the view slider and
-#: the two toggles.  The figure's axes list holds these as well as the panels.
-EXPECTED_WIDGET_AXES = 3
+#: The four widget axes a figure builds beside the panels: the view slider and
+#: the three toggles.  The figure's axes list holds these as well as the
+#: panels.
+EXPECTED_WIDGET_AXES = 4
 
 #: Smallest acceptable size of a saved figure, in bytes.  A PNG of an empty
 #: figure of this size is a few kilobytes, so a file above this holds a

@@ -336,3 +336,227 @@ record is left as it was written.
   ones total 2.5 MB.  Adding them takes
   `git add -f plans/experiments/geometry_viewer/figures`, and without that the
   images this page and the Increment 3 page review are on disk only.
+
+## Display test follow-up, 2026-09-09
+
+Greg ran `gv_show_example.py` on a machine with a display and reported three
+things.  The 3D view showed no source and no detector, and moving the slider
+changed nothing in it.  The detector panel was not labeled.  The drawing did
+not show the direction the geometry projects at angle 0, which is the position
+a user reads a view angle from.
+
+This section records what each report led to.  The first was a drawing-layer
+error, and the lead diagnosed and fixed it in the committed code.  The other
+two are new drawing: labels on the source and the detector, and a fixed
+angle-0 reference.  Files changed: `geometry_scene.py`, `geometry_viewer.py`,
+`test_geometry_scene.py`, `test_geometry_viewer.py`, and
+`test_geometry_interaction.py`.  Status: 171 tests pass, and a slider step on
+the 1800-view helical model costs 50 to 53 ms against a gate of 100 ms.
+
+### Why nothing that moves was drawn
+
+The cause was that every moving artist was marked animated for the life of the
+figure.  A full draw skips an animated artist, and only the partial redraw
+paints one.  The partial redraw runs on the backends where it is verified, Agg
+and TkAgg, and Greg's session ran on the macosx backend.  On that backend
+nothing that carries the current view was ever painted.  What his window showed
+is exactly the static artists: the volume box, the region of reconstruction,
+the rotation axis, the voxel marker, the detector grid, and the text panel.  A
+saved file looked right, because `save` unmarks the artists for the duration of
+the write.
+
+The rule that fixed it is `GeometryFigure._animate_moving`.  A moving artist is
+animated only when blitting is enabled, the backend is in `BLIT_BACKENDS`, and
+the canvas reports blit support.  Everywhere else the moving artists stay
+ordinary artists, and a full draw paints them.  Two tests at the end of
+`test_geometry_interaction.py` hold the rule.  One drives a figure built with
+`blit=False` through a plain draw and checks that the draw paints what a draw
+with every artist unmarked paints.  The other checks that the artists are
+animated under Agg with blitting on and are not animated with it off.
+
+Every artist added below obeys that rule without a second mechanism.  A moving
+artist is registered in the `_moving` list, and `_set_animated` walks that
+list, so a new label is animated exactly when the source and the detector
+are.  A
+view-independent artist is an ordinary static artist and is not in the list at
+all.  `test_the_labels_are_animated_with_the_other_moving_artists` and
+`test_the_reference_artists_are_not_animated` check the two cases.
+
+### The labels
+
+The source and the detector now carry a text label in the 3D view, the top
+view, and the side view, and the detector's pixel-0 marker carries one in the
+top view.  Each label is set at `ANNOTATION_FONT_SIZE` and takes the color of
+the element it names.  A label moves with its element, so it is a moving
+artist.  The two 3D labels are moved with `set_position_3d`, which matplotlib
+3.11 provides.  The five 2D labels are annotations, and a view change moves the
+data point each one is attached to.  The vertical part of a 2D label's offset
+from that point is fixed when the label is created.  The horizontal part is
+chosen per view by the rules below.
+
+Where each label sits was chosen to keep the labels of one panel apart.  The
+rules are these:
+
+* The source's label sits beside the source, offset a little farther than the
+  others.  The central ray ends at the source, and a smaller offset put the
+  label on that line.  In the side view it sits below the source, because the
+  `recon_slice_offset` label is above it there.
+* The pixel-0 label sits higher above the detector than the detector's own
+  label, so that the two are on separate lines when the detector is short
+  against the width of the panel.
+* The detector's label sits at the end of the detector farthest from the
+  pixel-0 marker.  That keeps it off the middle of the panel, where the rays
+  and the offset segment are, and away from the pixel-0 label.
+* In the top view the detector's label reads outward from its end of the
+  detector.  The channel-offset label sits at the middle of the detector and
+  reaches toward that end, and a label reading inward ran into it.
+* The source's label and the pixel-0 label read toward the middle of their
+  panel.  Both name a point that can sit at the edge of a panel, and a label
+  reading outward there ran off the panel and onto the tick labels.
+* A comparison's detector is named "comparison" once, in the top view, below
+  the detector line.  A label in every panel would say the same thing four
+  times.
+* A 3D label is hidden when the point it names is outside the 3D panel's cube,
+  which `_clip_3d_artists` does.  The by-eye section below says why.
+
+### The angle-0 reference
+
+`GeometryScene.reference_view` is a new method.  It returns the `ViewScene` of
+the geometry with the view action set to the identity, which is where the
+source and the detector sit at angle 0.  The identity differs by geometry kind:
+angle 0 and z shift 0 for the parallel and cone geometries, azimuth 0 for the
+multiaxis geometry, and a zero translation vector for the translation geometry.
+
+The multiaxis reference keeps the elevation of view 0.  A multiaxis geometry
+has no position free of elevation, because its rays are tilted out of the xy
+plane in every view, so the azimuth alone goes to zero.  The docstring says so.
+
+The method builds the reference by replacing view 0's own view parameters with
+the identity and taking that copy's view 0.  Every entry of the result
+therefore means what the same entry of `view` means.  A scan whose view 0 is
+already the identity gets its own view 0 back, which
+`test_reference_view_is_view_zero_when_view_zero_is_the_identity` checks entry
+by entry to within 1e-9.  For the probe's flat cone scan, whose first angle is
+-0.3 radians, the reference source sits at (0, source_iso_dist, 0) while the
+view-0 source does not.
+
+The viewer draws the reference in the 3D view and the top view.  Four things
+are drawn: the reference source as a hollow star in the source color, the
+reference detector outline dotted in the detector color, the reference central
+ray dotted from that source to that detector origin with an arrowhead at the
+detector end, and a label on the arrow.  All four are drawn at an alpha of
+0.45, so that the reference cannot be read as part of the view drawn.  The top
+view's label is "projection direction, angle 0" on two lines, and the 3D view's
+is the short form "angle 0".  The translation geometry has no view angle, so
+its two labels say "no translation" instead.
+
+The side view and the detector face get no reference.  The side view is the yz
+plane, in which a rotation about z moves nothing, so a reference drawn there
+would lie on top of the view drawn.  The detector face is in index coordinates,
+which the view action does not change at all.
+
+The reference artists do not depend on the view, so they are static artists and
+they belong to the background.  Turning them off therefore repaints the whole
+figure, which is what the source-path toggle does for the same reason.  The
+panel limits measure the reference whether or not it is drawn, because the
+limits are computed once and a reference outside them would be cut off when the
+toggle turned it on.
+
+The reference is on by default.  `GeometryFigure` takes `show_reference=True`,
+`set_show_reference` turns it on and off, and a third `CheckButtons` labeled
+"angle-0 reference" sits beside the other two toggles.  The view slider is
+shorter than it was to make room for that toggle.
+
+One case is worth knowing.  A scan whose view 0 is at angle 0 draws the
+reference on top of its own view 0, and the two separate as soon as the slider
+moves.  `gv_show_example.py` builds such a scan and opens at view 0.
+
+### What a slider step costs now
+
+A slider step on the 1800-view helical model of `gv4_timing.py` costs 50 to
+53 ms on average, against the gate of 100 ms.  Three runs of the script gave
+averages of 50, 50, and 53 ms.  The worst single step in the three runs was
+66 ms, in a run with the source path drawn.  The step cost 42 ms on average
+before this change.  These results indicate that the seven new labels cost 8
+to 11 ms per step.  The gate still passes with about a factor of two in hand.
+The reference costs a step nothing, because it is a static artist and a step
+does not redraw it.
+
+### The by-eye check of the figures
+
+The three figures the follow-up names were read on screen: `gv3_cone_flat.png`,
+`gv4_compare_offset.png`, and `gv3_multiaxis.png`.  The other eight figures
+were read as well, because the label rules had to hold for every one of them.
+Overlapping labels were the problem in every case but one, where a label was
+drawn outside its panel.  Each change is listed here with the figure that
+showed the problem:
+
+* The source's label sat on the central ray in the side view of
+  `gv3_multiaxis.png`, because that ray ends at the source.  Its vertical
+  offset is larger than the other labels' now.
+* The source's label then ran into the `recon_slice_offset` label in the side
+  view of `gv3_cone_curved.png`, where both sat just above the z = 0 line.  In
+  the side view it sits below the source instead of above it.
+* The detector's label sat at the center of the detector, where the offset
+  label and the pixel-0 label already were, in every figure.  It moved to the
+  end of the detector farthest from the pixel-0 marker, in the 3D view and in
+  both projected views.
+* The top view's detector label then ran into the channel-offset label in
+  `gv3_parallel.png`, where the detector is tilted and a vertical offset does
+  not separate the two.  It reads outward from its end of the detector now.
+* The pixel-0 label ran onto the tick labels of the top view in
+  `gv3_multiaxis.png` when it read outward, so it reads inward.
+* The pixel-0 label also ran into the channel-offset label in
+  `gv3_translation.png`, where both sat below the detector.  It sits above the
+  detector now, and the channel-offset label still sits below.
+* The pixel-0 label then ran into the detector's own label in
+  `gv4_helical_1800_trajectory.png`.  That scan's detector is 53 ALU wide in a
+  panel 500 ALU across, so its two ends are close together and no horizontal
+  rule separates two labels of 50 ALU.  The pixel-0 label sits higher above
+  the detector than the detector's label does now, which puts the two on
+  separate lines whatever the panel's scale.
+* The top view's reference label ran off the right edge of the panel as one
+  line in `gv3_cone_flat.png`.  It is two lines now, and it sits a fifth of the
+  way back along the reference ray instead of on the arrowhead.
+* The 3D view's reference label sat on the detector's own label in
+  `gv3_cone_flat.png`, so it moved to the middle of the reference detector's
+  low-row edge.
+* The comparison's label ran into the channel-offset label in
+  `gv4_compare_offset.png`, so it hangs farther below the detector than the
+  primary's labels do.
+* The 3D labels were drawn outside their own panel in `gv4_zoom_volume.png`,
+  which is the volume zoom.  Matplotlib clips a 3D line to the axes limits
+  when the line asks for it, and it clips neither a 3D text artist nor an
+  arrowhead built by `quiver`.  The source sits far outside the volume cube,
+  so its label landed on the figure beside the panel, and the reference's
+  arrowhead drew a stray segment there.  `_clip_3d_artists` hides each of
+  those artists when the point it is attached to is outside the cube.  It
+  covers the source's label, the detector's label, the reference's label and
+  its arrowhead, and the source-travel label and arrowhead that were already
+  on the page.
+
+After those changes no label in any of the eleven figures overlaps another
+label, and none is drawn outside its own panel.  Two labels that were
+already on the page sit close together in the multiaxis side view,
+`recon_slice_offset -0.9` and `det_row_offset -1.35`.  They are on separate
+lines and both are readable, and neither is new, so they were left alone.
+
+### Open items from this follow-up
+
+* **The example script's docstring names two toggles.**
+  `gv_show_example.py` describes the view slider and two toggles, and there are
+  three now.  That file was outside this change.
+* **The reference has not been seen on a display.**  This container has no
+  display, so the reference and the labels were checked under Agg and in saved
+  files only.  What Greg's report showed is that Agg and a windowed backend can
+  differ, and the rule that caused that difference now has two tests, but the
+  window itself is still unwatched here.
+* **The reference is drawn for a geometry that has no view angle.**  The
+  translation geometry's reference is the gantry at zero translation, and its
+  labels say "no translation".  Whether a fixed reference earns its space in a
+  translation scan, whose views differ by a few ALU, is worth Greg's opinion.
+* **A label can still be crowded at a small view angle.**  In the 3D view the
+  reference and the view drawn coincide when the view angle is near zero, so
+  their labels sit close together.  At view 2 of the probe scans, which is 12
+  degrees, they are legible and adjacent.  A viewer that hid the reference's
+  labels when the two nearly coincide would read better, and that is not built.

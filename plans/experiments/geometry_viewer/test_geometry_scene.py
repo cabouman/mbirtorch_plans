@@ -937,6 +937,123 @@ def test_differences_across_two_geometry_kinds():
         cone.source_iso_dist)
 
 
+# ── the angle-0 reference view ───────────────────────────────────────────────
+
+#: The tolerance of the field-by-field comparison of two views.  The two are
+#: built by the same code from the same numbers, so they agree far better than
+#: this.
+REFERENCE_TOLERANCE = 1e-9
+
+
+def assert_views_agree(first, second, tolerance=REFERENCE_TOLERANCE):
+    """Fail unless two ViewScene objects agree entry by entry."""
+    names = list(first.__dataclass_fields__)
+    assert names == list(second.__dataclass_fields__)
+    for name in names:
+        mine, theirs = getattr(first, name), getattr(second, name)
+        if mine is None or theirs is None:
+            assert mine is None and theirs is None, name
+        elif isinstance(mine, (int, str, bool)):
+            assert mine == theirs, name
+        elif isinstance(mine, dict):
+            assert sorted(mine) == sorted(theirs), name
+            for key in mine:
+                assert np.allclose(mine[key], theirs[key], atol=tolerance), (
+                    f'{name}[{key}]')
+        else:
+            assert np.shape(mine) == np.shape(theirs), name
+            assert np.allclose(mine, theirs, atol=tolerance), name
+
+
+def identity_first_view_config():
+    """The flat cone configuration with view 0 at angle 0 and no z shift."""
+    cfg = dict(CONFIGS_BY_NAME['cone flat'])
+    angles = np.linspace(0.0, 2.0 * np.pi, 8, endpoint=False)
+    cfg['angles'] = angles
+    return cfg
+
+
+def test_reference_view_is_view_zero_when_view_zero_is_the_identity():
+    """A scan whose view 0 has angle 0 and no z shift gets its view 0 back.
+
+    The reference is the view action's identity, and for such a scan view 0 is
+    already that identity, so the two views must agree entry by entry.
+    """
+    _, scene = build_scene(identity_first_view_config())
+    assert float(scene.angles[0]) == 0.0
+    assert float(scene.z_shifts[0]) == 0.0
+    assert_views_agree(scene.reference_view(), scene.view(0))
+
+
+def test_reference_view_of_a_parallel_scan_is_its_own_zero_angle_view():
+    """The same holds for the parallel geometry, whose angles are one array."""
+    cfg = dict(CONFIGS_BY_NAME['parallel'])
+    cfg['angles'] = np.linspace(0.0, np.pi, 8, endpoint=False)
+    _, scene = build_scene(cfg)
+    assert_views_agree(scene.reference_view(), scene.view(0))
+
+
+def test_reference_source_sits_on_the_plus_y_axis():
+    """A cone scan whose first angle is not zero still gets the angle-0 source.
+
+    The probe's flat cone configuration starts at -0.3 radians, so its view 0
+    source is off the +y axis while the reference source is on it, at
+    source_iso_dist.
+    """
+    _, scene = build_scene(CONFIGS_BY_NAME['cone flat'])
+    assert float(scene.angles[0]) != 0.0
+    reference = scene.reference_view()
+    expected = np.array([0.0, scene.source_iso_dist, 0.0])
+    assert np.allclose(reference.source, expected, atol=REFERENCE_TOLERANCE)
+    assert np.allclose(reference.source_draw, expected,
+                       atol=REFERENCE_TOLERANCE)
+    # The detector origin lies opposite the source, on the -y side.
+    assert reference.detector_origin[1] < 0.0
+    assert abs(float(reference.detector_origin[0])) < REFERENCE_TOLERANCE
+    # View 0 itself is somewhere else.
+    assert not np.allclose(scene.view(0).source, expected, atol=1e-3)
+
+
+def test_reference_view_of_a_helical_scan_has_no_z_shift():
+    """The reference of a helical scan sits at z shift zero.
+
+    View 0 of the probe's helical scan has no shift either, but the reference
+    must not depend on that, so the check is against the geometry: the source
+    and the detector origin both sit at z = 0.
+    """
+    _, scene = build_scene(CONFIGS_BY_NAME['cone helical'])
+    reference = scene.reference_view()
+    assert abs(float(reference.source_draw[2])) < REFERENCE_TOLERANCE
+    assert abs(float(reference.detector_origin[2])) < REFERENCE_TOLERANCE
+
+
+def test_reference_view_keeps_the_multiaxis_elevation():
+    """The multiaxis reference is azimuth 0 at the elevation of view 0.
+
+    A multiaxis geometry has no position free of elevation, so the reference
+    keeps view 0's elevation and only the azimuth goes to zero.  The ray
+    direction of the reference is therefore the direction the record states
+    for that elevation.
+    """
+    _, scene = build_scene(CONFIGS_BY_NAME['multiaxis'])
+    reference = scene.reference_view()
+    elevation = float(scene.elevations[0])
+    expected = np.array([0.0, -np.cos(elevation), np.sin(elevation)])
+    assert np.allclose(reference.ray_direction, expected,
+                       atol=REFERENCE_TOLERANCE)
+    # The source has no x component at azimuth 0.
+    assert abs(float(reference.source_draw[0])) < REFERENCE_TOLERANCE
+
+
+def test_reference_view_of_a_translation_scan_has_no_translation():
+    """The translation reference is the unmoved gantry, at t = 0."""
+    _, scene = build_scene(CONFIGS_BY_NAME['translation'])
+    assert not np.allclose(scene.translation_vectors[0], 0.0)
+    reference = scene.reference_view()
+    expected = np.array([0.0, scene.source_iso_dist, 0.0])
+    assert np.allclose(reference.source, expected, atol=REFERENCE_TOLERANCE)
+
+
 def test_values_are_equal_handles_arrays_and_infinities():
     """The value comparison copes with what a parameter can hold."""
     assert values_are_equal(1.0, 1.0)

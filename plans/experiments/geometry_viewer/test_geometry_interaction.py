@@ -8,6 +8,14 @@ not one marker per view.  The zoom toggle puts a cube around the volume on the
 projected volume outline ten channels over from the primary's and lists the
 change in the text panel.  Removing the comparison removes its artists.
 
+Later tests cover the display-test follow-up of 2026-09-09.  The labels on the
+source, the detector, and the pixel-0 marker exist in the panels that carry
+them, they follow the source when the view changes, and they are animated
+exactly when the other moving artists are.  The angle-0 reference is drawn in
+the 3D view and the top view, it does not move with the view, it is never
+animated, its toggle hides and shows it, and the panel limits hold it whether
+or not it is drawn.
+
 The tests run under the Agg backend and open no window.
 
 Run:
@@ -531,3 +539,305 @@ def test_moving_artists_are_animated_only_on_a_blit_backend():
     without = GeometryFigure(model, blit=False, widgets=False)
     assert all(artist.get_animated() for _, artist in with_blit._moving)
     assert all(not artist.get_animated() for _, artist in without._moving)
+
+
+# ── the labels of the source, the detector, and the pixel-0 marker ──────────
+
+def moving_artists(figure):
+    """The artists a view change updates, without their axes."""
+    return [artist for _, artist in figure._moving]
+
+
+def all_labels(figure):
+    """The seven labels the three drawing panels carry, as (label, text)."""
+    return [(figure._source_text_3d, 'source'),
+            (figure._detector_text_3d, 'detector'),
+            (figure._top['source_label'], 'source'),
+            (figure._top['detector_label'], 'detector'),
+            (figure._top['pixel0_label'], 'pixel (0,0)'),
+            (figure._side['source_label'], 'source'),
+            (figure._side['detector_label'], 'detector')]
+
+
+def test_the_source_and_the_detector_are_labeled_in_three_panels():
+    """Each of the three drawing panels names the source and the detector.
+
+    Greg's display run reported that nothing said which panel was the
+    detector, so the elements carry their own labels now.  The pixel-0 marker
+    is named in the top view alone.
+    """
+    scene, figure = build_figure(view_index=2)
+    try:
+        moving = moving_artists(figure)
+        for label, text in all_labels(figure):
+            assert label.get_text().strip() == text
+            assert label in moving, text
+        view = scene.view(2)
+        # The labels sit where the things they name are.
+        assert np.allclose(figure._source_text_3d.get_position_3d(),
+                           view.source_draw)
+        assert figure._top['source_label'].xy == pytest.approx(
+            (view.source_draw[0], view.source_draw[1]))
+        assert figure._side['source_label'].xy == pytest.approx(
+            (view.source_draw[1], view.source_draw[2]))
+        assert figure._top['pixel0_label'].xy == pytest.approx(
+            (view.detector_pixel0[0], view.detector_pixel0[1]))
+        # The side view names no pixel-0 marker.
+        assert 'pixel0_label' not in figure._side
+        side_texts = [text.get_text() for text in figure.ax_side.texts]
+        assert 'pixel (0,0)' not in side_texts
+    finally:
+        close(figure)
+
+
+def test_the_labels_follow_the_source_and_the_detector():
+    """A view change moves each label to the new position of its element."""
+    scene, figure = build_figure(view_index=0)
+    try:
+        before = figure._top['source_label'].xy
+        figure.set_view(3)
+        view = scene.view(3)
+        after = figure._top['source_label'].xy
+        assert after != before
+        assert after == pytest.approx((view.source_draw[0],
+                                       view.source_draw[1]))
+        assert np.allclose(figure._source_text_3d.get_position_3d(),
+                           view.source_draw)
+        # The detector's label sits on one of the detector's corners.
+        for label, columns in ((figure._top['detector_label'], (0, 1)),
+                               (figure._side['detector_label'], (1, 2))):
+            corners = view.detector_corners[:, list(columns)]
+            gap = np.linalg.norm(corners - np.asarray(label.xy)[None, :],
+                                 axis=1)
+            assert float(np.min(gap)) < 1e-9
+        gap = np.linalg.norm(
+            view.detector_corners
+            - np.asarray(figure._detector_text_3d.get_position_3d())[None, :],
+            axis=1)
+        assert float(np.min(gap)) < 1e-9
+    finally:
+        close(figure)
+
+
+def test_the_labels_are_animated_with_the_other_moving_artists():
+    """A label follows the rule of every moving artist.
+
+    The rule is `GeometryFigure._animate_moving`: a moving artist is animated
+    only where the partial redraw runs.  A label that stayed animated on a
+    backend without that path would be invisible there, which is the failure
+    Greg saw for the source and the detector.
+    """
+    _, with_blit = build_figure(blit=True)
+    _, without = build_figure(blit=False)
+    try:
+        assert with_blit._animate_moving() is True
+        for label, _ in all_labels(with_blit):
+            assert label.get_animated() is True
+        assert without._animate_moving() is False
+        for label, _ in all_labels(without):
+            assert label.get_animated() is False
+        # And every moving artist agrees with its labels.
+        assert all(artist.get_animated()
+                   for artist in moving_artists(with_blit))
+        assert not any(artist.get_animated()
+                       for artist in moving_artists(without))
+    finally:
+        close(with_blit)
+        close(without)
+
+
+# ── the angle-0 reference ───────────────────────────────────────────────────
+
+def reference_positions(figure):
+    """What each reference artist is drawn at, for the artists that can say.
+
+    A line reports its data and a text its position.  The arrowheads, one
+    ``quiver`` and one ``FancyArrowPatch``, report neither in a form worth
+    comparing, so they are left out and only counted.
+    """
+    positions = []
+    for _, artist in figure._reference_artists:
+        if hasattr(artist, 'get_data_3d'):
+            positions.append(np.concatenate(artist.get_data_3d()))
+        elif hasattr(artist, 'get_position_3d'):
+            positions.append(np.asarray(artist.get_position_3d()))
+        elif isinstance(artist.get_visible(), bool) and hasattr(artist, 'xy'):
+            positions.append(np.asarray(artist.xy, dtype=np.float64))
+        elif hasattr(artist, 'get_data'):
+            positions.append(np.concatenate(artist.get_data()))
+    return positions
+
+
+def test_the_reference_is_drawn_in_the_3d_and_top_panels():
+    """The angle-0 reference is drawn where the record says it is.
+
+    The 3D view and the top view get it.  The side view and the detector face
+    do not: the side view is the yz plane, in which a rotation about z moves
+    nothing.  The drawn source and detector are the scene's own
+    ``reference_view``.
+    """
+    scene, figure = build_figure(view_index=2)
+    try:
+        assert figure.show_reference is True
+        panels = [axes for axes, _ in figure._reference_artists]
+        assert panels.count(figure.ax_3d) == 5
+        assert panels.count(figure.ax_top) == 5
+        assert figure.ax_side not in panels
+        assert figure.ax_detector not in panels
+
+        reference = scene.reference_view()
+        stars = [artist for axes, artist in figure._reference_artists
+                 if axes is figure.ax_top
+                 and getattr(artist, 'get_marker', lambda: '')() == '*']
+        assert len(stars) == 1
+        assert np.allclose(np.concatenate(stars[0].get_data()),
+                           reference.source_draw[:2])
+        # The reference is not the view drawn, whose angle is not zero.
+        assert not np.allclose(reference.source_draw,
+                               scene.view(2).source_draw, atol=1e-3)
+    finally:
+        close(figure)
+
+
+def test_the_reference_does_not_move_with_the_view():
+    """The slider moves the geometry and leaves the reference where it is."""
+    scene, figure = build_figure(view_index=0)
+    try:
+        before = reference_positions(figure)
+        assert len(before) == 8
+        figure.set_view(4)
+        after = reference_positions(figure)
+        assert len(after) == len(before)
+        for first, second in zip(before, after):
+            assert np.array_equal(first, second)
+        # Meanwhile the source did move.
+        assert not np.allclose(scene.view(0).source_draw,
+                               scene.view(4).source_draw, atol=1e-3)
+    finally:
+        close(figure)
+
+
+def test_the_reference_artists_are_not_animated():
+    """The reference belongs to the background, so it is never animated.
+
+    A view change does not redraw it, and a full repaint has to paint it.
+    """
+    _, figure = build_figure(blit=True)
+    try:
+        assert figure._animate_moving() is True
+        for _, artist in figure._reference_artists:
+            assert artist.get_animated() is False
+        moving = moving_artists(figure)
+        for _, artist in figure._reference_artists:
+            assert artist not in moving
+    finally:
+        close(figure)
+
+
+def test_the_reference_toggle_hides_and_shows_it():
+    """The toggle widget and set_show_reference agree on the state."""
+    _, figure = build_figure()
+    try:
+        assert figure.reference_check.get_status()[0] is True
+        assert all(artist.get_visible()
+                   for _, artist in figure._reference_artists)
+
+        figure.set_show_reference(False)
+        assert figure.show_reference is False
+        assert figure.reference_check.get_status()[0] is False
+        assert not any(artist.get_visible()
+                       for _, artist in figure._reference_artists)
+
+        # Clicking the widget turns it back on.
+        figure.reference_check.set_active(0)
+        assert figure.show_reference is True
+        assert all(artist.get_visible()
+                   for _, artist in figure._reference_artists)
+    finally:
+        close(figure)
+
+
+def test_the_reference_is_off_when_the_constructor_says_so():
+    """show_reference=False builds the artists and leaves them hidden."""
+    _, figure = build_figure(show_reference=False)
+    try:
+        assert figure.show_reference is False
+        assert figure.reference_check.get_status()[0] is False
+        assert not any(artist.get_visible()
+                       for _, artist in figure._reference_artists)
+    finally:
+        close(figure)
+
+
+def test_the_panel_limits_hold_the_reference():
+    """The reference is inside the panel limits, whether or not it is drawn.
+
+    The limits are computed once, so a reference outside them would be cut off
+    when the toggle turned it on.  The check is made with the reference off,
+    because that is the case a limit computation could leave out.
+    """
+    scene, figure = build_figure(view_index=2, show_reference=False)
+    try:
+        reference = scene.reference_view()
+        points = np.concatenate([reference.detector_outline,
+                                 reference.source_draw.reshape(1, 3),
+                                 reference.detector_origin.reshape(1, 3)])
+        assert geometry_viewer._within(points[:, [0, 1]],
+                                       figure._limits['top'])
+        assert geometry_viewer._within(points, figure._limits['scan'])
+    finally:
+        close(figure)
+
+
+def test_the_comparison_is_named_in_the_top_view():
+    """A comparison's detector carries the word "comparison", once."""
+    scene, figure = build_figure(view_index=2)
+    try:
+        figure.set_compare(compare_overrides(scene))
+        label = figure._compare['label_top']
+        assert label.get_text() == 'comparison'
+        assert label.axes is figure.ax_top
+        corners = figure.compare_scene.view(2).detector_corners[:, [0, 1]]
+        gap = np.linalg.norm(corners - np.asarray(label.xy)[None, :], axis=1)
+        assert float(np.min(gap)) < 1e-9
+        for axes in (figure.ax_side, figure.ax_3d):
+            assert 'comparison' not in [text.get_text()
+                                        for text in axes.texts]
+        figure.set_compare(None)
+        assert 'comparison' not in [text.get_text()
+                                    for text in figure.ax_top.texts]
+    finally:
+        close(figure)
+
+
+def test_the_volume_zoom_hides_the_3d_labels_outside_its_cube():
+    """A 3D label whose point leaves the cube is hidden, not drawn outside it.
+
+    Matplotlib does not clip a 3D text artist or a ``quiver`` arrowhead to the
+    axes limits, so in the volume zoom the source's label was drawn where its
+    point projects, which is outside the panel and on top of the rest of the
+    figure.
+    """
+    _, figure = build_figure(view_index=2)
+    try:
+        assert figure._source_text_3d.get_visible() is True
+        assert figure._detector_text_3d.get_visible() is True
+        assert figure._reference_text_3d.get_visible() is True
+
+        figure.set_zoom('volume')
+        cube = np.array([figure.ax_3d.get_xlim(), figure.ax_3d.get_ylim(),
+                         figure.ax_3d.get_zlim()])
+        source = figure.scene.view(2).source_draw
+        # The source is outside the cube, so its label is not drawn.
+        assert (source < cube[:, 0]).any() or (source > cube[:, 1]).any()
+        assert figure._source_text_3d.get_visible() is False
+        assert figure._detector_text_3d.get_visible() is False
+        assert figure._reference_text_3d.get_visible() is False
+        assert figure._reference_arrow_3d.get_visible() is False
+
+        figure.set_zoom('scan')
+        assert figure._source_text_3d.get_visible() is True
+        assert figure._reference_text_3d.get_visible() is True
+        assert figure._reference_arrow_3d.get_visible() is True
+    finally:
+        close(figure)

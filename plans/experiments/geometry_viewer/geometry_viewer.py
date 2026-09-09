@@ -28,13 +28,28 @@ that stands upright is then hard to tell from one lying flat.  The camera can
 be dragged with the mouse, and ``set_view`` keeps whatever camera the user has
 set.
 
-The widgets.  A slider under the panels steps through the views, and two
+The widgets.  A slider under the panels steps through the views, and three
 toggles sit beside it.  The first turns the source's path over all views on and
 off.  The second switches the 3D panel between the whole scan and a close view
 of the volume, because a 12 ALU volume drawn to scale in a 200 ALU scan is
-twenty pixels wide.  The widgets follow the slice viewer of
-``mbirtorch/viewer.py``: an integer-stepped ``Slider`` with ``drawon`` off, and
-``CheckButtons`` for the two toggles.
+twenty pixels wide.  The third turns the angle-0 reference on and off.  The
+widgets follow the slice viewer of ``mbirtorch/viewer.py``: an integer-stepped
+``Slider`` with ``drawon`` off, and ``CheckButtons`` for the toggles.
+
+The labels.  The source and the detector carry a short text label in the 3D
+view, the top view, and the side view, and the detector's pixel-0 marker
+carries one in the top view.  Each label names the element it sits beside,
+which one panel's legend cannot do for the other panels (Greg, 2026-09-09).  A
+label moves with the element it names, so it is a moving artist like that
+element.
+
+The angle-0 reference.  The source and the detector are drawn a second time,
+where they sit when the view action is the identity.  That position comes from
+``GeometryScene.reference_view``.  These artists do not move with the slider,
+so they show the current view against a fixed one, and the dotted arrow through
+them is the direction the geometry projects at angle 0.  They are drawn dotted
+and partly transparent in the 3D view and the top view, and the third toggle
+turns them off.
 
 How a redraw stays fast.  Every artist is created once and its data is replaced
 in place, so a view change calls ``set_data`` and never ``clear``.  The panel
@@ -109,6 +124,11 @@ WIDGET_FONT_SIZE = 8
 #: panel's overall text width.
 TEXT_PANEL_WRAP_WIDTH = 52
 
+#: How far to the side a label sits from the point it names, in points.  The
+#: vertical gap is chosen per label instead, so that two labels near one point
+#: sit on different lines.
+LABEL_GAP_POINTS = 6
+
 SOURCE_MARKER_SIZE = 13
 INDEX_MARKER_SIZE = 8
 INDEX_MARKER_WIDTH = 1.8
@@ -122,6 +142,24 @@ EMPHASIZED_RAY_COLOR = '#8a8a8a'
 #: and white print as well as by color.
 COMPARE_DASHES = (0, (5.0, 2.0))
 COMPARE_LINEWIDTH = 1.4
+
+#: The alpha, the dash pattern, and the line width of the angle-0 reference.
+#: The reference sits behind the view drawn and must not be read as part of it,
+#: so it is dotted and partly transparent.
+REFERENCE_ALPHA = 0.45
+REFERENCE_DOTS = (0, (1.0, 2.0))
+REFERENCE_LINEWIDTH = 1.2
+
+#: The fraction of the reference central ray that its arrowhead spans.  The
+#: head is drawn from a short segment at the detector end, which is how the
+#: rotation arc's head is drawn.
+REFERENCE_ARROW_FRACTION = 0.06
+
+#: Where along the reference central ray its label sits, as a fraction of the
+#: way from the detector back toward the source.  On the arrowhead itself the
+#: label ran into the detector's own label, and at the middle of the ray it ran
+#: into the volume box.
+REFERENCE_LABEL_FRACTION = 0.2
 
 #: The 3D camera, in degrees.  See the module docstring.
 DEFAULT_ELEVATION_DEG = 22.0
@@ -177,9 +215,12 @@ MAX_COMPARISON_ENTRIES = 6
 COMPARING_FONT_SIZE = 6.0
 
 #: Widget rectangles in figure coordinates, as (left, bottom, width, height).
-SLIDER_RECT = (0.10, 0.045, 0.52, 0.025)
-TRAJECTORY_CHECK_RECT = (0.70, 0.015, 0.12, 0.075)
-ZOOM_CHECK_RECT = (0.845, 0.015, 0.13, 0.075)
+#: The slider is shorter than it was, because the row now carries a third
+#: toggle beside it.
+SLIDER_RECT = (0.07, 0.045, 0.38, 0.025)
+TRAJECTORY_CHECK_RECT = (0.50, 0.015, 0.12, 0.075)
+ZOOM_CHECK_RECT = (0.645, 0.015, 0.15, 0.075)
+REFERENCE_CHECK_RECT = (0.815, 0.015, 0.15, 0.075)
 
 #: The top of the panel grid is unchanged; its bottom leaves room for the
 #: widget row.
@@ -416,6 +457,51 @@ def _cube_bounds(points, margin=PANEL_MARGIN):
                  for index in range(3))
 
 
+def _far_corner(view, columns):
+    """The detector corner a panel puts farthest from the pixel-0 marker.
+
+    A label on the detector goes here.  The pixel-0 marker sits at one end of
+    the detector, so the far end holds a label that neither runs into the
+    pixel-0 label nor lands in the middle of the panel, where the rays are.
+
+    Args:
+        view (ViewScene): the view's primitives.
+        columns (sequence of int): which object coordinates the panel draws,
+            as indices into (x, y, z).  The 3D panel draws all three.
+
+    Returns:
+        ndarray: the corner, (3,).
+    """
+    corners = np.asarray(view.detector_corners, dtype=np.float64)
+    columns = list(columns)
+    pixel0 = np.asarray(view.detector_pixel0, dtype=np.float64)[columns]
+    distance = np.linalg.norm(corners[:, columns] - pixel0[None, :], axis=1)
+    return corners[int(np.argmax(distance))]
+
+
+def _place_beside(label, point, side=None):
+    """Move a label beside a point in a 2D panel.
+
+    The vertical offset the label was created with is kept.  By default the
+    horizontal offset takes the sign that points toward the middle of the
+    panel, so that a label on a point at the panel's edge reads into the panel
+    and not off it.
+
+    Args:
+        label: an annotation whose ``textcoords`` is ``'offset points'``.
+        point (sequence): the panel-plane position of the thing it names.
+        side (int, optional): 1 to put the label to the right of the point and
+            -1 to put it to the left.  The default chooses the side that reads
+            into the panel.
+    """
+    if side is None:
+        low, high = label.axes.get_xlim()
+        side = -1 if float(point[0]) > 0.5 * (low + high) else 1
+    label.set_ha('right' if side < 0 else 'left')
+    label.xyann = (side * LABEL_GAP_POINTS, float(label.xyann[1]))
+    label.xy = (float(point[0]), float(point[1]))
+
+
 def _within(points, limits):
     """Whether every point lies inside the given per-column limits."""
     points = np.asarray(points, dtype=np.float64)
@@ -488,8 +574,9 @@ class GeometryFigure:
     The figure shows one view of the scan.  :meth:`set_view` moves to another
     view, :meth:`set_show_trajectory` turns the path of the source over all
     views on and off, :meth:`set_zoom` switches the 3D panel between the whole
-    scan and the volume, and :meth:`set_compare` overlays a second geometry.
-    The slider and the two toggles under the panels call the same methods.
+    scan and the volume, :meth:`set_show_reference` turns the angle-0 reference
+    on and off, and :meth:`set_compare` overlays a second geometry.  The slider
+    and the three toggles under the panels call the same methods.
 
     This class calls no matplotlib window function.  Use :meth:`save` to write
     a file, :meth:`show` to open a window, or :func:`show_geometry` to do both
@@ -511,7 +598,10 @@ class GeometryFigure:
             for example ``dict(det_channel_offset=12.5)``.  None draws no
             comparison.
         zoom (str, optional): the 3D panel's zoom, one of :data:`ZOOM_MODES`.
-        widgets (bool, optional): whether to build the slider and the two
+        show_reference (bool, optional): whether to draw the source and the
+            detector at their angle-0 position as a fixed reference.  Defaults
+            to True.
+        widgets (bool, optional): whether to build the slider and the three
             toggles.  Defaults to True.
         blit (bool, optional): whether a view change may use the partial-redraw
             fast path.  Defaults to True.  False forces a full repaint per
@@ -526,8 +616,8 @@ class GeometryFigure:
             view, detector face, text panel.
         view_slider: the view ``Slider``, or None when the scan has one view or
             ``widgets`` is False.
-        trajectory_check, zoom_check: the two ``CheckButtons``, or None when
-            ``widgets`` is False.
+        trajectory_check, zoom_check, reference_check: the three
+            ``CheckButtons``, or None when ``widgets`` is False.
         detector_volume_edges (ndarray): the twelve projected volume edges the
             detector-face panel drew, (12, 2, 2), as (row, channel) pairs taken
             from ``ViewScene.volume_outline_on_detector``.
@@ -537,12 +627,14 @@ class GeometryFigure:
                  figsize=(15.0, 9.0), title=None,
                  elevation_deg=DEFAULT_ELEVATION_DEG,
                  azimuth_deg=DEFAULT_AZIMUTH_DEG,
-                 compare=None, zoom=DEFAULT_ZOOM, widgets=True, blit=True):
+                 compare=None, zoom=DEFAULT_ZOOM, show_reference=True,
+                 widgets=True, blit=True):
         _load_pyplot()
         self.scene = _as_scene(model_or_scene)
         self.compare_scene = None
         self._view_index = self._checked_view_index(view_index)
         self._show_trajectory = bool(show_trajectory)
+        self._show_reference = bool(show_reference)
         self._zoom = self._checked_zoom(zoom)
         self._elevation_deg = float(elevation_deg)
         self._azimuth_deg = float(azimuth_deg)
@@ -555,6 +647,7 @@ class GeometryFigure:
 
         self._trajectory = None
         self._compare_trajectory = None
+        self._reference = None
         self._limits = {}
         self._limit_views = set()
         self.detector_volume_edges = None
@@ -563,14 +656,16 @@ class GeometryFigure:
         self._compare_quantities = None
         self._compare_line_limit = None
 
-        # Every artist, in three groups.  _moving holds the artists a view
+        # Every artist, in four groups.  _moving holds the artists a view
         # change updates, as (axes, artist) pairs, because a partial redraw
         # draws an artist through its axes.  _compare_moving and
         # _compare_static hold the comparison overlay, which set_compare
-        # creates and removes.
+        # creates and removes.  _reference_artists holds the angle-0
+        # reference, which never moves and which its toggle hides.
         self._moving = []
         self._compare_moving = []
         self._compare_static = []
+        self._reference_artists = []
         self._arrow_3d = None
 
         self._build_panels(figsize, title)
@@ -615,6 +710,11 @@ class GeometryFigure:
     def zoom(self):
         """The 3D panel's zoom, one of :data:`ZOOM_MODES`."""
         return self._zoom
+
+    @property
+    def show_reference(self):
+        """Whether the angle-0 reference is drawn."""
+        return self._show_reference
 
     def set_view(self, view_index):
         """Draw another view.
@@ -666,6 +766,25 @@ class GeometryFigure:
             return
         self._zoom = mode
         self._sync_zoom_check()
+        self._refresh(rebuild_limits=True)
+
+    def set_show_reference(self, flag):
+        """Turn the angle-0 reference on or off.
+
+        The reference does not move with the slider, so it belongs to the
+        background, and turning it off repaints the whole figure.  The
+        source-path toggle works the same way.
+
+        Args:
+            flag (bool): whether to draw the reference.
+        """
+        flag = bool(flag)
+        if flag == self._show_reference:
+            return
+        self._show_reference = flag
+        self._sync_reference_check()
+        for _, artist in self._reference_artists:
+            artist.set_visible(flag)
         self._refresh(rebuild_limits=True)
 
     def set_compare(self, compare):
@@ -768,6 +887,12 @@ class GeometryFigure:
             self._trajectory = sources
         return self._trajectory
 
+    def _reference_view(self):
+        """The angle-0 reference view, computed once and kept."""
+        if self._reference is None:
+            self._reference = self.scene.reference_view()
+        return self._reference
+
     def _compare_source_trajectory(self):
         """The comparison's source path over all views, computed once."""
         if self._compare_trajectory is None:
@@ -845,7 +970,7 @@ class GeometryFigure:
         self.figure.add_artist(self._clear_rect)
 
     def _create_widgets(self, wanted):
-        """Create the view slider and the two toggles.
+        """Create the view slider and the three toggles.
 
         The slider steps by one view and never by a fraction, and its own draw
         is turned off so that a step goes through this class's redraw instead.
@@ -856,6 +981,7 @@ class GeometryFigure:
         self.view_slider = None
         self.trajectory_check = None
         self.zoom_check = None
+        self.reference_check = None
         self._slider_axes = None
         if not wanted:
             return
@@ -889,6 +1015,14 @@ class GeometryFigure:
             label.set_fontsize(WIDGET_FONT_SIZE)
         self.zoom_check.on_clicked(self._on_zoom_check)
 
+        reference_axes = self.figure.add_axes(REFERENCE_CHECK_RECT)
+        reference_axes.set_frame_on(False)
+        self.reference_check = CheckButtons(
+            reference_axes, ['angle-0 reference'], [self._show_reference])
+        for label in self.reference_check.labels:
+            label.set_fontsize(WIDGET_FONT_SIZE)
+        self.reference_check.on_clicked(self._on_reference_check)
+
     def _on_slider(self, value):
         """The view slider moved."""
         if self._syncing_widgets:
@@ -909,6 +1043,12 @@ class GeometryFigure:
         if self._syncing_widgets:
             return
         self.set_zoom('volume' if self.zoom_check.get_status()[0] else 'scan')
+
+    def _on_reference_check(self, _label):
+        """The angle-0 reference toggle was clicked."""
+        if self._syncing_widgets:
+            return
+        self.set_show_reference(self.reference_check.get_status()[0])
 
     def _sync_slider(self):
         """Move the slider to the current view without calling back."""
@@ -946,6 +1086,18 @@ class GeometryFigure:
         finally:
             self._syncing_widgets = False
 
+    def _sync_reference_check(self):
+        """Match the reference toggle to the state, without calling back."""
+        if self.reference_check is None:
+            return
+        if self.reference_check.get_status()[0] == self._show_reference:
+            return
+        self._syncing_widgets = True
+        try:
+            self.reference_check.set_active(0)
+        finally:
+            self._syncing_widgets = False
+
     # ------------------------------------------------------------------
     # Creating the artists
     # ------------------------------------------------------------------
@@ -956,19 +1108,21 @@ class GeometryFigure:
         The artists split in two.  A static artist is drawn by a full repaint
         and belongs to the background: the volume box, the region of
         reconstruction, the rotation axis or translation path, the voxel
-        marker, the detector grid, the two detector-face reference markers, and
-        the text block.  A moving artist carries the current view and is
-        redrawn on every view change: the source, the detector outline, the
-        rays, the projected volume outline, the offset segments, the arc, the
-        panel titles, and the text panel's footer.  Every moving artist is
-        marked animated, which keeps a full draw from painting it and lets a
-        partial redraw put it on top of the background.
+        marker, the detector grid, the two detector-face reference markers, the
+        angle-0 reference, and the text block.  A moving artist carries the
+        current view and is redrawn on every view change: the source, the
+        detector outline, the rays, the projected volume outline, the offset
+        segments, the arc, the labels of the source and the detector, the panel
+        titles, and the text panel's footer.  A moving artist is marked
+        animated only where the partial redraw runs; see
+        :meth:`_animate_moving`.
         """
         view = self.scene.view(self._view_index)
         self._create_3d_artists(view)
         self._create_top_artists(view)
         self._create_side_artists(view)
         self._create_detector_artists(view)
+        self._create_reference_artists()
         self._create_text_artists()
         self._trajectory_lines = [(self.ax_3d, self._path_3d),
                                   (self.ax_top, self._path_top),
@@ -995,6 +1149,45 @@ class GeometryFigure:
                           color=color, axlim_clip=True, **kwargs)
         self._moving.append((axes, line))
         return line
+
+    def _moving_text(self, axes, text, color, vertical):
+        """One small label that a view change moves to what it names.
+
+        The label is placed at a data point and offset from it in points, so
+        that the gap between the label and its marker is the same gap at every
+        panel scale.  :func:`_place_beside` sets the horizontal part of that
+        offset per view and keeps the vertical part given here.
+
+        Args:
+            axes: the panel.
+            text (str): the label.
+            color: the color of the element the label names.
+            vertical (float): the vertical offset from the data point, in
+                points.  A positive offset puts the label above the point and
+                a negative one puts it below.
+
+        Returns:
+            The annotation, already registered as a moving artist.
+        """
+        label = axes.annotate(text, xy=(0.0, 0.0),
+                              textcoords='offset points',
+                              xytext=(LABEL_GAP_POINTS, vertical),
+                              fontsize=ANNOTATION_FONT_SIZE, color=color,
+                              ha='left',
+                              va='bottom' if vertical >= 0 else 'top')
+        self._moving.append((axes, label))
+        return label
+
+    def _moving_text_3d(self, axes, text, color):
+        """One small 3D label that a view change moves to what it names.
+
+        A 3D text artist has no offset in points, so the gap from the point it
+        names is a leading space in the text.
+        """
+        label = axes.text(0.0, 0.0, 0.0, text, color=color,
+                          fontsize=ANNOTATION_FONT_SIZE)
+        self._moving.append((axes, label))
+        return label
 
     # --- the 3D panel ---
 
@@ -1065,6 +1258,12 @@ class GeometryFigure:
                                       color=COLORS['axis'],
                                       fontsize=ANNOTATION_FONT_SIZE)
         self._moving.append((axes, self._arc_text_3d))
+        # Two spaces, not one: the source's star marker is wide enough to
+        # reach under a label that starts one space away.
+        self._source_text_3d = self._moving_text_3d(axes, '  source',
+                                                    COLORS['source'])
+        self._detector_text_3d = self._moving_text_3d(axes, ' detector',
+                                                      COLORS['detector'])
 
         axes.set_xlabel('x (ALU)', fontsize=LABEL_FONT_SIZE)
         axes.set_ylabel('y (ALU)', fontsize=LABEL_FONT_SIZE)
@@ -1139,6 +1338,15 @@ class GeometryFigure:
         self._path_top.set_visible(self._show_trajectory)
 
         self._top = self._create_projected_moving_artists(axes)
+        # Only the top view names the pixel-0 marker.  In the side view that
+        # marker sits at the end of the detector, where the detector's own
+        # label already is.  The label goes above the detector, because the
+        # channel-offset label is below it, and higher above it than the
+        # detector's own label.  A scan whose detector is short against the
+        # width of the panel puts the two ends close together, and the two
+        # labels then need separate lines.
+        self._top['pixel0_label'] = self._moving_text(
+            axes, 'pixel (0,0)', COLORS['pixel0'], 14)
         self._arc_top = self._moving_line(axes, COLORS['axis'], linewidth=1.4)
         self._arrow_top = FancyArrowPatch(
             (0.0, 0.0), (0.0, 0.0), arrowstyle='-|>', mutation_scale=9,
@@ -1210,7 +1418,11 @@ class GeometryFigure:
             color=COLORS['trajectory'])
         self._path_note_side.set_visible(self._show_trajectory)
 
-        self._side = self._create_projected_moving_artists(axes)
+        # The source's label goes below the source in this panel.  Above it
+        # is where the recon_slice_offset label sits, and the two ran into
+        # each other in the curved cone figure.
+        self._side = self._create_projected_moving_artists(
+            axes, source_vertical=-7)
         self._offset_label_side = axes.annotate(
             '', xy=(0.0, 0.0), textcoords='offset points', xytext=(0, -5),
             fontsize=ANNOTATION_FONT_SIZE, color=COLORS['detector'],
@@ -1223,17 +1435,22 @@ class GeometryFigure:
             'Side view, the yz plane, seen from +x', fontsize=TITLE_FONT_SIZE)
         _finish_2d_panel(axes)
 
-    def _create_projected_moving_artists(self, axes):
+    def _create_projected_moving_artists(self, axes, source_vertical=7):
         """The moving artists the top and side panels share.
 
         The two panels are the same scene projected onto two different planes,
         so one routine creates the source, the detector outline, the rays, the
         central ray, the pixel marker, and the offset segment for both.
 
+        Args:
+            axes: the panel.
+            source_vertical (float, optional): the vertical offset of the
+                source's label, in points.
+
         Returns:
             dict: the artists, keyed by name.
         """
-        return dict(
+        artists = dict(
             rays=self._moving_line(axes, COLORS['rays'], linewidth=0.7),
             edge_rays=self._moving_line(axes, EMPHASIZED_RAY_COLOR,
                                         linewidth=1.1),
@@ -1252,6 +1469,14 @@ class GeometryFigure:
                                      markeredgewidth=INDEX_MARKER_WIDTH,
                                      zorder=6),
         )
+        # The source's label is offset a little farther than the others,
+        # because the central ray ends at the source and a smaller offset put
+        # the label on that line.
+        artists['source_label'] = self._moving_text(
+            axes, 'source', COLORS['source'], source_vertical)
+        artists['detector_label'] = self._moving_text(
+            axes, 'detector', COLORS['detector'], 4)
+        return artists
 
     # --- the detector-face panel ---
 
@@ -1301,6 +1526,113 @@ class GeometryFigure:
         axes.tick_params(labelsize=TICK_FONT_SIZE)
         self._title_detector = axes.set_title('', fontsize=TITLE_FONT_SIZE)
         self._moving.append((axes, self._title_detector))
+
+    # --- the angle-0 reference ---
+
+    def _reference_label(self):
+        """What the angle-0 reference's arrow is called in the top view.
+
+        The name is two lines, because one line of it is wider than the top
+        panel.  The translation geometry has no view angle, so its reference is
+        the view action's identity said the other way: no translation.
+        """
+        if self.scene.kind == 'translation':
+            return 'projection direction,\nno translation'
+        return 'projection direction,\nangle 0'
+
+    def _reference_short_label(self):
+        """The same name, short enough for the 3D panel."""
+        return ('no translation' if self.scene.kind == 'translation'
+                else 'angle 0')
+
+    def _create_reference_artists(self):
+        """Draw the source and the detector at their angle-0 position.
+
+        The reference is the geometry with the view action set to the identity,
+        which ``GeometryScene.reference_view`` returns.  It answers what one
+        view cannot: where the source and the detector stand at angle 0, and
+        which way the geometry projects through the object from there (Greg,
+        2026-09-09).
+
+        These artists do not depend on the view, so they are ordinary static
+        artists and they belong to the background.  Their toggle therefore
+        repaints the whole figure.  The 3D view and the top view get them.  The
+        side view is the yz plane, in which a rotation about z moves nothing,
+        so a reference drawn there would lie on top of the view drawn.
+        """
+        reference = self._reference_view()
+        self._reference_artists = []
+        dotted = dict(linestyle=REFERENCE_DOTS, linewidth=REFERENCE_LINEWIDTH,
+                      alpha=REFERENCE_ALPHA)
+        hollow_star = dict(marker='*', linestyle='none',
+                           markersize=SOURCE_MARKER_SIZE,
+                           markerfacecolor='none',
+                           markeredgecolor=COLORS['source'],
+                           markeredgewidth=1.3, alpha=REFERENCE_ALPHA)
+        source = reference.source_draw
+        origin = reference.detector_origin
+        outline = reference.detector_outline
+        # The arrowhead is drawn from a short segment at the detector end of
+        # the central ray, so that it points the way the geometry projects.
+        head_start = origin + REFERENCE_ARROW_FRACTION * (source - origin)
+
+        def keep(axes, artist):
+            """Register one reference artist and set its visibility."""
+            artist.set_visible(self._show_reference)
+            self._reference_artists.append((axes, artist))
+            return artist
+
+        axes = self.ax_3d
+        keep(axes, axes.plot([source[0]], [source[1]], [source[2]],
+                             label='angle-0 reference', axlim_clip=True,
+                             **hollow_star)[0])
+        keep(axes, axes.plot(outline[:, 0], outline[:, 1], outline[:, 2],
+                             color=COLORS['detector'], axlim_clip=True,
+                             **dotted)[0])
+        central = _sampled_segment(source, origin)
+        keep(axes, axes.plot(central[:, 0], central[:, 1], central[:, 2],
+                             color=COLORS['central_ray'], axlim_clip=True,
+                             **dotted)[0])
+        direction = origin - head_start
+        self._reference_arrow_3d = keep(axes, axes.quiver(
+            head_start[0], head_start[1], head_start[2],
+            direction[0], direction[1], direction[2],
+            color=COLORS['central_ray'], alpha=REFERENCE_ALPHA,
+            arrow_length_ratio=3.0, linewidth=REFERENCE_LINEWIDTH))
+        self._reference_arrow_point = head_start
+        # The label goes at the middle of the reference detector's low-row
+        # edge.  On the arrowhead, which lands at the middle of that detector,
+        # it fell on the current detector's own label instead.
+        corners = reference.detector_corners
+        label_at = 0.5 * (corners[0] + corners[1])
+        self._reference_text_3d = keep(axes, axes.text(
+            label_at[0], label_at[1], label_at[2],
+            ' ' + self._reference_short_label(),
+            color=COLORS['central_ray'], alpha=REFERENCE_ALPHA,
+            fontsize=ANNOTATION_FONT_SIZE))
+
+        axes = self.ax_top
+        keep(axes, axes.plot([source[0]], [source[1]], **hollow_star)[0])
+        keep(axes, axes.plot(outline[:, 0], outline[:, 1],
+                             color=COLORS['detector'], **dotted)[0])
+        keep(axes, axes.plot([source[0], origin[0]],
+                             [source[1], origin[1]],
+                             color=COLORS['central_ray'], **dotted)[0])
+        head = FancyArrowPatch(
+            (head_start[0], head_start[1]), (origin[0], origin[1]),
+            arrowstyle='-|>', mutation_scale=10,
+            linewidth=REFERENCE_LINEWIDTH, color=COLORS['central_ray'],
+            alpha=REFERENCE_ALPHA, shrinkA=0.0, shrinkB=0.0)
+        axes.add_patch(head)
+        keep(axes, head)
+        # The top view's label reads along the ray, which is the line it
+        # names.
+        label_at = origin + REFERENCE_LABEL_FRACTION * (source - origin)
+        keep(axes, axes.annotate(
+            self._reference_label(), xy=(label_at[0], label_at[1]),
+            textcoords='offset points', xytext=(LABEL_GAP_POINTS, 0),
+            fontsize=ANNOTATION_FONT_SIZE, color=COLORS['central_ray'],
+            alpha=REFERENCE_ALPHA, ha='left', va='center'))
 
     # --- the text panel ---
 
@@ -1596,6 +1928,16 @@ class GeometryFigure:
                 axes, marker='+', linestyle='none',
                 markersize=INDEX_MARKER_SIZE,
                 markeredgewidth=INDEX_MARKER_WIDTH)
+        # The comparison is named once, beside its detector in the top view,
+        # because a label in every panel would say the same thing four times.
+        # It hangs farther below the detector than the primary's labels do, so
+        # that it does not run into the channel-offset label.
+        label = self.ax_top.annotate(
+            'comparison', xy=(0.0, 0.0), textcoords='offset points',
+            xytext=(LABEL_GAP_POINTS, -14), fontsize=ANNOTATION_FONT_SIZE,
+            color=color, ha='left', va='top')
+        self._compare_moving.append((self.ax_top, label))
+        self._compare['label_top'] = label
         self._compare['edges_detector'] = moving(
             self.ax_detector, label='comparison', **dashed)
         self._compare['landing_detector'] = moving(
@@ -1698,10 +2040,49 @@ class GeometryFigure:
         self._update_projected_panel(self._side, view, 1, 2)
         self._update_arc_and_offsets(view)
         self._update_detector_panel(view)
+        self._clip_3d_artists(view)
         self._footer_text.set_text('\n'.join(self._footer_lines()))
         self._update_titles()
         if compare_view is not None:
             self._update_compare_artists(compare_view)
+
+    def _clip_3d_artists(self, view):
+        """Hide the 3D artists that lie outside the 3D panel's cube.
+
+        Two kinds of 3D artist are not clipped by the axes limits, the way a
+        3D line drawn with ``axlim_clip`` is: a text artist and an arrowhead
+        built by ``quiver``.  In the volume zoom the source sits far outside
+        the cube, and its label would be drawn where that point projects,
+        which is outside the panel and on top of the rest of the figure.  Each
+        such artist is hidden when the point it is attached to is outside the
+        cube.
+
+        Args:
+            view (ViewScene): the current view's primitives.
+        """
+        cube = (self.ax_3d.get_xlim(), self.ax_3d.get_ylim(),
+                self.ax_3d.get_zlim())
+        arc = view.rotation_direction_arc
+        artists = [(self._source_text_3d, view.source_draw, True),
+                   (self._detector_text_3d, _far_corner(view, (0, 1, 2)),
+                    True),
+                   (self._arc_text_3d, None if arc is None else arc[-1],
+                    arc is not None),
+                   (self._arrow_3d, None if arc is None else arc[-2],
+                    arc is not None and self._arrow_3d is not None),
+                   (self._reference_text_3d,
+                    self._reference_text_3d.get_position_3d(),
+                    self._show_reference),
+                   (self._reference_arrow_3d, self._reference_arrow_point,
+                    self._show_reference)]
+        for artist, point, drawn in artists:
+            if artist is None:
+                continue
+            if not drawn:
+                artist.set_visible(False)
+                continue
+            point = np.asarray(point, dtype=np.float64).reshape(1, 3)
+            artist.set_visible(_within(point, cube))
 
     def _update_titles(self):
         """Put the view drawn into the titles of the drawing panels."""
@@ -1731,6 +2112,9 @@ class GeometryFigure:
         self._central_3d.set_data_3d(central[:, 0], central[:, 1],
                                      central[:, 2])
         self._pixel0_3d.set_data_3d(*_point_3d(view.detector_pixel0))
+        self._source_text_3d.set_position_3d(tuple(view.source_draw))
+        self._detector_text_3d.set_position_3d(
+            tuple(_far_corner(view, (0, 1, 2))))
         if self._show_trajectory:
             path = self._source_trajectory()
             self._path_3d.set_data_3d(path[:, 0], path[:, 1], path[:, 2])
@@ -1768,6 +2152,30 @@ class GeometryFigure:
                                                     view.detector_origin])))
         artists['source'].set_data(*flat(view.source_draw))
         artists['pixel0'].set_data(*flat(view.detector_pixel0))
+
+        # Each label goes beside the thing it names.  The detector's goes at
+        # the end of the detector farthest from the pixel-0 marker, which
+        # keeps it off the middle of the panel, where the rays and the offset
+        # segment are, and away from the pixel-0 label.
+        anchor = _far_corner(view, (first, second))
+        pixel0 = view.detector_pixel0
+        # The top view spreads the detector along the channel direction, so
+        # its two ends are far apart in this panel.  The detector's label
+        # reads outward from its end, away from the channel-offset label at
+        # the middle of the detector and away from the pixel-0 label at the
+        # other end.  The side view spreads the detector along the row
+        # direction instead, which is that panel's vertical axis, so there the
+        # label takes the panel's own rule.  The pixel-0 label always takes
+        # the panel's rule, which keeps it inside the panel.
+        outward = 1 if anchor[first] >= pixel0[first] else -1
+        _place_beside(artists['source_label'],
+                      (view.source_draw[first], view.source_draw[second]))
+        _place_beside(artists['detector_label'],
+                      (anchor[first], anchor[second]),
+                      side=(outward if first == 0 else None))
+        pixel0_label = artists.get('pixel0_label')
+        if pixel0_label is not None:
+            _place_beside(pixel0_label, (pixel0[first], pixel0[second]))
 
         # The offset segment runs from the point where the central ray meets
         # the detector to the center of the detector grid.  Projected onto this
@@ -1915,6 +2323,12 @@ class GeometryFigure:
             compare[f'pixel0_{name}'].set_data([pixel0[first]],
                                                [pixel0[second]])
 
+        # The comparison's label reads outward from its detector, for the
+        # reason the primary's does.
+        anchor = _far_corner(view, (0, 1))
+        outward = 1 if anchor[0] >= pixel0[0] else -1
+        _place_beside(compare['label_top'], anchor[:2], side=outward)
+
         indices = np.asarray(view.volume_outline_on_detector,
                              dtype=np.float64)
         edges = _joined([indices[[first, second]]
@@ -2005,6 +2419,13 @@ class GeometryFigure:
             groups.append(self._source_trajectory())
             if self.compare_scene is not None:
                 groups.append(self._compare_source_trajectory())
+        # The angle-0 reference is measured whether or not it is drawn, so
+        # that turning it on cannot put it outside limits already set.  The
+        # limits are computed once, and the reference never moves.
+        reference = self._reference_view()
+        groups.extend([reference.source_draw.reshape(1, 3),
+                       reference.detector_outline,
+                       reference.detector_origin.reshape(1, 3)])
 
         points = np.concatenate([np.asarray(group, dtype=np.float64)
                                  .reshape(-1, 3) for group in groups])
