@@ -706,7 +706,7 @@ class GeometryFigure:
             self._set_animated(False)
             self.figure.savefig(path, dpi=dpi, facecolor='white')
         finally:
-            self._set_animated(True)
+            self._set_animated(self._animate_moving())
             self._suspend_blit = False
             self._background = None
         return path
@@ -974,7 +974,7 @@ class GeometryFigure:
                                   (self.ax_top, self._path_top),
                                   (self.ax_side, self._path_side)]
         self._compare_trajectory_lines = []
-        self._set_animated(True)
+        self._set_animated(self._animate_moving())
 
     def _set_animated(self, flag):
         """Mark or unmark every moving artist as animated."""
@@ -1652,7 +1652,7 @@ class GeometryFigure:
             line.set_visible(self._show_trajectory)
             self._compare_static.append((axes, line))
             self._compare_trajectory_lines.append((axes, line))
-        self._set_animated(True)
+        self._set_animated(self._animate_moving())
 
     def _remove_compare_artists(self):
         """Remove every comparison artist from its axes."""
@@ -1806,7 +1806,7 @@ class GeometryFigure:
                 start[0], start[1], start[2],
                 direction[0], direction[1], direction[2],
                 color=COLORS['axis'], arrow_length_ratio=3.0, linewidth=1.4)
-            self._arrow_3d.set_animated(True)
+            self._arrow_3d.set_animated(self._animate_moving())
             # quiver widens the axes limits to hold its arrow, so the panel's
             # own limits go back on afterwards.
             self._apply_3d_limits()
@@ -2108,18 +2108,32 @@ class GeometryFigure:
     # Painting: full repaints and partial redraws
     # ------------------------------------------------------------------
 
+    def _animate_moving(self):
+        """Whether the moving artists are marked animated.
+
+        A full draw skips an animated artist, and only the partial-redraw path
+        paints one.  So the moving artists may be animated only where that path
+        runs: on a backend in ``BLIT_BACKENDS`` whose canvas reports blit
+        support, with blitting enabled.  Everywhere else they stay ordinary
+        artists that a full draw paints.  Marking them animated on such a
+        backend would leave the source, the detector, and everything the slider
+        moves invisible, which is what happened on the macosx backend before
+        this rule existed (Greg, 2026-09-09).
+        """
+        canvas = self.figure.canvas
+        return (self.enable_blit
+                and matplotlib.get_backend().lower() in BLIT_BACKENDS
+                and bool(getattr(canvas, 'supports_blit', False)))
+
     def _blit_usable(self):
-        """Whether the partial-redraw fast path can be used.
+        """Whether the partial-redraw fast path can be used right now.
 
         The rule follows ``mbirtorch/viewer.py``: only on a backend where the
         fast path is verified, and only when the canvas reports blit support.
         Everywhere else a view change repaints the whole figure, which is
-        correct and slower.
+        correct and slower.  A save suspends the path for its duration.
         """
-        canvas = self.figure.canvas
-        return (self.enable_blit and not self._suspend_blit
-                and matplotlib.get_backend().lower() in BLIT_BACKENDS
-                and bool(getattr(canvas, 'supports_blit', False)))
+        return self._animate_moving() and not self._suspend_blit
 
     def _full_redraw(self):
         """Repaint the whole figure and cache the new background."""

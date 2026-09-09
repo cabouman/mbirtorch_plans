@@ -478,3 +478,56 @@ def test_every_geometry_takes_every_control(name, tmp_path):
 
 if __name__ == '__main__':
     sys.exit(pytest.main([__file__, '-q']))
+
+
+def test_plain_draw_paints_the_moving_artists_without_blitting():
+    """Without the fast path, a plain full draw must paint the source and the
+    detector.
+
+    A backend outside BLIT_BACKENDS repaints the whole figure on every view
+    change.  A full draw skips animated artists, so the moving artists must
+    not be animated there.  Before this rule the source, the detector, and
+    everything the slider moves were invisible on the macosx backend, while a
+    saved file, which unmarks the artists, looked right.  The test drives the
+    figure through the same plain draw and checks that it paints exactly what
+    a draw with every artist unmarked paints.
+    """
+    import numpy as np
+    import mbirtorch
+    from geometry_viewer import GeometryFigure
+    angles = np.linspace(0.0, 2.0 * np.pi, 12, endpoint=False)
+    model = mbirtorch.ConeBeamModel((12, 16, 24), angles,
+                                    source_detector_dist=200.0,
+                                    source_iso_dist=100.0, compile_mode='off')
+    figure = GeometryFigure(model, view_index=0, blit=False, widgets=True)
+    assert all(not artist.get_animated() for _, artist in figure._moving)
+
+    def plain_draw():
+        figure.figure.canvas.draw()
+        return np.asarray(figure.figure.canvas.buffer_rgba()).copy()
+
+    painted = plain_draw()
+    figure._set_animated(False)
+    reference = plain_draw()
+    # Both draws paint the same artists, so the two buffers are identical.
+    assert np.array_equal(painted, reference)
+
+    # And a view change through the plain path moves the source on screen.
+    before = plain_draw()
+    figure.set_view(3)
+    after = plain_draw()
+    assert (before != after).any(axis=2).sum() > 500
+
+
+def test_moving_artists_are_animated_only_on_a_blit_backend():
+    """Under Agg with blitting enabled the fast path runs, so the moving
+    artists are animated; with blitting disabled they are not."""
+    import numpy as np
+    import mbirtorch
+    from geometry_viewer import GeometryFigure
+    angles = np.linspace(0.0, np.pi, 4, endpoint=False)
+    model = mbirtorch.ParallelBeamModel((4, 6, 16), angles, compile_mode='off')
+    with_blit = GeometryFigure(model, blit=True, widgets=False)
+    without = GeometryFigure(model, blit=False, widgets=False)
+    assert all(artist.get_animated() for _, artist in with_blit._moving)
+    assert all(not artist.get_animated() for _, artist in without._moving)
