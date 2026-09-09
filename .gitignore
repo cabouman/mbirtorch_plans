@@ -6,3 +6,5 @@
 *.log
 *.png
 *.sbatch
+__pycache__/
+.pytest_cache/
