@@ -1,6 +1,9 @@
 # Geometry viewer, plan of record
 
-Date: 2026-09-09.  Status: APPROVED direction (Greg, 2026-09-09); increments open.
+Date: 2026-09-09.  Status: APPROVED direction (Greg, 2026-09-09).  Increment 1 is
+done (2026-09-09): `geometry_conventions.md` records the confirmed conventions, and
+`gv1_conventions_probe.py` passed its gate for all six geometries with a largest
+error of 0.11 detector pixel.  Increment 2 is in progress.
 Decisions recorded on 2026-09-09: the first frontend is matplotlib; the primary
 uses are checking a real scan's geometry before reconstruction and supporting the
 geometric calibration work; the prototype is built in this repository for a later
