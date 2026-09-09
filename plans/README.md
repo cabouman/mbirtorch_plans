@@ -72,6 +72,11 @@ current state; these carry the why and the numbers.
   right-click menu), and three matplotlib 3.11 macosx problems.  Decision
   2026-08-07: mbirjax keeps its current viewer; the retrofit is recorded but
   not planned.
+- `features/geometry_viewer/geometry_viewer_plan.md` — the interactive geometry viewer
+  (APPROVED direction 2026-09-09): a matplotlib drawing of the source, detector,
+  volume, and rotation axis of a `TomographyModel`, checked against the projector
+  by forward-projecting corner voxels.  Increment 1 writes `geometry_conventions.md`
+  in the same directory.  Scripts are in `experiments/geometry_viewer/`.
 - `preprocessing/` — the scanner-reader API refactor (readers return a ready model via
   `get_sino_and_model` / `build_model`; landed on `prerelease` 2026-07, PR #219):
   `preprocessing_pipeline_refactor_plan.md` is its plan and as-built design record;
