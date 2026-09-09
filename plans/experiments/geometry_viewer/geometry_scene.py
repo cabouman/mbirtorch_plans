@@ -1,0 +1,1164 @@
+"""Drawable description of an mbirtorch scan geometry, in plain numpy.
+
+What this module is for.  A tomography model holds numbers: distances, pitches,
+offsets, and per-view angles or vectors.  A user cannot see a geometry error in
+those numbers, but can see it in a picture.  This module turns the numbers into
+the points, lines, and polylines a picture needs.  It imports numpy only, so
+every geometric statement it makes can be tested without a display.
+
+The two layers.  ``GeometryScene`` is the model layer: it holds the parameters,
+maps object points to detector indices, and returns the primitives for one
+view.  A separate matplotlib module draws those primitives and owns the widgets.
+This split follows the slice viewer of ``mbirtorch/viewer.py``, whose pure-numpy
+``VolumeStack`` carries all of the data logic.
+
+The object frame.  All four geometries share one right-handed (x, y, z) frame
+whose z axis is the rotation axis.  Voxel (i, j, k) of the reconstruction sits
+at
+
+    x = delta_voxel * (j - (num_cols - 1) / 2)
+    y = delta_voxel_row * (i - (num_rows - 1) / 2)
+    z = delta_voxel_slice * (k - (num_slices - 1) / 2) + recon_slice_offset
+
+with ``delta_voxel_row = voxel_row_aspect * delta_voxel`` and
+``delta_voxel_slice = voxel_slice_aspect * delta_voxel``.  The volume is
+centered on the origin in x and y.
+
+Two pictures of the same geometry.  The projector moves the object and holds the
+source and the detector fixed.  A scanner user thinks of the object as fixed and
+the gantry as moving.  This module computes detector indices in the projector's
+picture, because that is what the projector does, and returns drawable
+primitives in the user's picture, because that is what a drawing needs.  The
+conversion is the inverse of the view's action on the object.
+
+Two positions in a drawing are choices and not geometry.  A parallel projection
+has no source position, and a cone geometry with an infinite source-detector
+distance has neither a source nor a detector position.  Both cases place the
+source and the detector at a distance derived from the volume's size; see
+``drawing_distance``.
+
+The conventions this module implements are recorded, and confirmed against the
+projector, in ``geometry_conventions.md`` of the geometry viewer plan directory.
+"""
+
+from dataclasses import dataclass, field
+
+import numpy as np
+
+__all__ = ['GeometryScene', 'ViewScene', 'GEOMETRY_KINDS',
+           'required_parameter_names', 'CURVED_ARC_SAMPLES',
+           'DEFAULT_DRAWING_DISTANCE_FACTOR', 'MULTIAXIS_SOURCE_ON_PLUS_Y']
+
+
+#: The geometry kinds this module knows.  Each names one mbirtorch model class.
+GEOMETRY_KINDS = ('parallel', 'cone', 'multiaxis', 'translation')
+
+#: Number of points sampled along one edge of a curved detector's outline.  The
+#: outline is a closed polyline through the bottom edge and back along the top
+#: edge, so it holds 2 * CURVED_ARC_SAMPLES + 1 points.
+CURVED_ARC_SAMPLES = 33
+
+#: Default multiple of the volume's largest half-extent used as the drawing
+#: distance for a geometry whose source or detector has no physical position.
+#: This is a drawing choice, not a property of any model.
+DEFAULT_DRAWING_DISTANCE_FACTOR = 1.5
+
+#: Default multiple of the volume's z half-extent used for the length of the
+#: drawn rotation axis, so that the axis sticks out past the volume box.
+DEFAULT_ROTATION_AXIS_EXTENSION = 1.25
+
+#: The multiaxis source-side convention.  A parallel projection is the same in
+#: both directions along a ray, so measurement cannot say which end of a ray
+#: holds the source.  True puts the source on the +y side, as the cone and
+#: translation geometries do.  A positive elevation then puts the source below
+#: the xy plane and the detector center above it.  Setting this to False
+#: reverses the direction of travel and swaps the two, and changes nothing about
+#: the detector indices a point receives.
+MULTIAXIS_SOURCE_ON_PLUS_Y = True
+
+
+# Parameter names read from a model, by geometry kind.  ``from_model`` reads
+# exactly these names through ``model.get_params``, so the scene depends on the
+# parameter interface and not on any model class.
+_COMMON_PARAMETER_NAMES = (
+    'sinogram_shape', 'recon_shape', 'delta_voxel', 'voxel_row_aspect',
+    'voxel_slice_aspect', 'delta_det_channel', 'delta_det_row',
+    'det_channel_offset', 'det_row_offset', 'use_ror_mask',
+)
+
+# The parallel and translation models have no recon_slice_offset parameter and
+# raise on that name, so it is requested only where it exists.
+_KIND_PARAMETER_NAMES = {
+    'parallel': ('angles',),
+    'cone': ('view_params_array', 'source_detector_dist', 'source_iso_dist',
+             'use_curved_detector', 'recon_slice_offset'),
+    'multiaxis': ('angles', 'recon_slice_offset'),
+    'translation': ('translation_vectors', 'source_detector_dist',
+                    'source_iso_dist'),
+}
+
+
+def required_parameter_names(kind):
+    """The parameter names a scene of this geometry kind needs.
+
+    Args:
+        kind (str): one of ``GEOMETRY_KINDS``.
+
+    Returns:
+        tuple of str: the names, in a fixed order.
+    """
+    if kind not in GEOMETRY_KINDS:
+        raise ValueError(f'Unknown geometry kind {kind!r}; '
+                         f'expected one of {GEOMETRY_KINDS}.')
+    return _COMMON_PARAMETER_NAMES + _KIND_PARAMETER_NAMES[kind]
+
+
+def _rotation_about_z(angle):
+    """The 3x3 matrix that rotates a point about the z axis by ``angle``.
+
+    The sense is the right-handed one: a positive angle carries the +x axis
+    toward the +y axis, which is counterclockwise seen from a point on the +z
+    axis looking toward the origin.
+    """
+    cosine, sine = np.cos(angle), np.sin(angle)
+    return np.array([[cosine, -sine, 0.0],
+                     [sine, cosine, 0.0],
+                     [0.0, 0.0, 1.0]])
+
+
+def _unit(vector):
+    """``vector`` scaled to unit length."""
+    vector = np.asarray(vector, dtype=np.float64)
+    norm = float(np.linalg.norm(vector))
+    if norm == 0.0:
+        raise ValueError('Cannot normalize a zero vector.')
+    return vector / norm
+
+
+@dataclass
+class ViewScene:
+    """The drawable primitives of one view, in the fixed-object picture.
+
+    Every array is float64 and every position is in object-frame ALU.  The
+    object stays where ``GeometryScene.voxel_centers`` puts it, and the source
+    and the detector carry the view's motion.
+
+    Attributes:
+        view_index (int): the view these primitives belong to.
+        source (ndarray or None): the source position, (3,).  None for a
+            geometry whose source is infinitely far away, which is the parallel
+            and multiaxis geometries and a cone geometry with an infinite
+            source-detector distance.
+        source_draw (ndarray): a source position that is always finite, (3,).
+            Equal to ``source`` when that exists.  Otherwise a point one
+            drawing distance back along the ray direction, which is a drawing
+            choice.
+        ray_direction (ndarray): unit vector, (3,), pointing from the source
+            toward the detector along the central ray.
+        detector_center (ndarray): the physical center of the detector grid,
+            (3,).  This is the point at detector coordinates
+            (u, v) = (-det_channel_offset, -det_row_offset), which is not on
+            the central ray when either offset is nonzero.
+        detector_origin (ndarray): the point where the central ray meets the
+            detector, (3,), which is detector coordinates (0, 0).
+        detector_u_axis (ndarray): unit vector, (3,), along which the channel
+            index increases.  For a curved detector this is the tangent to the
+            cylinder at the central ray.
+        detector_v_axis (ndarray): unit vector, (3,), along which the row index
+            increases.
+        detector_normal (ndarray): unit vector, (3,), equal to
+            ``ray_direction`` for a flat detector.
+        detector_outline (ndarray): closed polyline through the detector's
+            physical corners, (M, 3).  Five points for a flat panel.  For a
+            curved detector, the bottom edge sampled along the arc, the top
+            edge sampled back, and a repeat of the first point.
+        detector_corners (ndarray): the four physical corners, (4, 3), in the
+            order (low channel, low row), (high channel, low row), (high
+            channel, high row), (low channel, high row).
+        detector_pixel0 (ndarray): the physical center of detector pixel
+            (row 0, channel 0), (3,).
+        volume_corners (ndarray): the eight outer corners of the volume box,
+            (8, 3).  These sit on the outer faces of the corner voxels, half a
+            voxel beyond the corner voxel centers.
+        voxel0_center (ndarray): the center of voxel (0, 0, 0), (3,).
+        rotation_axis (ndarray or None): a segment along the rotation axis,
+            (2, 3), spanning the volume's z extent and a little past it.  None
+            for the translation geometry, which does not rotate.
+        translation_path (ndarray or None): the path of the projector frame's
+            origin through the object, (V, 3), for the translation geometry.
+            This is the line the central ray sweeps through the object, and it
+            takes the rotation axis's place in a drawing.  None otherwise.
+        corner_rays (ndarray): four segments from ``source_draw`` to the four
+            detector corners, (4, 2, 3).
+        volume_outline_on_detector (ndarray): the detector indices of the eight
+            volume corners, (8, 2), as (row, channel).
+        ror_cylinder (dict or None): the region of reconstruction, when
+            ``use_ror_mask`` is True.  Keys: ``center`` (3,), ``semi_axis_x``,
+            ``semi_axis_y``, ``radius``, ``z_min``, ``z_max``.  None when the
+            mask is off or is a custom array.
+    """
+
+    view_index: int
+    source: object
+    source_draw: np.ndarray
+    ray_direction: np.ndarray
+    detector_center: np.ndarray
+    detector_origin: np.ndarray
+    detector_u_axis: np.ndarray
+    detector_v_axis: np.ndarray
+    detector_normal: np.ndarray
+    detector_outline: np.ndarray
+    detector_corners: np.ndarray
+    detector_pixel0: np.ndarray
+    volume_corners: np.ndarray
+    voxel0_center: np.ndarray
+    rotation_axis: object
+    translation_path: object
+    corner_rays: np.ndarray
+    volume_outline_on_detector: np.ndarray
+    ror_cylinder: object = field(default=None)
+
+
+class GeometryScene:
+    """The drawable geometry of one tomography model.
+
+    Construct from a model with :meth:`from_model`, or from a plain dictionary
+    of parameters plus a geometry kind.  The dictionary form exists so that a
+    geometry can be drawn without building a model, which is useful for a
+    hypothetical geometry and for a case a model rejects.
+
+    Args:
+        params (dict): the parameter values, keyed by mbirtorch parameter name.
+            :func:`required_parameter_names` lists the names each kind needs.
+            Extra keys are ignored.
+        kind (str): one of ``GEOMETRY_KINDS``.
+        drawing_distance_factor (float, optional): multiple of the volume's
+            largest half-extent used as the drawing distance where a source or
+            a detector has no physical position.  Defaults to
+            ``DEFAULT_DRAWING_DISTANCE_FACTOR``.
+        multiaxis_source_on_plus_y (bool, optional): the multiaxis source-side
+            convention; see ``MULTIAXIS_SOURCE_ON_PLUS_Y``.
+        rotation_axis_extension (float, optional): multiple of the volume's z
+            half-extent used for the drawn rotation axis's half length.
+
+    Attributes:
+        kind (str): the geometry kind.
+        num_views (int): the number of views.
+        num_det_rows, num_det_channels (int): the detector's shape.
+        num_rows, num_cols, num_slices (int): the volume's shape.
+        magnification (float): the scale from a point at the origin to its
+            image on the detector.  One for a parallel projection.
+        is_parallel_type (bool): True when the source is infinitely far away,
+            so that the projection has no finite source position.
+        drawing_distance (float): the distance used where a position is a
+            drawing choice.
+        row_pitch (float): the detector row pitch the projector actually uses.
+            This is ``delta_det_row`` for every geometry except the parallel
+            one, which sends recon slice m to detector row m and therefore uses
+            ``delta_voxel``.
+        row_offset (float): the detector row offset the projector actually
+            uses, which is zero for the parallel geometry and
+            ``det_row_offset`` otherwise.
+    """
+
+    def __init__(self, params, kind,
+                 drawing_distance_factor=DEFAULT_DRAWING_DISTANCE_FACTOR,
+                 multiaxis_source_on_plus_y=MULTIAXIS_SOURCE_ON_PLUS_Y,
+                 rotation_axis_extension=DEFAULT_ROTATION_AXIS_EXTENSION):
+        if kind not in GEOMETRY_KINDS:
+            raise ValueError(f'Unknown geometry kind {kind!r}; '
+                             f'expected one of {GEOMETRY_KINDS}.')
+        self.kind = kind
+        self.params = dict(params)
+        self.drawing_distance_factor = float(drawing_distance_factor)
+        self.multiaxis_source_on_plus_y = bool(multiaxis_source_on_plus_y)
+        self.rotation_axis_extension = float(rotation_axis_extension)
+
+        missing = [name for name in required_parameter_names(kind)
+                   if name not in self.params]
+        if missing:
+            raise ValueError(f'Missing parameters for a {kind} geometry: '
+                             f'{missing}.')
+
+        self._read_shapes()
+        self._read_detector()
+        self._read_view_parameters()
+        self._read_source_and_detector_distances()
+        self._set_drawing_distance()
+
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_model(cls, model, **kwargs):
+        """Build a scene from an mbirtorch model.
+
+        The parameters are read one name at a time through ``model.get_params``,
+        and the geometry kind comes from the model's ``geometry_type``
+        parameter, with the class name as a fallback.  Nothing else about the
+        model is touched, so a change inside a model class cannot change what
+        this scene draws.
+
+        Args:
+            model: a ``TomographyModel`` subclass instance.
+            **kwargs: passed to the constructor.
+
+        Returns:
+            GeometryScene
+        """
+        kind = cls.kind_of_model(model)
+        params = {name: model.get_params(name)
+                  for name in required_parameter_names(kind)}
+        return cls(params, kind, **kwargs)
+
+    @staticmethod
+    def kind_of_model(model):
+        """The geometry kind of a model.
+
+        The four model classes record their identity differently.  The cone,
+        parallel, and translation models set ``geometry_type`` to ``'cone'``,
+        ``'parallel'``, and ``'translation'``.  The multiaxis model sets it to
+        the class-identity string ``str(type(self))``, which contains both
+        "multiaxis" and "parallel", so "multiaxis" is tested first.
+        """
+        try:
+            geometry_type = str(model.get_params('geometry_type'))
+        except Exception:
+            geometry_type = ''
+        text = (geometry_type + ' ' + type(model).__name__).lower()
+        for keyword, kind in (('multiaxis', 'multiaxis'),
+                              ('cone', 'cone'),
+                              ('translation', 'translation'),
+                              ('parallel', 'parallel')):
+            if keyword in text:
+                return kind
+        raise ValueError('Cannot tell the geometry kind of a model whose '
+                         f'geometry_type is {geometry_type!r} and whose class '
+                         f'is {type(model).__name__}.')
+
+    def _read_shapes(self):
+        """Read the sinogram and reconstruction shapes and the voxel pitches."""
+        sinogram_shape = tuple(int(n) for n in self.params['sinogram_shape'])
+        recon_shape = tuple(int(n) for n in self.params['recon_shape'])
+        if len(sinogram_shape) != 3 or len(recon_shape) != 3:
+            raise ValueError('sinogram_shape and recon_shape must each have '
+                             'three entries.')
+        self.sinogram_shape = sinogram_shape
+        self.recon_shape = recon_shape
+        self.num_views, self.num_det_rows, self.num_det_channels = sinogram_shape
+        self.num_rows, self.num_cols, self.num_slices = recon_shape
+
+        self.delta_voxel = float(self.params['delta_voxel'])
+        self.voxel_row_aspect = float(self.params['voxel_row_aspect'])
+        self.voxel_slice_aspect = float(self.params['voxel_slice_aspect'])
+        self.delta_voxel_row = self.voxel_row_aspect * self.delta_voxel
+        self.delta_voxel_slice = self.voxel_slice_aspect * self.delta_voxel
+        self.recon_slice_offset = float(self.params.get('recon_slice_offset',
+                                                        0.0))
+        self.use_ror_mask = self.params['use_ror_mask']
+
+    def _read_detector(self):
+        """Read the detector pitches and offsets, and the pitches actually used.
+
+        The parallel geometry is the exception the record calls out: the
+        projector sends recon slice m to detector row m, so its row pitch is
+        ``delta_voxel`` and its row offset is zero.  ``delta_det_row`` and
+        ``det_row_offset`` take no part in a parallel projection at all, and a
+        drawing that used them would show rows in the wrong places.
+        """
+        self.delta_det_channel = float(self.params['delta_det_channel'])
+        self.delta_det_row = float(self.params['delta_det_row'])
+        self.det_channel_offset = float(self.params['det_channel_offset'])
+        self.det_row_offset = float(self.params['det_row_offset'])
+        if self.kind == 'parallel':
+            self.row_pitch = self.delta_voxel
+            self.row_offset = 0.0
+        else:
+            self.row_pitch = self.delta_det_row
+            self.row_offset = self.det_row_offset
+
+    def _read_view_parameters(self):
+        """Read the per-view angles, z shifts, elevations, or translations."""
+        num_views = self.num_views
+        self.angles = np.zeros(num_views)
+        self.elevations = np.zeros(num_views)
+        self.z_shifts = np.zeros(num_views)
+        self.translation_vectors = None
+
+        if self.kind == 'parallel':
+            angles = np.asarray(self.params['angles'], dtype=np.float64)
+            self._check_view_count(angles.shape[0], 'angles')
+            self.angles = angles.reshape(-1)
+        elif self.kind == 'cone':
+            view_params = np.asarray(self.params['view_params_array'],
+                                     dtype=np.float64)
+            if view_params.ndim != 2 or view_params.shape[1] != 2:
+                raise ValueError('view_params_array must have shape '
+                                 f'(num_views, 2); got {view_params.shape}.')
+            self._check_view_count(view_params.shape[0], 'view_params_array')
+            self.angles = view_params[:, 0]
+            self.z_shifts = view_params[:, 1]
+        elif self.kind == 'multiaxis':
+            angles = np.asarray(self.params['angles'], dtype=np.float64)
+            if angles.ndim != 2 or angles.shape[1] != 2:
+                raise ValueError('multiaxis angles must have shape '
+                                 f'(num_views, 2); got {angles.shape}.')
+            self._check_view_count(angles.shape[0], 'angles')
+            self.angles = angles[:, 0]
+            self.elevations = angles[:, 1]
+        else:
+            vectors = np.asarray(self.params['translation_vectors'],
+                                 dtype=np.float64)
+            if vectors.ndim != 2 or vectors.shape[1] != 3:
+                raise ValueError('translation_vectors must have shape '
+                                 f'(num_views, 3); got {vectors.shape}.')
+            self._check_view_count(vectors.shape[0], 'translation_vectors')
+            self.translation_vectors = vectors
+
+    def _check_view_count(self, count, name):
+        if int(count) != self.num_views:
+            raise ValueError(f'{name} holds {count} views but sinogram_shape '
+                             f'holds {self.num_views}.')
+
+    def _read_source_and_detector_distances(self):
+        """Read the two distances and work out the magnification.
+
+        A cone geometry accepts an infinite source-detector distance, and its
+        magnification is then one.  Such a geometry is a parallel projection
+        that still uses ``delta_det_row`` and ``det_row_offset`` for its rows,
+        unlike the parallel model.  Its source and detector have no finite
+        position, so both become drawing choices.
+        """
+        self.source_detector_dist = None
+        self.source_iso_dist = None
+        self.use_curved_detector = False
+
+        if self.kind in ('cone', 'translation'):
+            self.source_detector_dist = float(
+                self.params['source_detector_dist'])
+            self.source_iso_dist = float(self.params['source_iso_dist'])
+        if self.kind == 'cone':
+            self.use_curved_detector = bool(self.params['use_curved_detector'])
+
+        if self.kind in ('parallel', 'multiaxis'):
+            self.magnification = 1.0
+            self.is_parallel_type = True
+        elif np.isinf(self.source_detector_dist):
+            if self.kind == 'translation':
+                raise ValueError('The translation geometry needs a finite '
+                                 'source_detector_dist; every view would '
+                                 'otherwise carry the same information.')
+            if self.use_curved_detector:
+                raise ValueError('A curved detector needs a finite '
+                                 'source_detector_dist, which is its radius.')
+            self.magnification = 1.0
+            self.is_parallel_type = True
+        else:
+            if self.source_iso_dist == 0.0:
+                raise ValueError('source_iso_dist must not be zero.')
+            self.magnification = (self.source_detector_dist
+                                  / self.source_iso_dist)
+            self.is_parallel_type = False
+
+    def _set_drawing_distance(self):
+        """Choose the distance used where a position is a drawing choice.
+
+        The rule is a multiple of the volume's largest half-extent, taken over
+        all three axes so that the drawn source and detector always sit outside
+        the volume box.  This distance affects only where things are drawn.  It
+        never affects a detector index, because a parallel projection's
+        detector coordinates do not depend on where along the ray the detector
+        plane sits.
+        """
+        half_extents = self.volume_half_extents()
+        largest = float(max(half_extents))
+        if largest <= 0.0:
+            largest = max(self.delta_voxel, 1.0)
+        self.drawing_distance = self.drawing_distance_factor * largest
+
+    # ------------------------------------------------------------------
+    # The volume
+    # ------------------------------------------------------------------
+
+    def volume_half_extents(self):
+        """Half the volume's physical size along x, y, and z, as a 3-tuple.
+
+        The z entry is measured from the origin rather than from the volume's
+        own center, so it includes ``recon_slice_offset``.  That makes it the
+        largest distance from the origin to a corner along z, which is what the
+        drawing distance needs.
+        """
+        half_x = 0.5 * self.num_cols * self.delta_voxel
+        half_y = 0.5 * self.num_rows * self.delta_voxel_row
+        half_z = (0.5 * self.num_slices * self.delta_voxel_slice
+                  + abs(self.recon_slice_offset))
+        return float(half_x), float(half_y), float(half_z)
+
+    def voxel_centers(self, ijk):
+        """Object coordinates of the centers of the given voxels.
+
+        Args:
+            ijk (array_like): voxel indices, (N, 3) as (i, j, k), where i is the
+                row index, j the column index, and k the slice index.  Fractional
+                indices are allowed.
+
+        Returns:
+            ndarray: object coordinates, (N, 3) as (x, y, z).
+        """
+        ijk = np.asarray(ijk, dtype=np.float64).reshape(-1, 3)
+        i, j, k = ijk[:, 0], ijk[:, 1], ijk[:, 2]
+        x = self.delta_voxel * (j - (self.num_cols - 1) / 2.0)
+        y = self.delta_voxel_row * (i - (self.num_rows - 1) / 2.0)
+        z = (self.delta_voxel_slice * (k - (self.num_slices - 1) / 2.0)
+             + self.recon_slice_offset)
+        return np.stack([x, y, z], axis=1)
+
+    def volume_corners(self):
+        """The eight outer corners of the volume box, (8, 3).
+
+        A corner sits on the outer face of a corner voxel, half a voxel beyond
+        that voxel's center, so the box encloses every voxel.
+        """
+        half_x, half_y, _ = self.volume_half_extents()
+        half_z = 0.5 * self.num_slices * self.delta_voxel_slice
+        z_center = self.recon_slice_offset
+        corners = [(sx * half_x, sy * half_y, z_center + sz * half_z)
+                   for sx in (-1.0, 1.0)
+                   for sy in (-1.0, 1.0)
+                   for sz in (-1.0, 1.0)]
+        return np.array(corners, dtype=np.float64)
+
+    def volume_z_range(self):
+        """The volume's z extent as a (z_min, z_max) pair."""
+        half_z = 0.5 * self.num_slices * self.delta_voxel_slice
+        return (self.recon_slice_offset - half_z,
+                self.recon_slice_offset + half_z)
+
+    def ror_cylinder(self):
+        """The region of reconstruction, or None when there is no mask to draw.
+
+        mbirtorch's default mask is the ellipse inscribed in the volume's row
+        and column extents, applied to every slice, so the region is an
+        elliptic cylinder about the rotation axis.  The semi-axes are half the
+        volume's physical width in x and in y.  The ``radius`` entry is the
+        larger semi-axis, which is the value ``vcd_utils.get_support_radius``
+        returns for this mask.
+
+        A ``use_ror_mask`` value of False means no mask.  A custom array cannot
+        be described as an ellipse, so this returns None for that too.
+        """
+        if self.use_ror_mask is not True:
+            return None
+        half_x, half_y, _ = self.volume_half_extents()
+        z_min, z_max = self.volume_z_range()
+        return dict(center=np.array([0.0, 0.0, 0.5 * (z_min + z_max)]),
+                    semi_axis_x=float(half_x),
+                    semi_axis_y=float(half_y),
+                    radius=float(max(half_x, half_y)),
+                    z_min=float(z_min), z_max=float(z_max))
+
+    # ------------------------------------------------------------------
+    # The view action
+    # ------------------------------------------------------------------
+
+    def view_action(self, view_index):
+        """The affine map from the object frame to the projector frame.
+
+        The projector holds the source and the detector fixed and moves the
+        object.  For view v that motion is ``q = R p + d``.  The parallel,
+        cone, and multiaxis geometries rotate about z, and a helical cone scan
+        also shifts the object toward -z by the view's z shift.  The
+        translation geometry moves the object by minus the view's translation
+        vector and does not rotate.
+
+        Returns:
+            (ndarray, ndarray): the 3x3 rotation R and the offset d, (3,).
+        """
+        view_index = self._check_view_index(view_index)
+        offset = np.zeros(3)
+        if self.kind == 'translation':
+            rotation = np.eye(3)
+            offset = -self.translation_vectors[view_index]
+        else:
+            rotation = _rotation_about_z(self.angles[view_index])
+            if self.kind == 'cone':
+                offset = np.array([0.0, 0.0, -self.z_shifts[view_index]])
+        return rotation, offset
+
+    def to_projector_frame(self, points_xyz, view_index):
+        """Object-frame points, (N, 3), mapped to the projector frame."""
+        points = np.asarray(points_xyz, dtype=np.float64).reshape(-1, 3)
+        rotation, offset = self.view_action(view_index)
+        return points @ rotation.T + offset
+
+    def to_object_frame(self, points_xyz, view_index):
+        """Projector-frame points, (N, 3), mapped back to the object frame.
+
+        This is the inverse of the view's action, and it is what turns the
+        projector's picture into the fixed-object picture a drawing needs.
+        """
+        points = np.asarray(points_xyz, dtype=np.float64).reshape(-1, 3)
+        rotation, offset = self.view_action(view_index)
+        return (points - offset) @ rotation
+
+    def direction_to_object_frame(self, vectors, view_index):
+        """Projector-frame directions, (N, 3), mapped to the object frame.
+
+        A direction carries the rotation but not the offset.
+        """
+        vectors = np.asarray(vectors, dtype=np.float64).reshape(-1, 3)
+        rotation, _ = self.view_action(view_index)
+        return vectors @ rotation
+
+    def _check_view_index(self, view_index):
+        view_index = int(view_index)
+        if not 0 <= view_index < self.num_views:
+            raise IndexError(f'view_index {view_index} is outside '
+                             f'[0, {self.num_views}).')
+        return view_index
+
+    # ------------------------------------------------------------------
+    # Projection onto the detector
+    # ------------------------------------------------------------------
+
+    def point_magnification(self, points_projector_frame):
+        """The per-point magnification, (N,), in the projector frame.
+
+        A point's magnification is the ratio of a length at the point to the
+        length of its image on the detector.  The form used here,
+        ``1 / (1 / M - y / source_detector_dist)``, is the projector's own and
+        stays correct at an infinite source-detector distance, where it gives
+        one.  For a finite distance it equals
+        ``source_detector_dist / (source_iso_dist - y)``.
+        """
+        points = np.asarray(points_projector_frame,
+                            dtype=np.float64).reshape(-1, 3)
+        if self.is_parallel_type:
+            return np.ones(points.shape[0])
+        return 1.0 / (1.0 / self.magnification
+                      - points[:, 1] / self.source_detector_dist)
+
+    def detector_coordinates(self, points_xyz, view_index):
+        """Physical detector coordinates (u, v) of object-frame points.
+
+        The coordinates u and v are measured on the detector from the point
+        where the central ray meets it: u along the channel direction and v
+        along the row direction.
+
+        Args:
+            points_xyz (array_like): object-frame points, (N, 3).
+            view_index (int): the view.
+
+        Returns:
+            (ndarray, ndarray): u and v, each (N,).
+        """
+        points = self.to_projector_frame(points_xyz, view_index)
+        x, y, z = points[:, 0], points[:, 1], points[:, 2]
+
+        if self.kind == 'parallel':
+            # The rays travel along -y, so the detector plane is the xz plane
+            # and the channel coordinate is x itself.  The row coordinate is
+            # handled by project_points, because the parallel row rule is an
+            # index rule and not a (u, v) rule.
+            return x, z
+        if self.kind == 'multiaxis':
+            elevation = self.elevations[self._check_view_index(view_index)]
+            return x, z * np.cos(elevation) + y * np.sin(elevation)
+        if self.use_curved_detector:
+            # The channel coordinate is arc length along a cylinder of radius
+            # source_detector_dist centered on the source, positive toward +x.
+            # The row coordinate is the height on the plane tangent to that
+            # cylinder at the central ray, which is the flat-detector height.
+            # It is NOT the height at which the ray crosses the cylinder; the
+            # two differ at a large fan angle, and the projector uses the
+            # tangent plane.
+            u = self.source_detector_dist * np.arctan2(
+                x, self.source_iso_dist - y)
+            return u, self.point_magnification(points) * z
+        magnification = self.point_magnification(points)
+        return magnification * x, magnification * z
+
+    def uv_to_indices(self, u, v):
+        """Fractional detector indices of detector coordinates (u, v).
+
+        The grid is centered on the detector: index (num - 1) / 2 sits at the
+        grid's middle.  A positive ``det_channel_offset`` moves the grid toward
+        negative u, which moves a fixed object's image toward a higher channel
+        index, and ``det_row_offset`` acts the same way in v.
+
+        The row pitch and row offset used here are ``row_pitch`` and
+        ``row_offset``, which differ from the parameters for the parallel
+        geometry; see :meth:`_read_detector`.
+        """
+        u = np.asarray(u, dtype=np.float64)
+        v = np.asarray(v, dtype=np.float64)
+        channel = ((u + self.det_channel_offset) / self.delta_det_channel
+                   + (self.num_det_channels - 1) / 2.0)
+        row = ((v + self.row_offset) / self.row_pitch
+               + (self.num_det_rows - 1) / 2.0)
+        return row, channel
+
+    def indices_to_uv(self, row, channel):
+        """The inverse of :meth:`uv_to_indices`: indices to (u, v)."""
+        row = np.asarray(row, dtype=np.float64)
+        channel = np.asarray(channel, dtype=np.float64)
+        u = ((channel - (self.num_det_channels - 1) / 2.0)
+             * self.delta_det_channel - self.det_channel_offset)
+        v = ((row - (self.num_det_rows - 1) / 2.0) * self.row_pitch
+             - self.row_offset)
+        return u, v
+
+    def project_points(self, points_xyz, view_index):
+        """Fractional detector indices of object-frame points, for one view.
+
+        This is the one function that must agree with the projector.  The
+        points are given at their unshifted, unrotated positions, which is the
+        frame ``voxel_centers`` returns.  This method applies the view's action
+        to them, maps them onto the detector, and converts to indices.
+
+        Args:
+            points_xyz (array_like): object-frame points, (N, 3).
+            view_index (int): the view.
+
+        Returns:
+            (ndarray, ndarray): row and channel, each (N,), fractional.
+        """
+        # The parallel row rule needs no special case here: the parallel
+        # projector sends recon slice m to detector row m, with no spreading
+        # and no offset, which is the coordinate rule
+        # row = z / delta_voxel + (num_det_rows - 1) / 2.  That is what
+        # uv_to_indices computes, because row_pitch is delta_voxel and
+        # row_offset is zero for this geometry.  The rule holds because the
+        # parallel model forces voxel_slice_aspect to one, has no
+        # recon_slice_offset, and requires the slice count to equal the
+        # detector row count.
+        u, v = self.detector_coordinates(points_xyz, view_index)
+        return self.uv_to_indices(u, v)
+
+    # ------------------------------------------------------------------
+    # The source and the detector in the projector frame
+    # ------------------------------------------------------------------
+
+    def _source_projector_frame(self):
+        """The source position in the projector frame, or None.
+
+        None means the source is infinitely far away, which is the case for the
+        parallel and multiaxis geometries and for a cone geometry with an
+        infinite source-detector distance.
+        """
+        if self.is_parallel_type:
+            return None
+        return np.array([0.0, self.source_iso_dist, 0.0])
+
+    def _ray_direction_projector_frame(self, view_index):
+        """The central ray's unit direction in the projector frame.
+
+        The direction points from the source toward the detector.  It is
+        constant except for the multiaxis geometry, whose per-view elevation
+        tilts it out of the xy plane.  The multiaxis direction of travel is
+        ``(0, -cos(elevation), sin(elevation))`` under the source-on-+y
+        convention; see ``MULTIAXIS_SOURCE_ON_PLUS_Y``.
+        """
+        if self.kind != 'multiaxis':
+            return np.array([0.0, -1.0, 0.0])
+        elevation = self.elevations[self._check_view_index(view_index)]
+        direction = np.array([0.0, -np.cos(elevation), np.sin(elevation)])
+        if not self.multiaxis_source_on_plus_y:
+            direction = -direction
+        return direction
+
+    def _detector_axes_projector_frame(self, view_index):
+        """The detector's u and v unit axes in the projector frame.
+
+        For a curved detector the u axis is the tangent to the cylinder at the
+        central ray.
+        """
+        u_axis = np.array([1.0, 0.0, 0.0])
+        if self.kind == 'multiaxis':
+            elevation = self.elevations[self._check_view_index(view_index)]
+            v_axis = np.array([0.0, np.sin(elevation), np.cos(elevation)])
+        else:
+            v_axis = np.array([0.0, 0.0, 1.0])
+        return u_axis, v_axis
+
+    def _detector_origin_projector_frame(self, view_index):
+        """Where the central ray meets the detector, in the projector frame.
+
+        For a finite cone or translation geometry this is a physical position:
+        the detector plane sits at ``source_detector_dist`` from the source on
+        the far side of the origin.  For a parallel projection the position
+        along the ray is a drawing choice, and the drawing distance is used.
+        """
+        direction = self._ray_direction_projector_frame(view_index)
+        if self.is_parallel_type:
+            return self.drawing_distance * direction
+        return (np.array([0.0, self.source_iso_dist, 0.0])
+                + self.source_detector_dist * direction)
+
+    def _uv_to_projector_frame(self, u, v, view_index):
+        """Physical positions of detector coordinates (u, v), (N, 3).
+
+        A flat detector is a plane, and (u, v) are Cartesian coordinates on it.
+        A curved detector is a cylinder of radius ``source_detector_dist``
+        whose axis passes through the source parallel to z.  On the cylinder u
+        is arc length from the central ray and v is height along z, so a pixel
+        at (u, v) sits at angle ``u / source_detector_dist`` around the axis.
+        The row spacing on that surface is the tangent-plane spacing the
+        projector uses, so a curved detector's rows are drawn at equal heights
+        rather than at equal angles.
+        """
+        u = np.atleast_1d(np.asarray(u, dtype=np.float64))
+        v = np.atleast_1d(np.asarray(v, dtype=np.float64))
+        u, v = np.broadcast_arrays(u, v)
+        if self.kind == 'cone' and self.use_curved_detector:
+            theta = u / self.source_detector_dist
+            radius = self.source_detector_dist
+            x = radius * np.sin(theta)
+            y = self.source_iso_dist - radius * np.cos(theta)
+            return np.stack([x, y, v], axis=1)
+        origin = self._detector_origin_projector_frame(view_index)
+        u_axis, v_axis = self._detector_axes_projector_frame(view_index)
+        return (origin[None, :] + u[:, None] * u_axis[None, :]
+                + v[:, None] * v_axis[None, :])
+
+    def detector_uv_extent(self):
+        """The detector's (u, v) extent as ((u_min, u_max), (v_min, v_max)).
+
+        The extent runs from the outer edge of the first pixel to the outer
+        edge of the last, which is index -0.5 to index num - 0.5.
+        """
+        u_low, v_low = self.indices_to_uv(-0.5, -0.5)
+        u_high, v_high = self.indices_to_uv(self.num_det_rows - 0.5,
+                                            self.num_det_channels - 0.5)
+        return ((float(u_low), float(u_high)), (float(v_low), float(v_high)))
+
+    def detector_size(self):
+        """The detector's physical (width, height) in ALU.
+
+        The height uses ``row_pitch``, so a parallel geometry's detector is as
+        tall as the volume's z extent rather than as tall as
+        ``num_det_rows * delta_det_row``.
+        """
+        return (float(self.num_det_channels * self.delta_det_channel),
+                float(self.num_det_rows * self.row_pitch))
+
+    # ------------------------------------------------------------------
+    # Drawable primitives
+    # ------------------------------------------------------------------
+
+    def _detector_outline_uv(self):
+        """The detector outline as (u, v) samples of a closed polyline.
+
+        A flat panel needs only its four corners and a repeat of the first.  A
+        curved detector's edges are arcs, so each of the two long edges is
+        sampled at ``CURVED_ARC_SAMPLES`` points.
+        """
+        (u_min, u_max), (v_min, v_max) = self.detector_uv_extent()
+        if not (self.kind == 'cone' and self.use_curved_detector):
+            u = np.array([u_min, u_max, u_max, u_min, u_min])
+            v = np.array([v_min, v_min, v_max, v_max, v_min])
+            return u, v
+        arc = np.linspace(u_min, u_max, CURVED_ARC_SAMPLES)
+        u = np.concatenate([arc, arc[::-1], arc[:1]])
+        v = np.concatenate([np.full(CURVED_ARC_SAMPLES, v_min),
+                            np.full(CURVED_ARC_SAMPLES, v_max),
+                            np.array([v_min])])
+        return u, v
+
+    def _detector_corners_uv(self):
+        """The four detector corners as (u, v), in a walk around the panel."""
+        (u_min, u_max), (v_min, v_max) = self.detector_uv_extent()
+        u = np.array([u_min, u_max, u_max, u_min])
+        v = np.array([v_min, v_min, v_max, v_max])
+        return u, v
+
+    def view(self, view_index):
+        """The drawable primitives of one view, in the fixed-object picture.
+
+        Args:
+            view_index (int): the view.
+
+        Returns:
+            ViewScene: see that class for the entries.
+        """
+        view_index = self._check_view_index(view_index)
+
+        def to_object(points):
+            return self.to_object_frame(points, view_index)
+
+        direction = self._ray_direction_projector_frame(view_index)
+        ray_direction = _unit(
+            self.direction_to_object_frame(direction, view_index)[0])
+
+        source_projector = self._source_projector_frame()
+        if source_projector is None:
+            source = None
+        else:
+            source = to_object(source_projector)[0]
+
+        detector_origin = to_object(
+            self._detector_origin_projector_frame(view_index))[0]
+        if source is None:
+            # No finite source position exists, so the drawing places one at
+            # the drawing distance back along the ray from where the central
+            # ray meets the detector plane.  Every parallel-type detector
+            # origin is itself one drawing distance out from the origin, so
+            # this puts the drawn source symmetrically on the other side.
+            source_draw = detector_origin - 2.0 * self.drawing_distance * ray_direction
+        else:
+            source_draw = source
+
+        u_axis_p, v_axis_p = self._detector_axes_projector_frame(view_index)
+        detector_u_axis = _unit(
+            self.direction_to_object_frame(u_axis_p, view_index)[0])
+        detector_v_axis = _unit(
+            self.direction_to_object_frame(v_axis_p, view_index)[0])
+        detector_normal = _unit(np.cross(detector_u_axis, detector_v_axis))
+
+        detector_center = to_object(self._uv_to_projector_frame(
+            -self.det_channel_offset, -self.row_offset, view_index))[0]
+
+        outline_u, outline_v = self._detector_outline_uv()
+        detector_outline = to_object(self._uv_to_projector_frame(
+            outline_u, outline_v, view_index))
+        corner_u, corner_v = self._detector_corners_uv()
+        detector_corners = to_object(self._uv_to_projector_frame(
+            corner_u, corner_v, view_index))
+
+        pixel0_u, pixel0_v = self.indices_to_uv(0.0, 0.0)
+        detector_pixel0 = to_object(self._uv_to_projector_frame(
+            pixel0_u, pixel0_v, view_index))[0]
+
+        corner_rays = np.stack(
+            [np.stack([source_draw, corner]) for corner in detector_corners])
+
+        volume_corners = self.volume_corners()
+        row, channel = self.project_points(volume_corners, view_index)
+        volume_outline_on_detector = np.stack([row, channel], axis=1)
+
+        if self.kind == 'translation':
+            rotation_axis = None
+            translation_path = self.translation_vectors.copy()
+        else:
+            z_min, z_max = self.volume_z_range()
+            z_center = 0.5 * (z_min + z_max)
+            half = self.rotation_axis_extension * 0.5 * (z_max - z_min)
+            if half <= 0.0:
+                half = self.rotation_axis_extension * self.delta_voxel_slice
+            rotation_axis = np.array([[0.0, 0.0, z_center - half],
+                                      [0.0, 0.0, z_center + half]])
+            translation_path = None
+
+        return ViewScene(
+            view_index=view_index,
+            source=source,
+            source_draw=source_draw,
+            ray_direction=ray_direction,
+            detector_center=detector_center,
+            detector_origin=detector_origin,
+            detector_u_axis=detector_u_axis,
+            detector_v_axis=detector_v_axis,
+            detector_normal=detector_normal,
+            detector_outline=detector_outline,
+            detector_corners=detector_corners,
+            detector_pixel0=detector_pixel0,
+            volume_corners=volume_corners,
+            voxel0_center=self.voxel_centers([[0, 0, 0]])[0],
+            rotation_axis=rotation_axis,
+            translation_path=translation_path,
+            corner_rays=corner_rays,
+            volume_outline_on_detector=volume_outline_on_detector,
+            ror_cylinder=self.ror_cylinder(),
+        )
+
+    def trajectory(self):
+        """The source and detector-center paths over all views.
+
+        Returns:
+            (ndarray, ndarray): source positions, (V, 3), and detector centers,
+            (V, 3), in the fixed-object picture.  Where no finite source
+            position exists, the source entry is the drawn point that
+            :attr:`ViewScene.source_draw` uses.
+        """
+        sources = np.empty((self.num_views, 3))
+        centers = np.empty((self.num_views, 3))
+        for view_index in range(self.num_views):
+            scene = self.view(view_index)
+            sources[view_index] = scene.source_draw
+            centers[view_index] = scene.detector_center
+        return sources, centers
+
+    # ------------------------------------------------------------------
+    # Derived numbers
+    # ------------------------------------------------------------------
+
+    def volume_fits_detector(self):
+        """Whether every volume corner projects inside the detector.
+
+        The test is geometric and ignores the projector's point spread, so a
+        volume that just fits can still spread a little past the edge.
+
+        Returns:
+            (bool, float): whether every corner of the volume projects inside
+            the detector in every view, and the largest overshoot past an edge
+            in detector pixels, which is zero when it fits.
+        """
+        corners = self.volume_corners()
+        worst = 0.0
+        for view_index in range(self.num_views):
+            row, channel = self.project_points(corners, view_index)
+            worst = max(worst,
+                        self._overshoot(row, self.num_det_rows),
+                        self._overshoot(channel, self.num_det_channels))
+        return bool(worst <= 0.0), float(worst)
+
+    @staticmethod
+    def _overshoot(indices, count):
+        """How far the given indices reach past the ends of a detector axis."""
+        low = float(np.max(-0.5 - indices))
+        high = float(np.max(indices - (count - 0.5)))
+        return max(0.0, low, high)
+
+    def _fan_and_cone_angles(self):
+        """The full fan and cone angles in degrees, and a note about them.
+
+        Each angle is the angle the detector subtends at the source, measured
+        edge to edge, so a detector offset makes the fan asymmetric about the
+        central ray but does not change this total.  A parallel projection's
+        rays do not converge, so both angles are zero.
+        """
+        if self.is_parallel_type:
+            return 0.0, 0.0, ('The rays are parallel, so the source subtends '
+                              'no angle and both angles are zero.')
+        (u_min, u_max), (v_min, v_max) = self.detector_uv_extent()
+        distance = self.source_detector_dist
+        if self.use_curved_detector:
+            # On the cylinder the fan angle is arc length over radius exactly.
+            fan = (u_max - u_min) / distance
+            note = ('The fan angle is the detector arc divided by the '
+                    'source-detector distance.  The cone angle uses the plane '
+                    'tangent to the cylinder at the central ray, which is '
+                    'where the projector places the rows.')
+        else:
+            fan = np.arctan(u_max / distance) - np.arctan(u_min / distance)
+            note = 'Both angles are subtended at the source by the flat panel.'
+        cone = np.arctan(v_max / distance) - np.arctan(v_min / distance)
+        return float(np.degrees(fan)), float(np.degrees(cone)), note
+
+    def helical_travel(self):
+        """The total helical travel in ALU, zero for a non-helical scan."""
+        if self.kind != 'cone':
+            return 0.0
+        return float(np.ptp(self.z_shifts))
+
+    def derived_quantities(self):
+        """The numbers a text panel reports, as plain floats, ints, and strings.
+
+        Returns:
+            dict: the keys are stable names.  The entries are
+
+            ``geometry_kind``, ``num_views``, ``sinogram_shape_text`` and
+            ``recon_shape_text``: what geometry this is and how big it is.
+
+            ``magnification``: the scale from a point at the origin to its
+            image on the detector.
+
+            ``fan_angle_deg`` and ``cone_angle_deg``: the angles the detector
+            subtends at the source, edge to edge, with ``angle_note``
+            explaining them.
+
+            ``lateral_fov_alu`` and ``axial_fov_alu``: the detector's width and
+            height divided by the magnification, which is the region at the
+            rotation axis the detector can see.  The axial value includes the
+            helical travel.
+
+            ``delta_voxel_x``, ``delta_voxel_y``, ``delta_voxel_z``: the voxel
+            pitches along the three object axes.
+
+            ``volume_extent_x``, ``volume_extent_y``, ``volume_extent_z``,
+            ``volume_z_center``: the volume's physical size and z center.
+
+            ``detector_width``, ``detector_height``, ``detector_row_pitch``,
+            ``detector_channel_pitch``: the detector's physical size and the
+            pitches used to draw it.
+
+            ``detector_center_u`` and ``detector_center_v``: where the center
+            of the detector grid sits relative to the central ray.
+
+            ``helical_travel_alu``: the range of the per-view z shifts.
+
+            ``volume_fits_detector`` and ``worst_overshoot_pixels``: whether
+            every volume corner projects inside the detector in every view, and
+            by how much the worst corner misses.
+
+            ``drawing_distance`` and ``drawing_note``: the distance used where
+            a position is a drawing choice, and what was chosen.
+        """
+        fan, cone, angle_note = self._fan_and_cone_angles()
+        width, height = self.detector_size()
+        extent_x, extent_y, _ = self.volume_half_extents()
+        z_min, z_max = self.volume_z_range()
+        travel = self.helical_travel()
+        fits, overshoot = self.volume_fits_detector()
+
+        quantities = dict(
+            geometry_kind=self.kind,
+            num_views=int(self.num_views),
+            sinogram_shape_text=str(self.sinogram_shape),
+            recon_shape_text=str(self.recon_shape),
+            magnification=float(self.magnification),
+            fan_angle_deg=fan,
+            cone_angle_deg=cone,
+            angle_note=angle_note,
+            lateral_fov_alu=float(width / self.magnification),
+            axial_fov_alu=float(height / self.magnification + travel),
+            delta_voxel_x=float(self.delta_voxel),
+            delta_voxel_y=float(self.delta_voxel_row),
+            delta_voxel_z=float(self.delta_voxel_slice),
+            volume_extent_x=float(2.0 * extent_x),
+            volume_extent_y=float(2.0 * extent_y),
+            volume_extent_z=float(z_max - z_min),
+            volume_z_center=float(0.5 * (z_min + z_max)),
+            detector_width=float(width),
+            detector_height=float(height),
+            detector_channel_pitch=float(self.delta_det_channel),
+            detector_row_pitch=float(self.row_pitch),
+            detector_center_u=float(-self.det_channel_offset),
+            detector_center_v=float(-self.row_offset),
+            helical_travel_alu=travel,
+            volume_fits_detector=fits,
+            worst_overshoot_pixels=overshoot,
+            drawing_distance=float(self.drawing_distance),
+            drawing_note=self.drawing_note(),
+        )
+        return quantities
+
+    def drawing_note(self):
+        """One sentence naming every position in the drawing that is a choice."""
+        notes = []
+        if self.kind == 'parallel':
+            notes.append('The parallel geometry has no source position and its '
+                         'detector plane may sit anywhere along the rays, so '
+                         'both are drawn at the drawing distance from the '
+                         'volume.  The row pitch drawn is delta_voxel, because '
+                         'delta_det_row and det_row_offset take no part in a '
+                         'parallel projection.')
+        elif self.kind == 'multiaxis':
+            side = ('the +y side' if self.multiaxis_source_on_plus_y
+                    else 'the -y side')
+            notes.append('The multiaxis geometry has no source position, so '
+                         'the source and the detector are drawn at the drawing '
+                         f'distance from the volume, with the source on {side}. '
+                         'Which end of a ray holds the source is a convention, '
+                         'because a parallel projection is the same in both '
+                         'directions.')
+        elif self.kind == 'cone' and self.is_parallel_type:
+            notes.append('The source-detector distance is infinite, so the '
+                         'magnification is one and neither the source nor the '
+                         'detector has a finite position.  Both are drawn at '
+                         'the drawing distance from the volume.')
+        else:
+            notes.append('Every position in this drawing is a physical '
+                         'position taken from the parameters.')
+        return '  '.join(notes)
