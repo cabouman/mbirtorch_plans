@@ -5,7 +5,9 @@ done (2026-09-09): `geometry_conventions.md` records the confirmed conventions, 
 `gv1_conventions_probe.py` passed its gate for all six geometries with a largest
 error of 0.11 detector pixel.  Increment 2 is done (2026-09-09): `geometry_scene.py`
 and its 67 tests pass, and `gv2_scene_findings.md` records the surface and the drawing
-choices.  Increment 3 is in progress.
+choices.  Increment 3 is done (2026-09-09): `geometry_viewer.py` draws the five
+panels, 36 viewer tests pass, and `gv3_static_figure_findings.md` reviews eight figures
+against the conventions record with no disagreement.  Increment 4 is next.
 Decisions recorded on 2026-09-09: the first frontend is matplotlib; the primary
 uses are checking a real scan's geometry before reconstruction and supporting the
 geometric calibration work; the prototype is built in this repository for a later
@@ -166,7 +168,13 @@ conventions record finds no disagreement.  The review is by eye and is recorded 
 a findings page with the images.
 
 **Increment 4.  Interaction and comparison.**  The view slider, the trajectory
-toggle, and the second-geometry overlay.  Gate: the slider redraws a 1800-view
+toggle, and the second-geometry overlay.  Three items from the Increment 3 review
+join this increment: a zoom control for the 3D panel, because a 12 ALU volume in a
+200 ALU cube is twenty pixels wide; moving the parallel-beam corner rays and the
+rotation-direction arc from the drawing layer into the scene, so that the drawing
+layer computes no geometry at all; and a larger default drawing distance for the
+parallel-type geometries, because at 1.5 half-extents the drawn source touches the
+volume box.  Gate: the slider redraws a 1800-view
 model in under 100 ms per step on a laptop, the trajectory of 1800 views draws
 as one polyline and not as 1800 markers, and the overlay of a model against a copy
 with `det_channel_offset` changed by ten channels shows the shift on the detector
