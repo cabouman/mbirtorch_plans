@@ -181,10 +181,14 @@ measurement establishes is the row coordinate
 v = z cos(elevation) + y sin(elevation), and it separates that from the opposite
 sign by more than five rows.  What the measurement cannot establish is which end
 of a ray holds the source, because a parallel projection is the same in both
-directions.  Placing the source on the positive y side, as the other three
-models do, makes the direction of travel (0, -cos(elevation), sin(elevation)),
-and a positive elevation then puts the source below the xy plane and the
-detector center above it.  A drawing should say which choice it makes.
+directions.  Decision (Greg, 2026-09-09): the source is on the positive y side,
+as in the other three models.  The direction of travel is then
+(0, -cos(elevation), sin(elevation)).  The elevation is the angle at which the
+source looks up at the object, in the sense of an altitude angle: for a positive
+elevation the object is above the source's horizon, the rays climb from the
+source through the object to the detector, and the detector center sits above
+the xy plane.  The `MultiAxisParallelModel` docstring should state the elevation
+this way.  This choice changes no detector index.
 
 The azimuth rotates the object counterclockwise about z as seen from +z, exactly
 as the parallel and cone view angles do.
@@ -219,6 +223,35 @@ its place, and in a fixed-object drawing the source and the detector move by
 plus the translation vector.
 
 Confirmed by gv1_conventions_probe.py on 2026-09-09.
+
+## Real scans: which physical row is row 0
+
+The conventions above are the model's frame.  A real scan's row order is set by
+its reader, and only the NSI reader records the physical orientation.
+
+The NSI reader applies the vendor's `flipV`, `flipH`, and `rotate` correction
+flags from the `.nsipro` file, so the frames leave the reader in the orientation
+the vendor software displays.  The reader then defines the row direction as
+r_v = r_n x r_h, with r_n from source to detector and r_h along the rows from left
+to right, and reads the physical position of the pixel in the first row and
+column from the geometry report.  In the reader's test fixture r_n = (0, 1, 0),
+r_h = (1, 0, 0), and the rotation axis r_a = (0, 0, -1), so r_v = (0, 0, -1),
+parallel to a rotation axis that the reader's docstring describes as pointing
+down.  For NSI data the row index therefore increases physically downward, row 0
+is the top row of the detector, and the model's +z axis points physically
+downward.  A display with row 0 at the top, which is matplotlib's default, shows
+an NSI radiograph right side up.
+
+The Zeiss cone-beam reader applies no flip and records nothing about
+orientation.  The Zeiss translation reader flips the frames vertically, with a
+comment that the flip was found necessary for the object to come out upright.
+The pymbir reader takes the HDF5 sinogram as stored.
+
+The geometry viewer draws the model's frame, with the row index increasing
+upward along +z on its detector-face panel.  For an NSI scan that panel is
+therefore vertically flipped relative to the slice viewer's display of the same
+view.  Both are correct.  One shows the physical detector as the vendor displays
+it, and the other shows the model's frame.
 
 ## Disagreements with existing docstrings
 
