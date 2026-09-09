@@ -66,9 +66,15 @@ The figure has four drawing panels and one text panel.  The panels share one sce
 so that they always agree.
 
 - **3D view.**  The source, the detector outline, the volume box, the rotation axis,
-  and the rays from the source to the four detector corners, for one view.  The
-  region of reconstruction cylinder is drawn inside the box when `use_ror_mask` is
-  on.  The panel can be rotated with the mouse.
+  the rotation direction as an arc with an arrowhead, and the rays from the source
+  to the four detector corners, for one view.  The region of reconstruction
+  cylinder is drawn inside the box when `use_ror_mask` is on.  The panel can be
+  rotated with the mouse.
+- **Index markers.**  Detector pixel (row 0, channel 0) and voxel (0, 0, 0) are
+  marked in every panel where they appear.  A mirrored channel order or a wrong
+  offset sign is visible from these two markers alone.  CIL's sketch does this,
+  and `reference_sketches.md` in this directory records what the three reference
+  packages draw.
 - **Top view (the xy plane).**  The fan angle, the lateral field of view at the
   rotation axis, and the volume's footprint.  A lateral offset of the detector is
   visible here as an asymmetric fan.
