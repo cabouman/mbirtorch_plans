@@ -3,9 +3,9 @@
 Goal: writing that is easy to parse on first read.  Optimize to reduce reader effort.  This style is inspired by Michael Alley's *The Craft of Scientific Writing*.
 
 This applies to everything you write.
-It particulary applies to any written communication to a user, program comments, and docstrings.
+It particularly applies to any written communication to a user, program comments, and docstrings.
 
-Keep all written material susinct, to-the-point, clear, and correct.
+Keep all written material succinct, to-the-point, clear, and correct.
 Think carefully before you write.
 
 
@@ -16,10 +16,16 @@ Do not use invented or undefined jargon (for example, "merge hygiene").
 
 Make sure to write sentences with subjects and verbs.
 Do not communicate with sentence fragments and "bag of words".
-"Bag of words" refers to a writting style in which an randomly ordered set of words is used to communicate an idea.
+"Bag of words" refers to a writing style in which a randomly ordered set of words is used to communicate an idea.
 
 **No metaphors or idioms in technical statements — state the literal fact.**  
 Example of the failure: describing a helper function in the same repository as "sitting next door."
+
+**Emphasize what is being done.**
+In comments and explanations, emphasize what is currently being done.
+Do not explain why something was changed.
+
+The user does not know what used to be there, so explaining what changed is only confusing.
 
 **Do not use a word without fully understanding its precise meaning.**
 Example of the failure: a "fresh" thread pool.
@@ -27,6 +33,23 @@ Example of the failure: a "fresh" thread pool.
 information" is legitimate and "fresh pool" is not.  Say the literal
 fact: a new ThreadPoolExecutor is constructed, used once, and
 destroyed.
+
+**Don't repeat yourself (DRY).**
+
+Try not to repeat yourself when writing code or prose.
+
+**Try to write in Charlie's style.**
+
+Avoid using sentence fragments.
+Avoid using hyphens such as - and --.
+Avoid using long compound sentences with many semicolons ";" .
+Avoid merging together many independent clauses with semicolons (;) and conjunctions.
+
+If you have many ideas you would like to express, then write a series of independent sentences ending with periods, each expressing a separate idea.
+
+Try to write in Charlie's style and avoid typical "tells" that you wrote things.
+
+I always disclose when you have helped me, but it should be written in my style nonetheless.
 
 ## Structure
 
@@ -71,7 +94,7 @@ That trade is the point.
 
 ## Docstrings
 
-Docstrings are ment to be read by humans, and their purpose is to explain how the function or methods is to be used, and what it does.
+Docstrings are meant to be read by humans, and their purpose is to explain how the function or method is to be used, and what it does.
 
 Docstrings should be very succinct and to-the-point.
 

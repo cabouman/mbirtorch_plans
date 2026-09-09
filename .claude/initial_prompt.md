@@ -1,24 +1,14 @@
-We're continuing work on the `mbirtorch` repo, which is a port of the parallel checkout
-`mbirjax`; mbirjax is READ-ONLY reference. `mbirtorch_plans` is parallel to
-both and contains plans related to mbirtorch.  `mbirtorch_metrics` is the nightly
-regression engine and dashboard and is also parallel to both.  There are older
-versions of plans and metrics for `mbirjax`, but these are also for reference only.  
+We're continuing work on the `mbirtorch` repo. `mbirtorch_plans` is parallel to
+`mbirtorch` and contains plans related to mbirtorch.  `mbirtorch_metrics` is the nightly
+regression engine and dashboard and is also parallel to both.   
 
-The task for this session is to investigate this observation:
-```
-The multiaxis forward projector is 3.28 times slower at the non-dividing 
-size than at the dividing one. It reads 305.9 ms at 512x448x384 and 1004.6 ms 
-at 513x449x385, on one H100.
-
-Every other geometry pays far less for the same step. Parallel pays 1.04 
-times on forward, cone pays 1.03 times, and multiaxis itself pays only 1.14 
-times on its filter and 1.17 times on its back projection. So the penalty is 
-specific to the multiaxis forward projector at the non-dividing size.
- ```
-
-This is quite possibly similar to the behavior on other geometries that was 
-remedied in greg_dev with commit 64dedb8732, which introduced rounding up to the 
-next multiple of 16 for the triton kernels.  
+The task for this session is to create a plan and possible implementation for an 
+interactive geometry viewer to give a graphical display of the geometry
+associated with a TomographyModel.  Deciding exactly what to show and how to show 
+it is part of the task, to be done iteratively with feedback and possibly with 
+inspiration from other similar projects.  Plans will go in 
+`mbirtorch_plans/plans/features/geometry_viewer`, experiment code in 
+`mbirtorch_plans/plans/experiments/geometry_viewer`.  
 
 **IMPORTANT — workflow protocol:** stage only (`git add` by explicit file
 name), never `git commit` unless Greg directs it (he commits from
@@ -34,9 +24,6 @@ plans, then review.
 Read for orientation (code and measured results over recollection or .md files):
 1. `.claude/claude_prompt.md`, `.claude/lessons.md` (§2, §5, §6),
    `.claude/cluster_use.md`.
-2. `plans/open_items_v4.md` — the task source, with the Start-here
-   order this session follows and per-item status labels.
-3. `plans/API_specification.md` for reference.
 
 The nightly dashboard is live and seeding history — its rows are regression
 protection for this campaign's tuning, not its instrument; campaign
@@ -58,10 +45,6 @@ measurements use your own gated harnesses.
   torch_p3 sbatch files pip-install into the shared environment at
   start, so never run two such jobs at once; chain with
   `--dependency=afterany:<jobid>`.
-- Scripts to `plans/experiments/torch_port/` (suggested prefix `mg*_`;
-  mg1 through mg24 are used, so new scripts start at mg25); findings to
-  `plans/torch_port/active/`, with measured rows filed under
-  `plans/experiments/torch_port/rows/`.
 - Concurrent sessions may be active.  Terminology: "variants"
   (never arms/cells for variant sets); the multi-device forward's
   mechanism is the "cylinder transfer" — pre-2026-08-17 records call it
