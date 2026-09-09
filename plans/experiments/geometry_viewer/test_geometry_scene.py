@@ -25,8 +25,12 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import gv1_conventions_probe as probe  # noqa: E402
-from geometry_scene import (CURVED_ARC_SAMPLES, GeometryScene,  # noqa: E402
-                            required_parameter_names)
+from geometry_scene import (CLOCKWISE_FROM_PLUS_Z,  # noqa: E402
+                            COUNTERCLOCKWISE_FROM_PLUS_Z,
+                            CURVED_ARC_SAMPLES,
+                            DIFFERENCE_EXCLUDED_QUANTITIES, GeometryScene,
+                            ROTATION_ARC_SAMPLES, required_parameter_names,
+                            values_are_equal)
 
 # The gate: the largest allowed difference between a measured footprint
 # centroid and the scene's prediction, in detector pixels.  Half a pixel is the
@@ -226,13 +230,16 @@ def test_view_primitives_have_the_promised_shapes(name):
     assert np.allclose(view_scene.detector_outline[0],
                        view_scene.detector_outline[-1],
                        atol=GEOMETRY_TOLERANCE)
-    # Each corner ray starts at the drawn source and ends on a corner.
+    # Every corner ray ends on its corner.  Where the source is finite each
+    # ray starts at it; where it is not, the rays are parallel instead.
     for index in range(4):
-        assert np.allclose(view_scene.corner_rays[index, 0],
-                           view_scene.source_draw, atol=GEOMETRY_TOLERANCE)
         assert np.allclose(view_scene.corner_rays[index, 1],
                            view_scene.detector_corners[index],
                            atol=GEOMETRY_TOLERANCE)
+        if not scene.is_parallel_type:
+            assert np.allclose(view_scene.corner_rays[index, 0],
+                               view_scene.source_draw,
+                               atol=GEOMETRY_TOLERANCE)
 
     sources, centers = scene.trajectory()
     assert sources.shape == (scene.num_views, 3)
@@ -712,6 +719,238 @@ def test_view_index_is_checked():
         scene.view(scene.num_views)
     with pytest.raises(IndexError):
         scene.project_points([[0.0, 0.0, 0.0]], -1)
+
+
+# ── the corner rays of a source-free geometry ───────────────────────────────
+
+@pytest.mark.parametrize('name', list(CONFIGS_BY_NAME))
+def test_corner_rays_are_parallel_where_there_is_no_source(name):
+    """A geometry with no source position gets four parallel rays.
+
+    Four rays converging on the drawn source would be the picture of a cone
+    beam.  Each ray must instead be parallel to the ray direction and as long
+    as the drawn central ray, so that the five rays start in one plane.
+    """
+    cfg = CONFIGS_BY_NAME[name]
+    _, scene = build_scene(cfg)
+    view = scene.view(2)
+    rays = view.corner_rays
+    if not scene.is_parallel_type:
+        assert view.source is not None
+        return
+
+    assert view.source is None
+    central_length = float(np.linalg.norm(view.source_draw
+                                          - view.detector_origin))
+    for index in range(4):
+        segment = rays[index, 1] - rays[index, 0]
+        length = float(np.linalg.norm(segment))
+        assert length == pytest.approx(central_length)
+        assert np.allclose(segment / length, view.ray_direction,
+                           atol=GEOMETRY_TOLERANCE)
+    # Parallel means no two rays meet: the four starting points are as far
+    # apart as the four corners they end on.
+    for index in range(4):
+        for other in range(index + 1, 4):
+            start_gap = np.linalg.norm(rays[index, 0] - rays[other, 0])
+            end_gap = np.linalg.norm(rays[index, 1] - rays[other, 1])
+            assert float(start_gap) == pytest.approx(float(end_gap))
+
+
+def test_default_drawing_distance_keeps_the_source_off_the_volume_box():
+    """The drawn source of a parallel-type geometry sits clear of the volume.
+
+    The Increment 3 review found the drawn source touching the volume box at a
+    drawing distance factor of 1.5, so the default is 2.5.  The test states the
+    consequence rather than the number: the drawn source is farther from the
+    origin than the volume box's farthest corner.
+    """
+    from geometry_scene import DEFAULT_DRAWING_DISTANCE_FACTOR
+    assert DEFAULT_DRAWING_DISTANCE_FACTOR > 2.0
+    for name in ('parallel', 'multiaxis'):
+        cfg = CONFIGS_BY_NAME[name]
+        _, scene = build_scene(cfg)
+        corner_distance = float(np.max(np.linalg.norm(scene.volume_corners(),
+                                                      axis=1)))
+        for view_index in range(scene.num_views):
+            view = scene.view(view_index)
+            source_distance = float(np.linalg.norm(view.source_draw))
+            assert source_distance > 1.2 * corner_distance, name
+
+
+# ── the rotation-direction arc ──────────────────────────────────────────────
+
+@pytest.mark.parametrize('name', list(CONFIGS_BY_NAME))
+def test_rotation_direction_arc_follows_the_source(name):
+    """The arc starts at the source, keeps its radius, and turns its way.
+
+    The probe's view angles rise with the view index, so the source turns
+    clockwise seen from +z, which is a falling azimuth.  The translation
+    geometry does not rotate and gets no arc.
+    """
+    cfg = CONFIGS_BY_NAME[name]
+    _, scene = build_scene(cfg)
+    view = scene.view(2)
+
+    if scene.kind == 'translation':
+        assert view.rotation_direction_arc is None
+        assert view.source_travel_sense is None
+        return
+
+    arc = view.rotation_direction_arc
+    assert arc.shape == (ROTATION_ARC_SAMPLES, 3)
+    assert np.allclose(arc[0], view.source_draw, atol=GEOMETRY_TOLERANCE)
+    radius = np.hypot(arc[:, 0], arc[:, 1])
+    assert np.allclose(radius, radius[0], atol=GEOMETRY_TOLERANCE)
+    assert np.allclose(arc[:, 2], view.source_draw[2],
+                       atol=GEOMETRY_TOLERANCE)
+
+    # The probe's angles rise from view 2 to view 3, so the source turns
+    # clockwise seen from +z: the azimuth falls along the arc.
+    assert scene.angles[3] > scene.angles[2]
+    azimuth = np.unwrap(np.arctan2(arc[:, 1], arc[:, 0]))
+    assert azimuth[-1] < azimuth[0]
+    assert view.source_travel_sense == CLOCKWISE_FROM_PLUS_Z
+
+
+def test_rotation_direction_arc_reverses_with_the_angle_step():
+    """A scan whose angles fall gets an arc the other way."""
+    cfg = CONFIGS_BY_NAME['cone flat']
+    _, scene = build_scene(cfg)
+    params = dict(scene.params)
+    falling = np.asarray(params['view_params_array'], dtype=np.float64).copy()
+    falling[:, 0] = -falling[:, 0]
+    params['view_params_array'] = falling
+    reversed_scene = GeometryScene(params, 'cone')
+
+    view = reversed_scene.view(2)
+    assert reversed_scene.angles[3] < reversed_scene.angles[2]
+    azimuth = np.unwrap(np.arctan2(view.rotation_direction_arc[:, 1],
+                                   view.rotation_direction_arc[:, 0]))
+    assert azimuth[-1] > azimuth[0]
+    assert view.source_travel_sense == COUNTERCLOCKWISE_FROM_PLUS_Z
+
+
+def test_a_single_view_scan_has_no_travel_direction():
+    """One view says nothing about which way the source travels."""
+    cfg = CONFIGS_BY_NAME['cone flat']
+    _, scene = build_scene(cfg)
+    params = dict(scene.params)
+    params['sinogram_shape'] = (1, scene.num_det_rows, scene.num_det_channels)
+    params['view_params_array'] = np.asarray(
+        params['view_params_array'], dtype=np.float64)[:1]
+    single = GeometryScene(params, 'cone')
+    view = single.view(0)
+    assert view.rotation_direction_arc is None
+    assert view.source_travel_sense is None
+
+
+# ── the trajectory over all views ───────────────────────────────────────────
+
+@pytest.mark.parametrize('name', list(CONFIGS_BY_NAME))
+def test_trajectory_matches_the_per_view_scenes(name):
+    """The vectorized trajectory equals the per-view scenes it replaces.
+
+    ``trajectory`` computes the whole scan at once so that an 1800-view model
+    redraws at interactive speed.  This test is the check that the fast form
+    and the plain form agree.
+    """
+    cfg = CONFIGS_BY_NAME[name]
+    _, scene = build_scene(cfg)
+    sources, centers = scene.trajectory()
+    assert sources.shape == (scene.num_views, 3)
+    assert centers.shape == (scene.num_views, 3)
+    for view_index in range(scene.num_views):
+        view = scene.view(view_index)
+        assert np.allclose(sources[view_index], view.source_draw,
+                           atol=GEOMETRY_TOLERANCE), view_index
+        assert np.allclose(centers[view_index], view.detector_center,
+                           atol=GEOMETRY_TOLERANCE), view_index
+
+
+# ── comparing two scenes ────────────────────────────────────────────────────
+
+def test_with_parameters_copies_and_replaces():
+    """A copy carries the drawing options and the one changed parameter."""
+    cfg = CONFIGS_BY_NAME['cone flat']
+    _, scene = build_scene(cfg)
+    shifted = scene.with_parameters(
+        dict(det_channel_offset=scene.det_channel_offset
+             + 10.0 * scene.delta_det_channel))
+
+    assert shifted is not scene
+    assert shifted.kind == scene.kind
+    assert shifted.drawing_options() == scene.drawing_options()
+    assert scene.params['det_channel_offset'] == cfg['params'][
+        'det_channel_offset']
+    # Ten channels of offset move a fixed point's image by ten channels.
+    point = [[0.0, 0.0, 0.0]]
+    row, channel = scene.project_points(point, 2)
+    row_shifted, channel_shifted = shifted.project_points(point, 2)
+    assert float(channel_shifted[0] - channel[0]) == pytest.approx(10.0)
+    assert float(row_shifted[0] - row[0]) == pytest.approx(0.0)
+
+
+def test_with_parameters_rejects_an_unknown_name():
+    """A misspelled parameter name raises instead of being ignored."""
+    cfg = CONFIGS_BY_NAME['cone flat']
+    _, scene = build_scene(cfg)
+    with pytest.raises(ValueError, match='not parameters'):
+        scene.with_parameters(dict(det_chanel_offset=1.0))
+
+
+def test_differences_lists_the_parameter_and_its_consequences():
+    """A changed offset is reported with both values, and so is its effect."""
+    cfg = CONFIGS_BY_NAME['cone flat']
+    _, scene = build_scene(cfg)
+    step = 10.0 * scene.delta_det_channel
+    shifted = scene.with_parameters(
+        dict(det_channel_offset=scene.det_channel_offset + step))
+
+    rows = scene.differences(shifted)
+    names = [name for name, _, _ in rows]
+    assert 'det_channel_offset' in names
+    assert 'detector_center_u' in names
+    for name, mine, theirs in rows:
+        if name == 'det_channel_offset':
+            assert float(mine) == pytest.approx(scene.det_channel_offset)
+            assert float(theirs) == pytest.approx(scene.det_channel_offset
+                                                  + step)
+    # Nothing that did not change is listed, and no explanatory sentence is.
+    assert 'delta_det_channel' not in names
+    assert 'magnification' not in names
+    for excluded in DIFFERENCE_EXCLUDED_QUANTITIES:
+        assert excluded not in names
+    assert scene.differences(scene) == []
+
+
+def test_differences_across_two_geometry_kinds():
+    """Two kinds are comparable, and a missing parameter reads as None."""
+    parallel = build_scene(CONFIGS_BY_NAME['parallel'])[1]
+    cone = build_scene(CONFIGS_BY_NAME['cone flat'])[1]
+    rows = dict((name, (mine, theirs))
+                for name, mine, theirs in parallel.differences(cone))
+    assert rows['geometry_kind'] == ('parallel', 'cone')
+    # source_iso_dist is a cone parameter and not a parallel one.
+    assert rows['source_iso_dist'][0] is None
+    assert rows['source_iso_dist'][1] == pytest.approx(
+        cone.source_iso_dist)
+
+
+def test_values_are_equal_handles_arrays_and_infinities():
+    """The value comparison copes with what a parameter can hold."""
+    assert values_are_equal(1.0, 1.0)
+    assert values_are_equal(np.inf, np.inf)
+    assert not values_are_equal(np.inf, -np.inf)
+    assert values_are_equal((8, 24, 48), (8, 24, 48))
+    assert not values_are_equal((8, 24, 48), (8, 24, 49))
+    assert values_are_equal(np.zeros((4, 2)), np.zeros((4, 2)))
+    assert not values_are_equal(np.zeros((4, 2)), np.zeros((3, 2)))
+    assert values_are_equal(True, True)
+    assert not values_are_equal(True, False)
+    assert values_are_equal('cone', 'cone')
+    assert not values_are_equal(None, 1.0)
+    assert values_are_equal(None, None)
 
 
 if __name__ == '__main__':

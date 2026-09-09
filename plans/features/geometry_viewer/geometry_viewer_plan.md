@@ -7,7 +7,11 @@ error of 0.11 detector pixel.  Increment 2 is done (2026-09-09): `geometry_scene
 and its 67 tests pass, and `gv2_scene_findings.md` records the surface and the drawing
 choices.  Increment 3 is done (2026-09-09): `geometry_viewer.py` draws the five
 panels, 36 viewer tests pass, and `gv3_static_figure_findings.md` reviews eight figures
-against the conventions record with no disagreement.  Increment 4 is next.
+against the conventions record with no disagreement.  Increment 4 is done
+(2026-09-09): the view slider, the source-path toggle, the 3D zoom, and the comparison
+overlay are built, 152 tests pass, and a slider step on an 1800-view model takes 41 ms
+against the 100 ms gate (`gv4_interaction_findings.md`, `gv4_timing.md`).  Increment 5
+is next, after Greg has used the interactive viewer.
 Decisions recorded on 2026-09-09: the first frontend is matplotlib; the primary
 uses are checking a real scan's geometry before reconstruction and supporting the
 geometric calibration work; the prototype is built in this repository for a later
@@ -188,6 +192,20 @@ painting a synthetic sinogram with one bright pixel at a known row and channel.
 **Increment 6.  The port.**  Move the scene and viewer into mbirtorch, add the entry
 point, a demo, a docs page, and the API specification row.  This increment runs in
 the mbirtorch repository and is planned separately.
+
+## Open items from the Increment 4 review
+
+- **The fit statement is wrong for helical scans.**  `volume_fits_detector` asks
+  whether every volume corner projects inside the detector in every view.  A
+  helical volume never does, because each view sees only part of the axial travel,
+  so the text panel says "no" for every helical scan.  The statement should count
+  the views in which the volume leaves the detector, and for a helical scan it
+  should compare the volume's z extent with the detector's swept coverage instead.
+- **The comparison section runs out of room** in the text panel when two
+  geometries differ in many parameters.  A panel or window of its own is the fix.
+- **The slider has run only under the Agg backend.**  The partial-redraw path
+  follows the slice viewer's, but it has not been watched on a screen.  Greg's use
+  of the viewer is the first display test, before any port.
 
 ## Risks and open questions
 

@@ -12,6 +12,12 @@ view.  A separate matplotlib module draws those primitives and owns the widgets.
 This split follows the slice viewer of ``mbirtorch/viewer.py``, whose pure-numpy
 ``VolumeStack`` carries all of the data logic.
 
+Every geometric statement a drawing makes is made here.  The drawing layer
+places primitives on axes and computes no positions of its own, so this module
+also carries the two drawings that are annotations rather than geometry: the
+rays of a geometry whose source is infinitely far away, and the arc that shows
+which way the source travels.
+
 The object frame.  All four geometries share one right-handed (x, y, z) frame
 whose z axis is the rotation axis.  Voxel (i, j, k) of the reconstruction sits
 at
@@ -47,7 +53,10 @@ import numpy as np
 
 __all__ = ['GeometryScene', 'ViewScene', 'GEOMETRY_KINDS',
            'required_parameter_names', 'CURVED_ARC_SAMPLES',
-           'DEFAULT_DRAWING_DISTANCE_FACTOR', 'MULTIAXIS_SOURCE_ON_PLUS_Y']
+           'DEFAULT_DRAWING_DISTANCE_FACTOR', 'MULTIAXIS_SOURCE_ON_PLUS_Y',
+           'ROTATION_ARC_SWEEP', 'ROTATION_ARC_SAMPLES',
+           'CLOCKWISE_FROM_PLUS_Z', 'COUNTERCLOCKWISE_FROM_PLUS_Z',
+           'DIFFERENCE_EXCLUDED_QUANTITIES', 'values_are_equal']
 
 
 #: The geometry kinds this module knows.  Each names one mbirtorch model class.
@@ -60,12 +69,34 @@ CURVED_ARC_SAMPLES = 33
 
 #: Default multiple of the volume's largest half-extent used as the drawing
 #: distance for a geometry whose source or detector has no physical position.
-#: This is a drawing choice, not a property of any model.
-DEFAULT_DRAWING_DISTANCE_FACTOR = 1.5
+#: This is a drawing choice, not a property of any model.  At 1.5 the drawn
+#: source of a parallel-type geometry sat close enough to the volume box to
+#: touch it in the 3D panel, which the Increment 3 review recorded, so the
+#: factor is 2.5.
+DEFAULT_DRAWING_DISTANCE_FACTOR = 2.5
 
 #: Default multiple of the volume's z half-extent used for the length of the
 #: drawn rotation axis, so that the axis sticks out past the volume box.
 DEFAULT_ROTATION_AXIS_EXTENSION = 1.25
+
+#: The angle the rotation-direction arc sweeps, in radians, and the number of
+#: points it is drawn with.  The arc starts at the drawn source and follows the
+#: circle the source travels on, so it needs no radius of its own.  Both are
+#: drawing choices and neither affects a detector index.
+ROTATION_ARC_SWEEP = 0.5
+ROTATION_ARC_SAMPLES = 17
+
+#: The two values ``ViewScene.source_travel_sense`` can take.  The sense is
+#: named as it is seen from a point on the +z axis looking toward the origin,
+#: which is the view the top panel of a drawing shows.
+CLOCKWISE_FROM_PLUS_Z = 'clockwise seen from +z'
+COUNTERCLOCKWISE_FROM_PLUS_Z = 'counterclockwise seen from +z'
+
+#: Entries of ``derived_quantities`` that :meth:`GeometryScene.differences`
+#: does not report.  Each is a sentence that explains the numbers beside it, so
+#: a comparison listing it would print a paragraph twice and would say nothing
+#: the other entries do not already say.
+DIFFERENCE_EXCLUDED_QUANTITIES = ('angle_note', 'drawing_note')
 
 #: The multiaxis source-side convention.  A parallel projection is the same in
 #: both directions along a ray, so measurement cannot say which end of a ray
@@ -124,6 +155,40 @@ def _rotation_about_z(angle):
     return np.array([[cosine, -sine, 0.0],
                      [sine, cosine, 0.0],
                      [0.0, 0.0, 1.0]])
+
+
+def values_are_equal(first, second, tolerance=1e-12):
+    """Whether two parameter or derived values are the same value.
+
+    A parameter can be a float, an integer, a bool, a string, a shape tuple, or
+    a per-view array, and one of the two can be None, which means the parameter
+    does not exist for that geometry kind.  Floats are compared with a relative
+    tolerance rather than exactly, following the float rule in
+    ``.claude/lessons.md``.  An infinite ``source_detector_dist`` equals
+    another infinity of the same sign.
+
+    Args:
+        first, second: the two values.
+        tolerance (float, optional): the relative tolerance for numbers.
+
+    Returns:
+        bool: whether the two are the same value.
+    """
+    if first is None or second is None:
+        return first is None and second is None
+    if isinstance(first, str) or isinstance(second, str):
+        return str(first) == str(second)
+    try:
+        left = np.asarray(first, dtype=np.float64)
+        right = np.asarray(second, dtype=np.float64)
+    except (TypeError, ValueError):
+        return bool(first == second)
+    if left.shape != right.shape:
+        return False
+    if left.size == 0:
+        return True
+    return bool(np.allclose(left, right, rtol=tolerance, atol=0.0,
+                            equal_nan=True))
 
 
 def _unit(vector):
@@ -188,14 +253,32 @@ class ViewScene:
             origin through the object, (V, 3), for the translation geometry.
             This is the line the central ray sweeps through the object, and it
             takes the rotation axis's place in a drawing.  None otherwise.
-        corner_rays (ndarray): four segments from ``source_draw`` to the four
-            detector corners, (4, 2, 3).
+        corner_rays (ndarray): four segments ending at the four detector
+            corners, (4, 2, 3), in the same corner order as
+            ``detector_corners``.  A geometry with a finite source gets four
+            segments that start at that source.  A parallel-type geometry gets
+            four segments parallel to ``ray_direction``, each starting in the
+            plane through ``source_draw``, so a parallel-type corner ray is as
+            long as the drawn central ray.  Rays that converged on
+            ``source_draw`` would draw a cone beam, which is the picture the
+            Increment 3 review rejected.
         volume_outline_on_detector (ndarray): the detector indices of the eight
             volume corners, (8, 2), as (row, channel).
         ror_cylinder (dict or None): the region of reconstruction, when
             ``use_ror_mask`` is True.  Keys: ``center`` (3,), ``semi_axis_x``,
             ``semi_axis_y``, ``radius``, ``z_min``, ``z_max``.  None when the
             mask is off or is a custom array.
+        rotation_direction_arc (ndarray or None): a short arc on the circle the
+            source travels, (M, 3), starting at ``source_draw`` and sweeping
+            ``ROTATION_ARC_SWEEP`` radians in the direction the source moves
+            from this view to the next one.  The last two points give the
+            direction an arrowhead at the end of the arc should point.  None
+            for the translation geometry, which does not rotate, and None when
+            the direction cannot be told: a single view, two neighboring views
+            at one angle, or a source on the rotation axis.
+        source_travel_sense (str or None): the same direction in words, either
+            ``CLOCKWISE_FROM_PLUS_Z`` or ``COUNTERCLOCKWISE_FROM_PLUS_Z``.
+            None exactly when ``rotation_direction_arc`` is None.
     """
 
     view_index: int
@@ -217,6 +300,8 @@ class ViewScene:
     corner_rays: np.ndarray
     volume_outline_on_detector: np.ndarray
     ror_cylinder: object = field(default=None)
+    rotation_direction_arc: object = field(default=None)
+    source_travel_sense: object = field(default=None)
 
 
 class GeometryScene:
@@ -240,6 +325,8 @@ class GeometryScene:
             convention; see ``MULTIAXIS_SOURCE_ON_PLUS_Y``.
         rotation_axis_extension (float, optional): multiple of the volume's z
             half-extent used for the drawn rotation axis's half length.
+        rotation_arc_sweep (float, optional): the angle in radians that the
+            rotation-direction arc sweeps; see ``ROTATION_ARC_SWEEP``.
 
     Attributes:
         kind (str): the geometry kind.
@@ -264,7 +351,8 @@ class GeometryScene:
     def __init__(self, params, kind,
                  drawing_distance_factor=DEFAULT_DRAWING_DISTANCE_FACTOR,
                  multiaxis_source_on_plus_y=MULTIAXIS_SOURCE_ON_PLUS_Y,
-                 rotation_axis_extension=DEFAULT_ROTATION_AXIS_EXTENSION):
+                 rotation_axis_extension=DEFAULT_ROTATION_AXIS_EXTENSION,
+                 rotation_arc_sweep=ROTATION_ARC_SWEEP):
         if kind not in GEOMETRY_KINDS:
             raise ValueError(f'Unknown geometry kind {kind!r}; '
                              f'expected one of {GEOMETRY_KINDS}.')
@@ -273,6 +361,7 @@ class GeometryScene:
         self.drawing_distance_factor = float(drawing_distance_factor)
         self.multiaxis_source_on_plus_y = bool(multiaxis_source_on_plus_y)
         self.rotation_axis_extension = float(rotation_axis_extension)
+        self.rotation_arc_sweep = float(rotation_arc_sweep)
 
         missing = [name for name in required_parameter_names(kind)
                    if name not in self.params]
@@ -930,8 +1019,20 @@ class GeometryScene:
         detector_pixel0 = to_object(self._uv_to_projector_frame(
             pixel0_u, pixel0_v, view_index))[0]
 
-        corner_rays = np.stack(
-            [np.stack([source_draw, corner]) for corner in detector_corners])
+        if self.is_parallel_type:
+            # Four rays converging on the drawn source would draw a cone beam,
+            # which is not this geometry.  The rays are parallel to the ray
+            # direction instead, and each is drawn as long as the drawn central
+            # ray, so that the four rays and the central ray start in one
+            # plane through the drawn source.
+            length = float(np.linalg.norm(source_draw - detector_origin))
+            starts = detector_corners - length * ray_direction[None, :]
+            corner_rays = np.stack([starts, detector_corners], axis=1)
+        else:
+            corner_rays = np.stack([np.stack([source_draw, corner])
+                                    for corner in detector_corners])
+
+        arc, travel_sense = self._source_travel(view_index, source_draw)
 
         volume_corners = self.volume_corners()
         row, channel = self.project_points(volume_corners, view_index)
@@ -970,10 +1071,137 @@ class GeometryScene:
             corner_rays=corner_rays,
             volume_outline_on_detector=volume_outline_on_detector,
             ror_cylinder=self.ror_cylinder(),
+            rotation_direction_arc=arc,
+            source_travel_sense=travel_sense,
         )
+
+    def _source_travel(self, view_index, source_draw):
+        """Which way the source moves from this view to the next one.
+
+        The arc lies on the circle about the rotation axis that the source
+        travels on, so its radius and its height are the drawn source's own.
+        It starts at the drawn source and sweeps ``rotation_arc_sweep``
+        radians.  The direction comes from the sign of the step between this
+        view's angle and the next one, so a model whose angles fall gets an arc
+        the other way.
+
+        The sense follows the conventions record.  A growing view angle turns
+        the object counterclockwise seen from +z, so in a drawing that holds
+        the object fixed the source turns clockwise.  The source's azimuth is
+        ``pi / 2`` minus the view angle, which is why a rising angle gives a
+        falling azimuth.
+
+        Args:
+            view_index (int): the view.
+            source_draw (ndarray): the drawn source position of that view.
+
+        Returns:
+            (ndarray or None, str or None): the arc, (M, 3), and the sense in
+            words.  Both are None when the direction cannot be told: the
+            translation geometry, a single view, two neighboring views at one
+            angle, or a source on the rotation axis.
+        """
+        if self.kind == 'translation' or self.num_views < 2:
+            return None, None
+        neighbor = (view_index + 1 if view_index + 1 < self.num_views
+                    else view_index - 1)
+        step = float(self.angles[neighbor] - self.angles[view_index])
+        if neighbor < view_index:
+            step = -step
+        if step == 0.0:
+            return None, None
+        radius = float(np.hypot(source_draw[0], source_draw[1]))
+        if radius <= 0.0:
+            return None, None
+
+        start = float(np.arctan2(source_draw[1], source_draw[0]))
+        sweep = -np.sign(step) * self.rotation_arc_sweep
+        azimuth = start + np.linspace(0.0, sweep, ROTATION_ARC_SAMPLES)
+        arc = np.stack([radius * np.cos(azimuth), radius * np.sin(azimuth),
+                        np.full(ROTATION_ARC_SAMPLES, float(source_draw[2]))],
+                       axis=1)
+        sense = (CLOCKWISE_FROM_PLUS_Z if sweep < 0.0
+                 else COUNTERCLOCKWISE_FROM_PLUS_Z)
+        return arc, sense
+
+    def _ray_directions_all_views(self):
+        """The central ray's unit direction in the projector frame, (V, 3).
+
+        This is the vectorized form of
+        :meth:`_ray_direction_projector_frame`, used by :meth:`trajectory`.
+        """
+        if self.kind != 'multiaxis':
+            return np.tile(np.array([0.0, -1.0, 0.0]), (self.num_views, 1))
+        elevation = self.elevations
+        directions = np.stack([np.zeros_like(elevation),
+                               -np.cos(elevation),
+                               np.sin(elevation)], axis=1)
+        if not self.multiaxis_source_on_plus_y:
+            directions = -directions
+        return directions
+
+    def _detector_origins_all_views(self, directions):
+        """Where the central ray meets the detector, projector frame, (V, 3).
+
+        This is the vectorized form of
+        :meth:`_detector_origin_projector_frame`.
+        """
+        if self.is_parallel_type:
+            return self.drawing_distance * directions
+        return (np.array([0.0, self.source_iso_dist, 0.0])
+                + self.source_detector_dist * directions)
+
+    def _detector_centers_all_views(self, directions, origins):
+        """The center of the detector grid, projector frame, (V, 3).
+
+        This is the vectorized form of ``_uv_to_projector_frame`` evaluated at
+        (u, v) = (-det_channel_offset, -row_offset), which is the grid center.
+        """
+        u = -self.det_channel_offset
+        v = -self.row_offset
+        if self.kind == 'cone' and self.use_curved_detector:
+            radius = self.source_detector_dist
+            theta = u / radius
+            point = np.array([radius * np.sin(theta),
+                              self.source_iso_dist - radius * np.cos(theta),
+                              v])
+            return np.tile(point, (self.num_views, 1))
+        if self.kind == 'multiaxis':
+            elevation = self.elevations
+            v_axis = np.stack([np.zeros_like(elevation),
+                               np.sin(elevation),
+                               np.cos(elevation)], axis=1)
+        else:
+            v_axis = np.tile(np.array([0.0, 0.0, 1.0]), (self.num_views, 1))
+        u_axis = np.array([1.0, 0.0, 0.0])
+        return origins + u * u_axis + v * v_axis
+
+    def _to_object_frame_all_views(self, points):
+        """One projector-frame point per view, (V, 3), in the object frame.
+
+        This is :meth:`to_object_frame` applied view by view, written out over
+        the whole scan at once.  The rotation about z is written as its two
+        rows rather than as a matrix product, so no per-view matrix is built.
+        """
+        points = np.asarray(points, dtype=np.float64).reshape(self.num_views, 3)
+        if self.kind == 'translation':
+            return points + self.translation_vectors
+        x, y, z = points[:, 0], points[:, 1], points[:, 2]
+        if self.kind == 'cone':
+            z = z + self.z_shifts
+        cosine, sine = np.cos(self.angles), np.sin(self.angles)
+        return np.stack([x * cosine + y * sine,
+                         -x * sine + y * cosine,
+                         z], axis=1)
 
     def trajectory(self):
         """The source and detector-center paths over all views.
+
+        The paths are computed over the whole scan at once, without building a
+        :class:`ViewScene` per view, because a helical scan of 1800 views is a
+        size the viewer must draw at interactive speed.
+        ``test_trajectory_matches_the_per_view_scenes`` checks the two ways
+        against each other.
 
         Returns:
             (ndarray, ndarray): source positions, (V, 3), and detector centers,
@@ -981,13 +1209,18 @@ class GeometryScene:
             position exists, the source entry is the drawn point that
             :attr:`ViewScene.source_draw` uses.
         """
-        sources = np.empty((self.num_views, 3))
-        centers = np.empty((self.num_views, 3))
-        for view_index in range(self.num_views):
-            scene = self.view(view_index)
-            sources[view_index] = scene.source_draw
-            centers[view_index] = scene.detector_center
-        return sources, centers
+        directions = self._ray_directions_all_views()
+        origins = self._detector_origins_all_views(directions)
+        if self.is_parallel_type:
+            # The same rule source_draw uses: one drawing distance back from
+            # the detector origin on each side of the volume.
+            sources = origins - 2.0 * self.drawing_distance * directions
+        else:
+            sources = np.tile(np.array([0.0, self.source_iso_dist, 0.0]),
+                              (self.num_views, 1))
+        centers = self._detector_centers_all_views(directions, origins)
+        return (self._to_object_frame_all_views(sources),
+                self._to_object_frame_all_views(centers))
 
     # ------------------------------------------------------------------
     # Derived numbers
@@ -1162,3 +1395,92 @@ class GeometryScene:
             notes.append('Every position in this drawing is a physical '
                          'position taken from the parameters.')
         return '  '.join(notes)
+
+    # ------------------------------------------------------------------
+    # Comparing two scenes
+    # ------------------------------------------------------------------
+
+    def drawing_options(self):
+        """The drawing choices this scene was built with, as a dictionary.
+
+        These are the constructor arguments that affect only where things are
+        drawn.  A copy of this scene passes them on, so that a comparison
+        drawing uses the same choices as the drawing it is compared with.
+        """
+        return dict(
+            drawing_distance_factor=self.drawing_distance_factor,
+            multiaxis_source_on_plus_y=self.multiaxis_source_on_plus_y,
+            rotation_axis_extension=self.rotation_axis_extension,
+            rotation_arc_sweep=self.rotation_arc_sweep,
+        )
+
+    def with_parameters(self, overrides):
+        """A copy of this scene with some parameter values replaced.
+
+        This is how a viewer draws a second geometry that differs from the
+        first in a few numbers, which is the calibration use: a vendor geometry
+        against the same geometry with an estimated offset.
+
+        Args:
+            overrides (dict): parameter values to replace, keyed by mbirtorch
+                parameter name.  Every name must be one this geometry kind
+                uses, so that a misspelled name raises instead of being
+                ignored.
+
+        Returns:
+            GeometryScene: a new scene of the same kind, with the same drawing
+            options.
+        """
+        allowed = required_parameter_names(self.kind)
+        unknown = [name for name in overrides if name not in allowed]
+        if unknown:
+            raise ValueError(f'These are not parameters of a {self.kind} '
+                             f'geometry: {sorted(unknown)}.  The names this '
+                             f'kind uses are {list(allowed)}.')
+        params = dict(self.params)
+        params.update(overrides)
+        return GeometryScene(params, self.kind, **self.drawing_options())
+
+    def differences(self, other):
+        """What differs between this scene and another one.
+
+        Both the parameters and the derived quantities are compared, because a
+        user checking a geometry against a second one wants to see the changed
+        parameter and its consequences in one list.  The two sentences named in
+        ``DIFFERENCE_EXCLUDED_QUANTITIES`` are left out.
+
+        Args:
+            other (GeometryScene): the scene to compare with.  It may be of
+                another geometry kind.
+
+        Returns:
+            list of (str, object, object): one entry per differing name, as the
+            name, this scene's value, and the other scene's value.  The
+            parameters come first, in the order
+            :func:`required_parameter_names` gives them, then the derived
+            quantities in the order :meth:`derived_quantities` gives them.  A
+            value of None means the name is not a parameter of that scene's
+            geometry kind.  A per-view array counts as one entry, and its two
+            values are the two arrays.
+        """
+        names = list(required_parameter_names(self.kind))
+        for name in required_parameter_names(other.kind):
+            if name not in names:
+                names.append(name)
+
+        rows = []
+        for name in names:
+            mine = self.params.get(name)
+            theirs = other.params.get(name)
+            if not values_are_equal(mine, theirs):
+                rows.append((name, mine, theirs))
+
+        my_quantities = self.derived_quantities()
+        their_quantities = other.derived_quantities()
+        for name, value in my_quantities.items():
+            if name in DIFFERENCE_EXCLUDED_QUANTITIES:
+                continue
+            other_value = their_quantities.get(name)
+            if not values_are_equal(value, other_value):
+                rows.append((name, value, other_value))
+        return rows

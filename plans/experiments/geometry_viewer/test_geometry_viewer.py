@@ -38,6 +38,10 @@ CONFIGS_BY_NAME = {cfg['name']: cfg for cfg in probe.CONFIGS}
 #: the detector face, and the text panel.
 EXPECTED_PANEL_COUNT = 5
 
+#: The three widget axes a figure builds beside the panels: the view slider and
+#: the two toggles.  The figure's axes list holds these as well as the panels.
+EXPECTED_WIDGET_AXES = 3
+
 #: Smallest acceptable size of a saved figure, in bytes.  A PNG of an empty
 #: figure of this size is a few kilobytes, so a file above this holds a
 #: drawing.
@@ -103,11 +107,13 @@ def test_figure_builds_with_five_panels(name):
     _, figure = build_figure(name)
     try:
         assert len(figure.panel_axes) == EXPECTED_PANEL_COUNT
-        assert len(figure.figure.axes) == EXPECTED_PANEL_COUNT
+        assert (len(figure.figure.axes)
+                == EXPECTED_PANEL_COUNT + EXPECTED_WIDGET_AXES)
         # The first panel is the 3D view, which counts as one axes.
         assert hasattr(figure.ax_3d, 'get_zlim')
         for axes in figure.panel_axes:
             assert axes.figure is figure.figure
+            assert axes in figure.figure.axes
     finally:
         close(figure)
 
@@ -123,7 +129,8 @@ def test_set_view_and_trajectory_redraw(name):
         assert figure.show_trajectory is True
         figure.set_view(0)
         figure.set_show_trajectory(False)
-        assert len(figure.figure.axes) == EXPECTED_PANEL_COUNT
+        assert (len(figure.figure.axes)
+                == EXPECTED_PANEL_COUNT + EXPECTED_WIDGET_AXES)
     finally:
         close(figure)
 
@@ -194,7 +201,9 @@ def test_detector_panel_line_data_matches_the_scene():
     This reads the line data back out of the axes, so it checks the drawing and
     not only the array the figure kept.  The lines are in (channel, row) order,
     because that is the panel's horizontal and vertical axis, while the scene
-    reports (row, channel).
+    reports (row, channel).  The twelve edges are drawn as one polyline with a
+    row of NaN between edges, so the non-finite separators are dropped before
+    the comparison.
     """
     scene, figure = build_figure('cone curved', view_index=2)
     try:
@@ -206,6 +215,7 @@ def test_detector_panel_line_data_matches_the_scene():
             xdata, ydata = line.get_xdata(), line.get_ydata()
             drawn_points.extend(zip(np.asarray(ydata), np.asarray(xdata)))
         drawn_points = np.asarray(drawn_points, dtype=np.float64)
+        drawn_points = drawn_points[np.isfinite(drawn_points).all(axis=1)]
         assert drawn_points.size > 0
         for corner in outline:
             distance = np.min(np.hypot(drawn_points[:, 0] - corner[0],
@@ -219,8 +229,10 @@ def test_overshoot_is_drawn_in_the_overshoot_color():
     """A volume too large for the detector gets a red part on the face.
 
     The volume is enlarged until it projects past the detector's edge.  The
-    panel must then hold at least one line in the overshoot color, and the
-    scene must agree that the volume no longer fits.
+    panel must then hold a line in the overshoot color that carries points, and
+    the scene must agree that the volume no longer fits.  The line exists in
+    every view and is empty when the volume fits, so the test checks its data
+    and not only its presence.
     """
     cfg = CONFIGS_BY_NAME['cone flat']
     model = probe.build_model(cfg)
@@ -233,8 +245,22 @@ def test_overshoot_is_drawn_in_the_overshoot_color():
 
     figure = GeometryFigure(wide, view_index=2)
     try:
-        colors = [line.get_color() for line in figure.ax_detector.get_lines()]
-        assert COLORS['overshoot'] in colors
+        drawn = [line for line in figure.ax_detector.get_lines()
+                 if line.get_color() == COLORS['overshoot']
+                 and np.isfinite(np.asarray(line.get_xdata(),
+                                            dtype=np.float64)).any()]
+        assert drawn, 'no line was drawn in the overshoot color'
+    finally:
+        close(figure)
+
+    # The same panel holds no overshoot points when the volume fits.
+    figure = GeometryFigure(scene, view_index=2)
+    try:
+        for line in figure.ax_detector.get_lines():
+            if line.get_color() != COLORS['overshoot']:
+                continue
+            data = np.asarray(line.get_xdata(), dtype=np.float64)
+            assert not np.isfinite(data).any()
     finally:
         close(figure)
 
