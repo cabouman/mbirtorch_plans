@@ -202,20 +202,30 @@ the mbirtorch repository and is planned separately.
 
 ## Web packaging (Greg, 2026-09-10)
 
-Greg asked for the viewer on huggingface.co.  The viewer needs neither torch nor
+Greg asked for the viewer on huggingface.co, as an entry in Charlie Bouman's Thingy
+Repository, whose builder's guide sets the rules.  The viewer needs neither torch nor
 mbirtorch, because the scene is built from a parameter dictionary and the figure is
 matplotlib, so it can run on a Hugging Face Space.  Two packagings are built from one
-Gradio app in `plans/experiments/geometry_viewer/web/`.  The primary is a standard
-Gradio Space, which runs the Python on a free CPU server and is tested here end to
-end with a headless browser.  The secondary is a Gradio-Lite static page that runs the
-Python in the browser through Pyodide.  Gradio-Lite was last published on 2025-09-10
-as version 5.45.0, one major version behind the Gradio 6 that PyPI installs, and its
-source is gone from the Gradio repository, so the page pins that release and is marked
-untested here.  The web app replaces the matplotlib widgets with Gradio controls and
-shows the figure as an image, so the 3D panel cannot be rotated there.  One new module,
-`geometry_defaults.py`, copies mbirtorch's automatic reconstruction geometry so that
-a scene can be built from scan parameters alone; a test pins the copy to the real
-models.  The record is `gv5_web_findings.md`.
+Gradio app in `plans/experiments/geometry_viewer/web/`.
+
+The primary packaging is a Gradio-Lite static page, `web/lite/index.html`, which
+runs the Python in the visitor's browser through Pyodide.  It is the route the guide
+gives for Python on a free account.  Gradio-Lite was last published on 2025-09-10 as
+version 5.45.0 and its source is gone from the Gradio repository, so the page pins that
+release, the app uses no Gradio 6 feature, and the page cannot be tested in this
+session, whose network policy blocks the CDN that serves the runtime.  The secondary
+packaging is a standard Gradio Space, `web/space/`, which runs the same app on a
+server, needs a paid Hugging Face plan, and is tested here end to end with a headless
+browser.
+
+The guide's acceptance list adds three files or fields: a `license` field in the
+README metadata (bsd-3-clause, mbirtorch's license), a one-line `short_description`,
+and a square `icon.png` of about 400 by 400 pixels at the Space root, which the build
+script renders from the scene.  The web app replaces the matplotlib widgets with
+Gradio controls and shows the figure as an image, so the 3D panel cannot be rotated
+there.  One new module, `geometry_defaults.py`, copies mbirtorch's automatic
+reconstruction geometry so that a scene can be built from scan parameters alone; a
+test pins the copy to the real models.  The record is `gv5_web_findings.md`.
 
 ## Open items from the Increment 4 review
 
