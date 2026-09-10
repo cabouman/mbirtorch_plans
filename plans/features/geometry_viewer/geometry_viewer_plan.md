@@ -200,6 +200,20 @@ painting a synthetic sinogram with one bright pixel at a known row and channel.
 point, a demo, a docs page, and the API specification row.  This increment runs in
 the mbirtorch repository and is planned separately.
 
+## The Python interface (Greg, 2026-09-10)
+
+The primary interface is a Python call used the way the slice viewer is used.  The
+slice viewer's call is `mbirtorch.slice_viewer(*volumes, title='', ..., block=True)`:
+it builds the viewer, shows it, and returns the viewer object; with `block=False` it
+returns at once and a module-level registry keeps the window alive until the next
+blocking call returns.  The geometry viewer's call mirrors it:
+`geometry_viewer(model, view_index=0, show_trajectory=False, compare=None,
+show_reference=True, zoom='scan', title='', block=True)`, returning the
+`GeometryFigure`, with the same nonblocking registry and the same docstring shape.
+The port (Increment 6) exposes it as `mbirtorch.geometry_viewer` beside
+`mbirtorch.slice_viewer`.  The web page below is an additional route to the same
+drawing, not a replacement for this call.
+
 ## Web packaging (Greg, 2026-09-10)
 
 Greg asked for the viewer on huggingface.co, as an entry in Charlie Bouman's Thingy
