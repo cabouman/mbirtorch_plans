@@ -92,6 +92,17 @@ ICON_DPI = 100
 #: shows two positions of one scan and the two do not overlap.
 ICON_VIEW_FRACTION = 0.25
 
+#: The MBIRTorch wordmark, a copy of mbirtorch/docs/source/_static/logo.png
+#: (802 by 256 pixels, transparent background, with a reflection under the
+#: letters).  The tile shows the letters only, so the rows below LOGO_CROP_ROW
+#: are cut before the transparent margin is trimmed.
+LOGO_PATH = os.path.join(HERE, 'web', 'assets', 'logo.png')
+LOGO_CROP_ROW = 165
+#: The tile's split: the geometry drawing fills the upper part and the
+#: wordmark the lower part, as fractions of the tile's height.
+ICON_DRAWING_BOTTOM = 0.30
+ICON_LOGO_BOX = (0.06, 0.03, 0.88, 0.24)
+
 
 # ── the static Space ─────────────────────────────────────────────────────────
 
@@ -212,10 +223,42 @@ def icon_scene():
     return GeometryScene(params, 'cone')
 
 
+def _load_logo():
+    """The wordmark as an RGBA array, letters only, or None if the file is
+    missing.  The reflection below the letters is cut at LOGO_CROP_ROW, and
+    the transparent margin around what remains is trimmed."""
+    if not os.path.exists(LOGO_PATH):
+        return None
+    import matplotlib.image as mpimg
+    logo = mpimg.imread(LOGO_PATH)[:LOGO_CROP_ROW]
+    opaque = logo[..., 3] > 0.05
+    rows = np.flatnonzero(opaque.any(axis=1))
+    cols = np.flatnonzero(opaque.any(axis=0))
+    return logo[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1]
+
+
+def _add_logo(figure):
+    """Place the wordmark across the bottom of the tile.
+
+    The wordmark keeps its own aspect ratio inside ICON_LOGO_BOX and is
+    centered there.  Without the logo file the tile is drawn without it and a
+    line says so, because the build should still produce a usable tile.
+    """
+    logo = _load_logo()
+    if logo is None:
+        print(f'no wordmark at {LOGO_PATH}; the tile is drawn without it')
+        return
+    axes = figure.add_axes(ICON_LOGO_BOX)
+    axes.imshow(logo, aspect='equal', interpolation='lanczos')
+    axes.set_axis_off()
+
+
 def write_icon(path):
     """Draw the tile and write it to ``path``.
 
-    What the tile shows.  It is the top view of one view of a cone beam scan:
+    What the tile shows.  The upper part is the top view of one view of a
+    cone beam scan, and the MBIRTorch wordmark runs across the lower part
+    (Greg, 2026-09-10).  The drawing is:
     the source, the four rays to the detector's corners, the detector, and the
     reconstruction volume, with the angle-0 position of the source and the
     detector behind them as dotted outlines.  The screen convention is the
@@ -240,9 +283,11 @@ def write_icon(path):
 
     figure = plt.figure(figsize=ICON_FIGSIZE, dpi=ICON_DPI)
     figure.patch.set_facecolor('#fbfbfd')
-    axes = figure.add_axes((0.0, 0.0, 1.0, 1.0))
+    axes = figure.add_axes((0.0, ICON_DRAWING_BOTTOM, 1.0,
+                            1.0 - ICON_DRAWING_BOTTOM))
     axes.set_facecolor('#fbfbfd')
     axes.set_axis_off()
+    _add_logo(figure)
 
     # The angle-0 reference, behind everything else: the source, the detector,
     # and the central ray between them, all dotted and faded.  The viewer's

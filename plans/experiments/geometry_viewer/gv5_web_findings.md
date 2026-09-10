@@ -302,3 +302,13 @@ detector change is still the shape of the default detector.
 both places, and the module's docstring says so.  A user who wants the
 automatic geometry of the new detector calls `auto_set_recon_geometry` by
 hand, and the page's advanced section is where a hand-set shape goes.
+
+## Tile update, 2026-09-10
+
+The tile now carries the MBIRTorch wordmark (Greg's request).  The geometry
+drawing fills the upper 70 percent of the 400 by 400 pixel tile, and the
+wordmark runs across the lower part.  The wordmark is a copy of
+`mbirtorch/docs/source/_static/logo.png`, kept at `web/assets/logo.png`; the
+build cuts away the reflection below the letters and trims the transparent
+margin before placing it.  Without that file the build still writes the tile,
+without the wordmark, and prints a line saying so.
