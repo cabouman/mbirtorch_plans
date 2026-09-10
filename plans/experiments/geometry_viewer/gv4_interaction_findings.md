@@ -560,3 +560,266 @@ lines and both are readable, and neither is new, so they were left alone.
   their labels sit close together.  At view 2 of the probe scans, which is 12
   degrees, they are legible and adjacent.  A viewer that hid the reference's
   labels when the two nearly coincide would read better, and that is not built.
+
+## Display convention: negative z up, 2026-09-10
+
+Date: 2026-09-10.  Files changed: `geometry_viewer.py`, `gv_show_example.py`,
+`test_geometry_viewer.py`, `test_geometry_interaction.py`.  Figures
+re-rendered: the eight of `gv3_render_figures.py` and the three of
+`gv4_render_figures.py`.  Status: built; 187 tests pass, and a slider step on
+an 1800-view model costs 57 ms against a gate of 100 ms.
+
+### Why negative z is at the top
+
+Every panel now draws negative z at the top (Greg, 2026-09-10).  Array indices
+increase from top to bottom when an array is printed or shown, and the slice
+index k runs along +z.  A drawing with -z at the top therefore shows the volume
+the way its array is indexed, and the way `imshow` shows one slice of it.
+
+The screen orientation of each panel follows the group's reference picture.
+That picture is the slide "Parallel Beam Geometry - top view", from Balke et
+al., Separable Models for cone-beam MBIR Reconstruction, 2018 (group slide).
+In it the beam runs from left to right, with the source on the left and the
+detector on the right.  Every panel here is drawn that way, which is what puts
+y to the left.
+
+The geometry did not change.  The object frame is still right-handed with +z
+along the increasing slice index.  Every primitive `geometry_scene.py` returns
+is unchanged, and that file was not edited.  No statement in
+`geometry_conventions.md` changes either.  That record states where the source,
+the detector, and the volume sit in the object frame.  This change states where
+they are drawn on a screen.
+
+### One constant holds the convention
+
+`Z_UP_SIGN` is the sign of the object-frame z that points up the screen, and
+its value is -1.  Each panel reads that constant in one place:
+
+* the 3D panel reads it in its camera's roll;
+* the top and side panels read it in their axes limits;
+* the detector face reads it in its row limits;
+* the panel titles and the text panel read it in the words they use.
+
+No sign flip reaches the geometry.
+
+Setting `Z_UP_SIGN` to +1 inverts no axis and draws +z up.  A test sets it that
+way with `monkeypatch` and checks four things:
+
+* every panel's axes limits come back in increasing order;
+* a point at larger z is drawn higher in the side view and the 3D view;
+* row 0 goes back to the bottom of the detector face;
+* the panel titles and the text panel say so.
+
+### What each panel shows, and from where it is seen
+
+The four drawing panels are the same scene from four sides.
+
+* **3D view.**  The camera sits 25 degrees above the drawing's top, which is
+  the -z side, and 40 degrees off the +x axis toward -y.  From there y runs to
+  the left, x runs down the screen, and -z is up.  The axis label reads
+  "z (ALU)" and its ticks read negative at the top, so the convention is
+  visible in the panel itself.
+* **Top view.**  The xy plane seen from -z, with y increasing to the left and
+  x increasing downward.  The title says so.
+* **Side view.**  The yz plane seen from +x, with y increasing to the left and
+  z increasing downward.
+* **Detector face.**  The channel index increases to the right and the row
+  index increases downward, so row 0 is at the top.  That is the view from the
+  source toward the detector with -z up, and it is how `imshow` shows one view
+  of a sinogram.  The title says both.
+* **Text panel.**  Two sentences name the drawing choices: "(du, dv) from
+  detector iso to detector center." and "Drawn with -z up."
+
+Three points on the detector now carry the reference slide's names.  The point
+where the central ray meets the detector is the detector iso.  The center of
+the detector grid is the detector center.  The index marker is labeled
+"pixel (0,0) = sino[v, 0, 0]".  The detector iso is named in the 3D view and
+the top view.  It is not named in the side view, for the reason the pixel-0
+marker is not named there.  That panel is short and wide, and its detector
+already carries its own label and the row-offset label at the same end.
+
+### How the rotation reads in the new top view
+
+The source travels counterclockwise on the screen in the top view.  Two
+reversals produce that reading.  The object rotates counterclockwise about z as
+seen from +z.  A drawing that holds the object fixed therefore turns the source
+the other way, which is clockwise as seen from +z.  The top view sees the same
+plane from -z, which reverses the sense again.  The object's own rotation reads
+clockwise in this panel, and the source's travel reads counterclockwise.
+
+This agrees with the `vcls.show_image_with_projection_rays` docstring quoted in
+`geometry_conventions.md`, which says that the object rotates clockwise as the
+rotation angle increases.  The scene's arc primitive did not change.  The axis
+inversions produce the new reading on their own.  A test measures the arc's
+signed area about the rotation axis in display coordinates and checks that it
+is positive, which is a counterclockwise turn.
+
+### The 3D panel turns its z axis around with the camera
+
+This is the one place where the change was built differently from the way it
+was written down.  The change asked for reversed z limits on the 3D panel.
+Matplotlib draws reversed limits by flipping the z axis of the world it
+projects, and that flip has two costs.  The picture it then draws belongs to an
+eye on the other side of the object.  The panel is then a view from below the
+drawing's bottom rather than from above its top, which was measured here as a
+negative determinant of the projection.  The tick labels of x and y also move
+to the top of the panel, where they overlap the panel's title.
+
+A camera roll of 180 degrees gives the same appearance without either cost.
+The camera looks from above the drawing's top, and the roll turns the picture
+upside down.  The z ticks then read negative at the top, and the panel stays a
+picture of the geometry taken from one viewpoint.  Matplotlib's own depth
+sorting is unaffected by the roll, which is correct here.  The tests check the
+drawn position of a point rather than the order of the axes limits, so they
+hold for either mechanism.  What they require is that a point at larger z be
+drawn lower on the screen, in both zoom states.
+
+### The example script offers every geometry
+
+`gv_show_example.py` has a `GEOMETRY` parameter with six choices: `cone`,
+`cone_curved`, `cone_helical`, `parallel`, `multiaxis`, and `translation`.  One
+function builds each of them from parameters alone, and the parameter values
+are constants at the top of the file.  The six builders are the following.
+
+* `cone` is a circular cone beam scan with a flat detector.
+* `cone_curved` is the same scan with `use_curved_detector=True`.
+* `cone_helical` passes `helical_z_shifts` from `np.linspace` over a stated
+  travel of 50 ALU.
+* `parallel` uses `ParallelBeamModel` with the same sinogram shape.
+* `multiaxis` uses `MultiAxisParallelModel` with one azimuth and one elevation
+  per view, at a stated elevation of 30 degrees.
+* `translation` uses `TranslationModel` with
+  `mbirtorch.gen_translation_vectors` over a 5 by 3 grid of positions and the
+  cone distances.
+
+Every model then gets `DET_CHANNEL_OFFSET` and `DET_ROW_OFFSET` through
+`set_params(no_warning=True)`.  The comparison, the view index, and the
+source-path switch are unchanged.  The docstring now describes all three
+toggles, how to switch geometry, and how to show a real scan's model.
+
+Each of the six choices was run headless under Agg.  Every one built its model,
+built the figure, printed the line that says the Agg backend has no window, and
+saved a file.
+
+### Two things had to be fixed to keep the panels legible
+
+The inversions moved every label, so every label was measured again.  A script
+built the eleven figures of the two figure scripts and measured each label of
+the three 2D panels with the renderer.  It reported the pairs that overlap and
+the labels that reach outside their panel.  Five labels needed a new place.
+
+* The angle-0 reference's label is now a caption in the top panel's upper left
+  corner instead of a label on the ray.  That ray runs across the middle of the
+  panel, between the source's labels at one end and the detector's three at the
+  other, and a two-line label anywhere along it ran into one of them.
+* The two detector-offset labels now hang at the detector iso, on the side of
+  the detector away from its far corner, one line apart from the detector-iso
+  label.
+* The `recon_slice_offset` label now reads outward from its segment.
+* The translation path's label now hangs below the path.
+* The source-travel label now reads into the panel from the end of the arc.
+  The arc's end sits at the source's radius, which is near a panel edge, and on
+  the 1800-view helical scan that label ran off the panel.
+
+After those changes no label of any 2D panel in any of the eleven figures
+overlaps another or leaves its panel.  A test checks that for the six
+geometries.
+
+The text panel now chooses a font size that fits the panel.  Its three blocks
+were already taller than the panel for the two parallel-type geometries, whose
+drawing note is six lines where a cone scan's is two.  The footer ran 30 px
+past the bottom of the parallel panel and 43 px past the bottom of the
+multiaxis panel, into the widget row.  The two sentences this change adds made that
+worse.  `_fit_text_font` measures the blocks with the renderer and scales the
+font size by the room the panel has, down to a floor of 5.0 points.  No
+geometry now runs past the panel, with or without a comparison drawn.  A cone
+scan's panel is set at 7.0 points where it was 7.5.
+
+### The by-eye check
+
+The six figures of `gv3_render_figures.py` and `gv4_compare_offset.png` were
+read against `geometry_conventions.md`.  Six statements were checked: four in
+the flat cone figure, one in the comparison figure, and one in the helical
+figure.  Each agrees with the record.
+
+* Pixel (0, 0) is at the top left of the detector face.  The channel index
+  increases with +x, and x now increases downward, so that marker is at the
+  detector's upper end in the top view.  It is at the upper end in the side
+  view as well, because the row index increases with +z and z now increases
+  downward.
+* Voxel (0, 0, 0) sits at the lowest x, y, and z of the volume, which is
+  (-5.5, -5.4, -1.4) ALU here.  It is drawn above and to the right of the
+  volume box's center in the top view, and above it in the side view.
+* The probe's flat cone geometry has `det_channel_offset` -1.7 and
+  `det_row_offset` 0.65.  On the detector face the detector center sits at
+  channel 23.5 against the detector iso's 21.95, so it is to the right.  It
+  sits at row 11.5 against 12.0, so it is above.  Both agree with the record's
+  rule that the grid center sits at u = -det_channel_offset and
+  v = -det_row_offset.
+* View 2's angle is +0.21 rad, and its source is drawn below the angle-0
+  reference source in the top view, which is the +x direction.  The source
+  travel arc points the same way.
+* The comparison in `gv4_compare_offset.png` has ten more channels of offset.
+  Its projected volume outline on the detector face sits ten channels to the
+  right of the primary's, which is toward higher channel index.  The text panel
+  lists the change with both values.
+* The helical scan's source path descends the screen as the view index grows.
+  A positive z shift moves the object toward -z, so the drawn source moves
+  toward +z, and +z is now down.  The source's z runs from 0 to 4.2 ALU over
+  the scan, and its drawn position moves down the side panel.
+
+### Tests and timing
+
+187 tests pass: 99 in `test_geometry_scene.py`, 52 in
+`test_geometry_viewer.py`, and 36 in `test_geometry_interaction.py`.  The count
+was 171 before this change.  Sixteen tests were added, all in
+`test_geometry_viewer.py`.  They cover ten things:
+
+* the axes limits of each panel;
+* the drawn position of a point at larger z and of a point at larger y;
+* the row order of the detector face;
+* the drawn position of the source against the detector iso;
+* the panel titles;
+* the text panel's two sentences;
+* the detector face's three marker names;
+* the sense of the source travel arc;
+* the labels of the three 2D panels;
+* the presentation that `Z_UP_SIGN = +1` restores.
+
+Seven tests in `test_geometry_interaction.py` were adjusted, because they named
+the top view's two axes as x and y in that order.  The top view now draws y
+across the screen and x down it.  No test asserted a panel title or a row
+order, so none had to be corrected for those.
+
+A slider step on the 1800-view helical scan of `gv4_timing.py` costs 57 ms on
+average and 61 ms at worst, against the plan's gate of 100 ms.  The same
+measurement on the code before this change costs 50 ms on the same machine
+today.  `gv4_timing.md` records 42 ms for that code from 2026-09-09, so this
+container is about a fifth slower today than it was then.  The 7 ms this change
+costs per step is two more text artists in the moving set.  Those two are the
+detector-iso label of the top view and the one of the 3D view.  Building the
+figure costs 1.2 s against 0.9 s before, because the font that fits the text
+panel takes one more full repaint to settle.  `gv4_timing.md` still holds the
+2026-09-09 run and was not changed.
+
+### Open items from this change
+
+* **The 3D panel has not been seen on a display.**  The camera, its roll, and
+  the labels were checked under Agg and in saved files.  A dragged camera keeps
+  the roll, because dragging sets the elevation and the azimuth only, and that
+  has not been watched in a window.
+* **The 3D panel's labels can still crowd.**  Three labels sit near the
+  detector in that panel: the detector's own, the detector iso's, and the
+  angle-0 reference's.  Two of them are on separate lines only because the iso
+  label and the arc label hang below their points.  Matplotlib gives no way to
+  measure a 3D text artist's drawn size before it is drawn, so these were
+  checked by eye and not by measurement.
+* **A marker can cover a label.**  In the multiaxis side view the source's
+  marker is drawn over two characters of the `recon_slice_offset` label,
+  because that geometry draws its source close to the volume.  The label
+  measurement covers label against label and not label against marker.
+* **The text panel's font floor is reached twice.**  The parallel geometry with
+  a comparison drawn ends at 5.1 points, and the multiaxis geometry ends at the
+  floor of 5.0 points.  That size is small and it is readable in a saved figure
+  at 110 dots per inch.  The plan's open item that the comparison section needs
+  a panel of its own still stands.

@@ -40,7 +40,15 @@ from geometry_scene import GeometryScene  # noqa: E402
 import geometry_viewer  # noqa: E402
 from geometry_viewer import (COLORS, GeometryFigure,  # noqa: E402
                              VOLUME_BOX_EDGES, ZOOM_VOLUME_WIDTH_FACTOR,
+                             TOP_PANEL_COLUMNS, SIDE_PANEL_COLUMNS,
                              show_geometry)
+
+#: The object coordinates the top and side panels put on their two axes, as
+#: lists for indexing.  The top view is the xy plane seen from -z, so it draws
+#: y across the screen and x down it; see the display convention in
+#: `geometry_viewer`.
+TOP_COLUMNS = list(TOP_PANEL_COLUMNS)
+SIDE_COLUMNS = list(SIDE_PANEL_COLUMNS)
 
 CONFIGS_BY_NAME = {cfg['name']: cfg for cfg in probe.CONFIGS}
 
@@ -118,7 +126,7 @@ def test_moving_the_slider_changes_the_drawn_view():
         assert not np.allclose(before, after)
         # The drawn outline is the scene's outline for the new view.
         expected = scene.view(3).detector_outline
-        assert np.allclose(after, expected[:, [0, 1]])
+        assert np.allclose(after, expected[:, TOP_COLUMNS])
         # The title names the view drawn.
         assert 'view 3' in figure.ax_detector.get_title()
     finally:
@@ -300,7 +308,7 @@ def test_comparison_follows_the_slider():
         assert figure.view_index == 4
         drawn = finite_points(figure._compare['detector_top'])
         expected = figure.compare_scene.view(4).detector_outline
-        assert np.allclose(drawn, expected[:, [0, 1]])
+        assert np.allclose(drawn, expected[:, TOP_COLUMNS])
     finally:
         close(figure)
 
@@ -577,11 +585,11 @@ def test_the_source_and_the_detector_are_labeled_in_three_panels():
         assert np.allclose(figure._source_text_3d.get_position_3d(),
                            view.source_draw)
         assert figure._top['source_label'].xy == pytest.approx(
-            (view.source_draw[0], view.source_draw[1]))
+            tuple(view.source_draw[TOP_COLUMNS]))
         assert figure._side['source_label'].xy == pytest.approx(
-            (view.source_draw[1], view.source_draw[2]))
+            tuple(view.source_draw[SIDE_COLUMNS]))
         assert figure._top['pixel0_label'].xy == pytest.approx(
-            (view.detector_pixel0[0], view.detector_pixel0[1]))
+            tuple(view.detector_pixel0[TOP_COLUMNS]))
         # The side view names no pixel-0 marker.
         assert 'pixel0_label' not in figure._side
         side_texts = [text.get_text() for text in figure.ax_side.texts]
@@ -599,14 +607,14 @@ def test_the_labels_follow_the_source_and_the_detector():
         view = scene.view(3)
         after = figure._top['source_label'].xy
         assert after != before
-        assert after == pytest.approx((view.source_draw[0],
-                                       view.source_draw[1]))
+        assert after == pytest.approx(tuple(view.source_draw[TOP_COLUMNS]))
         assert np.allclose(figure._source_text_3d.get_position_3d(),
                            view.source_draw)
         # The detector's label sits on one of the detector's corners.
-        for label, columns in ((figure._top['detector_label'], (0, 1)),
-                               (figure._side['detector_label'], (1, 2))):
-            corners = view.detector_corners[:, list(columns)]
+        for label, columns in ((figure._top['detector_label'], TOP_COLUMNS),
+                               (figure._side['detector_label'],
+                                SIDE_COLUMNS)):
+            corners = view.detector_corners[:, columns]
             gap = np.linalg.norm(corners - np.asarray(label.xy)[None, :],
                                  axis=1)
             assert float(np.min(gap)) < 1e-9
@@ -691,7 +699,7 @@ def test_the_reference_is_drawn_in_the_3d_and_top_panels():
                  and getattr(artist, 'get_marker', lambda: '')() == '*']
         assert len(stars) == 1
         assert np.allclose(np.concatenate(stars[0].get_data()),
-                           reference.source_draw[:2])
+                           reference.source_draw[TOP_COLUMNS])
         # The reference is not the view drawn, whose angle is not zero.
         assert not np.allclose(reference.source_draw,
                                scene.view(2).source_draw, atol=1e-3)
@@ -782,7 +790,7 @@ def test_the_panel_limits_hold_the_reference():
         points = np.concatenate([reference.detector_outline,
                                  reference.source_draw.reshape(1, 3),
                                  reference.detector_origin.reshape(1, 3)])
-        assert geometry_viewer._within(points[:, [0, 1]],
+        assert geometry_viewer._within(points[:, TOP_COLUMNS],
                                        figure._limits['top'])
         assert geometry_viewer._within(points, figure._limits['scan'])
     finally:
@@ -797,7 +805,8 @@ def test_the_comparison_is_named_in_the_top_view():
         label = figure._compare['label_top']
         assert label.get_text() == 'comparison'
         assert label.axes is figure.ax_top
-        corners = figure.compare_scene.view(2).detector_corners[:, [0, 1]]
+        corners = figure.compare_scene.view(2).detector_corners[
+            :, TOP_COLUMNS]
         gap = np.linalg.norm(corners - np.asarray(label.xy)[None, :], axis=1)
         assert float(np.min(gap)) < 1e-9
         for axes in (figure.ax_side, figure.ax_3d):
