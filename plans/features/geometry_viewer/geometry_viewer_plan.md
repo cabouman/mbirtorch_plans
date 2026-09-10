@@ -200,6 +200,23 @@ painting a synthetic sinogram with one bright pixel at a known row and channel.
 point, a demo, a docs page, and the API specification row.  This increment runs in
 the mbirtorch repository and is planned separately.
 
+## Web packaging (Greg, 2026-09-10)
+
+Greg asked for the viewer on huggingface.co.  The viewer needs neither torch nor
+mbirtorch, because the scene is built from a parameter dictionary and the figure is
+matplotlib, so it can run on a Hugging Face Space.  Two packagings are built from one
+Gradio app in `plans/experiments/geometry_viewer/web/`.  The primary is a standard
+Gradio Space, which runs the Python on a free CPU server and is tested here end to
+end with a headless browser.  The secondary is a Gradio-Lite static page that runs the
+Python in the browser through Pyodide.  Gradio-Lite was last published on 2025-09-10
+as version 5.45.0, one major version behind the Gradio 6 that PyPI installs, and its
+source is gone from the Gradio repository, so the page pins that release and is marked
+untested here.  The web app replaces the matplotlib widgets with Gradio controls and
+shows the figure as an image, so the 3D panel cannot be rotated there.  One new module,
+`geometry_defaults.py`, copies mbirtorch's automatic reconstruction geometry so that
+a scene can be built from scan parameters alone; a test pins the copy to the real
+models.  The record is `gv5_web_findings.md`.
+
 ## Open items from the Increment 4 review
 
 - **The fit statement is wrong for helical scans.**  `volume_fits_detector` asks
