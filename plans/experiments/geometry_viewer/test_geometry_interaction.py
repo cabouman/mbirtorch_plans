@@ -850,3 +850,40 @@ def test_the_volume_zoom_hides_the_3d_labels_outside_its_cube():
         assert figure._reference_arrow_3d.get_visible() is True
     finally:
         close(figure)
+
+
+def test_geometry_viewer_mirrors_slice_viewer_nonblocking_registry():
+    """geometry_viewer keeps a nonblocking figure alive in a module registry,
+    and the next blocking call closes it, as mbirtorch.slice_viewer does."""
+    import matplotlib.pyplot as plt
+    import geometry_viewer as module
+    cfg = CONFIGS_BY_NAME['parallel']
+    model = probe.build_model(cfg)
+    module._NONBLOCKING_FIGURES.clear()
+    first = module.geometry_viewer(model, block=False)
+    assert first in module._NONBLOCKING_FIGURES
+    assert plt.fignum_exists(first.figure.number)
+    # Under Agg, show prints a line and returns, so the blocking call returns
+    # at once and runs the registry's closing step.
+    second = module.geometry_viewer(model, view_index=2, block=True)
+    assert module._NONBLOCKING_FIGURES == []
+    assert not plt.fignum_exists(first.figure.number)
+    assert second.view_index == 2
+    plt.close(second.figure)
+
+
+def test_geometry_viewer_takes_the_viewer_options_explicitly():
+    """The entry point exposes the figure's options as named arguments."""
+    import matplotlib.pyplot as plt
+    import geometry_viewer as module
+    cfg = CONFIGS_BY_NAME['cone flat']
+    model = probe.build_model(cfg)
+    figure = module.geometry_viewer(model, view_index=1, show_trajectory=True,
+                                    compare=dict(det_channel_offset=5.0),
+                                    show_reference=False, zoom='volume',
+                                    title='named', block=False)
+    assert figure.view_index == 1
+    assert figure.show_trajectory is True
+    assert figure.compare_scene is not None
+    module._NONBLOCKING_FIGURES.clear()
+    plt.close(figure.figure)

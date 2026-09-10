@@ -212,7 +212,8 @@ show_reference=True, zoom='scan', title='', block=True)`, returning the
 `GeometryFigure`, with the same nonblocking registry and the same docstring shape.
 The port (Increment 6) exposes it as `mbirtorch.geometry_viewer` beside
 `mbirtorch.slice_viewer`.  The web page below is an additional route to the same
-drawing, not a replacement for this call.
+drawing, not a replacement for this call.  Built 2026-09-10: `geometry_viewer` in
+`geometry_viewer.py`, with `show_geometry` kept as the earlier name.
 
 ## Web packaging (Greg, 2026-09-10)
 
@@ -240,6 +241,8 @@ Gradio controls and shows the figure as an image, so the 3D panel cannot be rota
 there.  One new module, `geometry_defaults.py`, copies mbirtorch's automatic
 reconstruction geometry so that a scene can be built from scan parameters alone; a
 test pins the copy to the real models.  The record is `gv5_web_findings.md`.
+Built 2026-09-10: 224 tests pass, the Gradio Space runs in a headless browser under
+Gradio 6.26 and under Gradio 5.45, and a render takes 0.7 to 1.2 s on the server.
 
 ## Open items from the Increment 4 review
 
@@ -249,6 +252,15 @@ test pins the copy to the real models.  The record is `gv5_web_findings.md`.
   so the text panel says "no" for every helical scan.  The statement should count
   the views in which the volume leaves the detector, and for a helical scan it
   should compare the volume's z extent with the detector's swept coverage instead.
+- **The fit statement tests the wrong shape.**  `volume_fits_detector` projects
+  the corners of the reconstruction box.  The automatic box is the square around the
+  field-of-view circle, so its corners always project outside the detector and every
+  automatically sized cone scan reads "volume fits det: no".  When the
+  region-of-reconstruction mask is on, the check should project the cylinder's
+  outline instead, and the detector-face panel should draw it.
+- **The web page fixes the 3D camera.**  The figure is an image there, so it cannot
+  be rotated.  Two numbers for the camera angles, which `GeometryFigure` already
+  accepts, would give the page what the mouse gives the desktop.
 - **The comparison section runs out of room** in the text panel when two
   geometries differ in many parameters.  A panel or window of its own is the fix.
 - **The slider has run only under the Agg backend.**  The partial-redraw path

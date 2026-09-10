@@ -1,0 +1,5 @@
+# The Gradio Space's SDK provides gradio itself; the entry is here so that
+# "pip install -r requirements.txt" also sets up a local run.
+gradio
+numpy
+matplotlib

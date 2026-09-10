@@ -26,11 +26,11 @@ at their zero-angle position as faint dotted outlines, with a dotted central
 ray whose arrowhead shows the projection direction at angle 0.  The 3D panel
 can be rotated with the mouse.  Closing the window ends the script.
 
-To view your own model instead, pass it to ``show_geometry`` in place of the
+To view your own model instead, pass it to ``geometry_viewer`` in place of the
 model this script builds, for example the one that a scanner reader returns:
 
     scan = mbirtorch.preprocess.nsi.get_sino_and_model(dataset_dir)
-    show_geometry(scan['model'])
+    geometry_viewer(scan['model'])
 
 To compare two geometries, pass a second model or a dictionary of parameter
 overrides as ``compare``; the second geometry is drawn dashed and the text
@@ -40,7 +40,7 @@ panel lists every parameter and derived quantity that differs.
 import numpy as np
 
 import mbirtorch
-from geometry_viewer import show_geometry
+from geometry_viewer import geometry_viewer
 
 # ── run parameters ───────────────────────────────────────────────────────────
 
@@ -213,6 +213,6 @@ def build_model(geometry=GEOMETRY):
 
 if __name__ == '__main__':
     ct_model = build_model(GEOMETRY)
-    show_geometry(ct_model, view_index=VIEW_INDEX,
+    geometry_viewer(ct_model, view_index=VIEW_INDEX,
                   show_trajectory=SHOW_TRAJECTORY, compare=COMPARE,
                   block=True)
