@@ -224,6 +224,33 @@ plus the translation vector.
 
 Confirmed by gv1_conventions_probe.py on 2026-09-09.
 
+## Display convention: negative z is the top of a drawing
+
+Decision (Greg, 2026-09-10): every drawing of the geometry puts negative z at the
+top.  The reason is array indexing.  The slice index k runs along +z, and indices
+increase from top to bottom in an array and in an `imshow` of a slice, so a
+drawing with -z up shows the volume the way its array is indexed.
+
+This is a presentation rule and not a geometry rule.  The object frame above stays
+right-handed with +z along increasing slice index, every statement in this record
+stands, and the scene computes nothing differently.  The viewer inverts the axes
+of its panels, and one constant, `Z_UP_SIGN` in `geometry_viewer.py`, holds the
+choice.
+
+The rule fixes what each panel is seen from.  The top view is the xy plane seen
+from -z: x increases to the right and y increases downward on the screen, which
+is how `imshow` shows a reconstruction slice.  In that view the object rotates
+clockwise with increasing view angle and the source travels counterclockwise,
+which agrees with the `vcls` docstring quoted below.  The side view is the yz
+plane seen from -x, with y to the right and -z up.  The detector face is the view
+from the source toward the detector with -z up: the channel index increases to
+the right and row 0 is at the top, which is how `imshow` shows one sinogram view.
+The 3D view has its z axis inverted.
+
+For an NSI scan this convention also shows the object upright, because the NSI
+reader's row direction is parallel to a rotation axis that points physically
+down (see the next section).
+
 ## Real scans: which physical row is row 0
 
 The conventions above are the model's frame.  A real scan's row order is set by

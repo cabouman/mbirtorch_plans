@@ -11,7 +11,12 @@ against the conventions record with no disagreement.  Increment 4 is done
 (2026-09-09): the view slider, the source-path toggle, the 3D zoom, and the comparison
 overlay are built, 152 tests pass, and a slider step on an 1800-view model takes 41 ms
 against the 100 ms gate (`gv4_interaction_findings.md`, `gv4_timing.md`).  Increment 5
-is next, after Greg has used the interactive viewer.
+is next, after Greg has used the interactive viewer.  Greg's first use (2026-09-09
+and 2026-09-10) produced four changes: a display fix for backends outside the blit
+path, labels on the source and detector, an angle-0 reference, and the display
+convention that negative z is the top of every drawing, recorded in
+`geometry_conventions.md`.  `gv_show_example.py` opens the viewer on any of the six
+geometries.
 Decisions recorded on 2026-09-09: the first frontend is matplotlib; the primary
 uses are checking a real scan's geometry before reconstruction and supporting the
 geometric calibration work; the prototype is built in this repository for a later
@@ -92,8 +97,10 @@ so that they always agree.
 - **Side view (the yz plane).**  The cone angle, the detector height, the axial
   field of view, the slice offset, and the helical travel as a vertical range.
 - **Detector face.**  The detector grid with the projected outline of the volume
-  box for the current view.  This panel shows whether the volume projects outside
-  the detector, and where the central ray lands relative to the grid center.
+  box for the current view, seen from the source with row 0 at the top and the
+  channel index increasing to the right, as `imshow` shows one sinogram view.
+  This panel shows whether the volume projects outside the detector, and where
+  the central ray lands relative to the grid center.
 - **Text panel.**  The parameters and the derived quantities: magnification, fan
   and cone angles in degrees, field of view at the rotation axis in ALU, voxel
   pitch, the volume's extent, the psf radius, and a truncation statement.
