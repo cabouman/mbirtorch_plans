@@ -237,15 +237,29 @@ stands, and the scene computes nothing differently.  The viewer inverts the axes
 of its panels, and one constant, `Z_UP_SIGN` in `geometry_viewer.py`, holds the
 choice.
 
-The rule fixes what each panel is seen from.  The top view is the xy plane seen
-from -z: x increases to the right and y increases downward on the screen, which
-is how `imshow` shows a reconstruction slice.  In that view the object rotates
-clockwise with increasing view angle and the source travels counterclockwise,
-which agrees with the `vcls` docstring quoted below.  The side view is the yz
-plane seen from -x, with y to the right and -z up.  The detector face is the view
-from the source toward the detector with -z up: the channel index increases to
-the right and row 0 is at the top, which is how `imshow` shows one sinogram view.
-The 3D view has its z axis inverted.
+The group's reference picture fixes the rest of the orientation.  The slide
+"Parallel Beam Geometry - top view" (from Balke et al., Separable Models for
+cone-beam MBIR Reconstruction, 2018) draws the beam running from a source on the
+left to a detector on the right, with z pointing down the rotation axis, y
+pointing from the isocenter toward the source, and x pointing toward the viewer.
+Its detector has channels increasing along +x and rows increasing along +z, with
+`sino[0, 0, 0]` at the top far corner, and it names the point where the
+source-to-detector line meets the detector the detector iso.  Every panel of the
+viewer follows that picture: the beam runs left to right and -z is up.
+
+- The top view is the xy plane seen from -z, with y increasing to the left and x
+  increasing downward on the screen.  It is a view from -z like an `imshow` of a
+  reconstruction slice, turned so that the source is on the left.  In it the
+  object rotates clockwise with increasing view angle and the source travels
+  counterclockwise, which agrees with the `vcls` docstring quoted below.
+- The side view is the yz plane seen from +x, with y increasing to the left and
+  -z up, so the source is again on the left.
+- The detector face is the view from the source toward the detector with -z up:
+  the channel index increases to the right and row 0 is at the top, which is how
+  `imshow` shows one sinogram view.  The point where the central ray meets the
+  detector is labeled the detector iso, as on the slide.
+- The 3D view has its z axis inverted and is seen from the +x side and above, so
+  that it resembles the slide.
 
 For an NSI scan this convention also shows the object upright, because the NSI
 reader's row direction is parallel to a rotation axis that points physically
