@@ -15,7 +15,10 @@ index coordinates, and a text panel of derived numbers.  The four drawing
 panels show one view of the scan at a time, and ``set_view`` moves to another.
 The point where the central ray meets the detector is called the detector iso,
 which is the name the group's reference slide uses, and the center of the
-detector grid is called the detector center.
+detector grid is called the detector center.  The detector face names its
+markers in a legend, and that legend sits in the band under the panel rather
+than inside it.  Inside the panel it covered the projected outlines and a
+painted sinogram (Greg, 2026-09-11).
 
 The picture drawn.  The object stays fixed and the source and the detector
 carry the view's motion, which is how a scanner user thinks of a scan.  The
@@ -64,12 +67,16 @@ object, and the x and y tick labels move over the panel's title.  The roll
 turns the same view upside down instead.  The panel then stays a picture taken
 from one viewpoint, and its z ticks read negative at the top.
 
-The widgets.  A slider under the panels steps through the views, and three
-toggles sit beside it.  The first turns the source's path over all views on and
-off.  The second switches the 3D panel between the whole scan and a close view
+The widgets.  A slider under the panels steps through the views, and six
+toggles sit beside it in two rows of three.  The top row changes the drawing of
+the geometry.  Its first toggle turns the source's path over all views on and
+off.  Its second switches the 3D panel between the whole scan and a close view
 of the volume, because a 12 ALU volume drawn to scale in a 200 ALU scan is
-twenty pixels wide.  The third turns the angle-0 reference on and off.  The
-widgets follow the slice viewer of ``mbirtorch/viewer.py``: an integer-stepped
+twenty pixels wide.  Its third turns the angle-0 reference on and off.  The
+bottom row turns each of the three overlays on and off: the sinogram, the
+phantom, and the comparison.  An overlay the figure does not hold has a toggle
+all the same, so that an array added later has its toggle ready.  The widgets
+follow the slice viewer of ``mbirtorch/viewer.py``: an integer-stepped
 ``Slider`` with ``drawon`` off, and ``CheckButtons`` for the toggles.
 
 The labels.  The source and the detector carry a short text label in the 3D
@@ -117,8 +124,15 @@ projected outlines drawn over it.  A reconstruction or a phantom is drawn as a
 silhouette in the volume box of the top view and the side view: the voxels
 whose absolute value is above a threshold, projected along the axis the panel
 does not draw.  The sinogram moves with the slider and the silhouette does not,
-because the object is the thing this drawing holds fixed.  The 3D panel draws
-neither of them.
+because the object is the thing this drawing holds fixed.
+
+The phantom's outline.  The silhouette's fill is light, so that the lines drawn
+over it stay readable, and against a busy panel it can be hard to see.  Each of
+the two projected panels therefore also draws the outline of the support, as a
+solid line through the outer faces of the voxels in it.  The 3D panel draws the
+support's bounding box as a dashed wire box of twelve edges, which is the one
+thing that panel shows of the phantom.  The outlines belong to the phantom's
+toggle, and they are removed when the phantom is.
 
 Import discipline.  This module imports numpy and the matplotlib base package
 at import time, and nothing else.  ``pyplot``, the widgets, and the 3D toolkit
@@ -145,7 +159,7 @@ __all__ = ['GeometryFigure', 'geometry_viewer', 'show_geometry', 'COLORS',
            'DEFAULT_ELEVATION_DEG', 'DEFAULT_AZIMUTH_DEG',
            'VOLUME_BOX_EDGES', 'ZOOM_MODES', 'BLIT_BACKENDS',
            'Z_UP_SIGN', 'TOP_PANEL_COLUMNS', 'SIDE_PANEL_COLUMNS',
-           'ISO_NAME', 'CENTER_NAME']
+           'ISO_NAME', 'CENTER_NAME', 'PHANTOM_NAME']
 
 
 # --- names used in every panel ---
@@ -157,6 +171,14 @@ ISO_NAME = 'detector iso'
 #: What the center of the detector grid is called.  The two detector offsets
 #: move this point away from the detector iso.
 CENTER_NAME = 'detector center'
+
+#: What the array given as ``recon`` is called in the widget row and in the 3D
+#: panel's legend.  The array is a reconstruction or a phantom, and one word
+#: has to serve for both.  The word is "phantom" because the example and the
+#: tests draw a phantom, and because a reader who has a reconstruction reads
+#: "phantom" as the object it shows.  The methods keep the name ``recon``,
+#: which is the name of the constructor argument and of mbirtorch's own shape.
+PHANTOM_NAME = 'phantom'
 
 
 # --- the display convention ---
@@ -215,9 +237,8 @@ def _camera_roll_deg():
 
 
 def _convention_note():
-    """The text panel's sentence naming the display convention."""
-    return ('Drawn with -z up.' if _z_up_is_negative()
-            else 'Drawn with +z up.')
+    """The text panel's words naming the display convention."""
+    return '-z up.' if _z_up_is_negative() else '+z up.'
 
 
 def _screen_step(delta):
@@ -334,6 +355,25 @@ LABEL_GAP_POINTS = 6
 ISO_LABEL_GAP_POINTS = 6.0
 LABEL_LINE_POINTS = 11.0
 
+#: The vertical gap of the top view's pixel-0 label from its marker, in points.
+#: It is larger than the detector label's gap, so that the two sit on different
+#: lines when the detector is drawn short against the panel.
+PIXEL0_LABEL_GAP_POINTS = 14.0
+
+#: The vertical gap of the top view's "source travel" label from the end of the
+#: rotation arc, in points.
+ARC_LABEL_GAP_POINTS = 8.0
+
+#: What the two detector offsets are called in the projected panels.  These are
+#: short forms of the parameter names ``det_channel_offset`` and
+#: ``det_row_offset``.  The full names are twenty-odd characters wide, and in
+#: the multiaxis geometry, whose top view spans a few tens of ALU, the channel
+#: one reached across the panel and onto the source's marker.  The full names
+#: are still printed in the text panel, which is where a reader looks for a
+#: parameter by its name.
+CHANNEL_OFFSET_LABEL = 'chan offset'
+ROW_OFFSET_LABEL = 'row offset'
+
 SOURCE_MARKER_SIZE = 13
 INDEX_MARKER_SIZE = 8
 INDEX_MARKER_WIDTH = 1.8
@@ -376,6 +416,19 @@ SINOGRAM_COLORMAP = 'gray'
 #: enough that the volume box and the rays drawn over it stay readable, and
 #: dark enough to be seen against the panel's white background.
 RECON_FILL_ALPHA = 0.35
+
+#: The line width of the phantom's outline in the two projected panels, and of
+#: its wire box in the 3D panel.  The outline is drawn a little thicker than
+#: the volume box's own line, which is 1.2 in those panels and 1.0 in the 3D
+#: panel, so that the two can be told apart where they run close together.
+RECON_OUTLINE_LINEWIDTH = 1.6
+RECON_BOX_LINEWIDTH = 1.4
+
+#: Where the phantom's outline sits in the drawing order of a projected panel.
+#: It is above the silhouette's fill, which is at :data:`SILHOUETTE_ZORDER`,
+#: and below the lines and the labels of the panel, which matplotlib draws at 2
+#: and 3.
+RECON_OUTLINE_ZORDER = 1.8
 
 #: The fraction of the largest absolute value a voxel must exceed to belong to
 #: the reconstruction's support, when the caller gives no threshold of its own.
@@ -509,16 +562,46 @@ TEXT_PANEL_FILL = 0.97
 TEXT_PANEL_FONT_MINIMUM = 5.0
 
 #: Widget rectangles in figure coordinates, as (left, bottom, width, height).
-#: The slider is shorter than it was, because the row now carries a third
-#: toggle beside it.
+#: The slider is shorter than the figure is wide, because the six toggles sit
+#: beside it.  The toggles are laid out as two rows of three in the right half
+#: of the widget row: the three that change the drawing of the geometry on the
+#: top row, and the three that turn an overlay on and off below them.  Each
+#: toggle draws its label at the middle of its own rectangle, so the two rows
+#: are half the height the three toggles used to have and their labels are a
+#: row apart.  The top row ends below :data:`DETECTOR_LEGEND_BOTTOM`, which is
+#: where the detector face's legend band starts, and every toggle is to the
+#: right of the slider, whose place did not change.
 SLIDER_RECT = (0.07, 0.045, 0.38, 0.025)
-TRAJECTORY_CHECK_RECT = (0.50, 0.015, 0.12, 0.075)
-ZOOM_CHECK_RECT = (0.645, 0.015, 0.15, 0.075)
-REFERENCE_CHECK_RECT = (0.815, 0.015, 0.15, 0.075)
+TRAJECTORY_CHECK_RECT = (0.50, 0.052, 0.12, 0.038)
+ZOOM_CHECK_RECT = (0.645, 0.052, 0.15, 0.038)
+REFERENCE_CHECK_RECT = (0.815, 0.052, 0.15, 0.038)
+SINOGRAM_CHECK_RECT = (0.50, 0.010, 0.12, 0.038)
+RECON_CHECK_RECT = (0.645, 0.010, 0.15, 0.038)
+COMPARE_CHECK_RECT = (0.815, 0.010, 0.15, 0.038)
 
 #: The top of the panel grid is unchanged; its bottom leaves room for the
 #: widget row.
 GRID_BOTTOM = 0.115
+
+#: Where the detector-face panel's box stops, as a fraction of the figure's
+#: height.  The panel keeps the width of its grid cell and stops above the
+#: cell's own bottom, which is :data:`GRID_BOTTOM`.  The band that leaves under
+#: the panel holds the panel's x label and, below that, the panel's legend.
+#: The panel holds an equal aspect by reshaping its box, so a shorter cell
+#: costs the panel width only where its box is taller than the cell.  Of the
+#: six probe geometries that is the curved cone scan alone, whose detector has
+#: 48 rows against 64 channels.  Every other detector is wide enough that its
+#: box was already shorter than its cell.
+DETECTOR_PANEL_BOTTOM = 0.19
+
+#: Where the detector-face panel's legend sits, as a fraction of the figure's
+#: height, and how many columns it takes.  The legend's bottom edge goes here,
+#: centered under the panel.  That is above the widget row and below the
+#: panel's x label.  Three columns make the legend two rows tall, with or
+#: without the entry a comparison adds.  Two rows fit the band and the five or
+#: six rows of a single column do not.
+DETECTOR_LEGEND_BOTTOM = 0.098
+DETECTOR_LEGEND_COLUMNS = 3
 
 
 def _corner_edges():
@@ -725,6 +808,69 @@ def _runs_of_equal_flags(flags):
     return runs
 
 
+def _true_runs(flags):
+    """The (start, stop) index pairs of the runs of True in a boolean array.
+
+    Each pair is a half-open range, so a run of one entry at index 3 is
+    ``(3, 4)``.
+
+    Args:
+        flags (ndarray): a boolean array.
+
+    Returns:
+        list of (int, int): one pair per run, in order.
+    """
+    flags = np.asarray(flags, dtype=bool)
+    # A False on each end turns every run into one rise and one fall, so the
+    # changes come in pairs and each pair is one run.
+    padded = np.concatenate([[False], flags, [False]])
+    changes = np.flatnonzero(padded[1:] != padded[:-1])
+    return [(int(start), int(stop))
+            for start, stop in zip(changes[::2], changes[1::2])]
+
+
+def _mask_outline(mask, across, down):
+    """The boundary of a mask, as one polyline through its cell edges.
+
+    The boundary is where a cell of the mask meets a cell that is not in the
+    mask, and the edge of the array counts as outside.  The polyline is drawn
+    through the cell edges themselves, so it encloses every cell of the mask
+    rather than running through the cells' centers.  Neighboring edges along
+    one boundary line are joined into a single segment, which keeps the
+    polyline short for a mask whose boundary is long.
+
+    Args:
+        mask (ndarray): (R, C) of bool, indexed first by the panel's vertical
+            cell index and then by its horizontal one.
+        across (ndarray): the C + 1 cell edges along the horizontal axis, in
+            increasing order.
+        down (ndarray): the R + 1 cell edges along the vertical axis.
+
+    Returns:
+        ndarray: the boundary, (N, 2) as (horizontal, vertical) pairs, with a
+        row of NaN between one segment and the next.
+    """
+    mask = np.asarray(mask, dtype=bool)
+    # One ring of False around the mask, so that a cell at the array's edge
+    # has a neighbor to differ from.
+    padded = np.pad(mask, 1)
+    parts = []
+    # Boundary column c separates the cells in column c - 1 from those in
+    # column c.  The outline runs down that column wherever the two differ.
+    for column in range(mask.shape[1] + 1):
+        differs = padded[1:-1, column] != padded[1:-1, column + 1]
+        for start, stop in _true_runs(differs):
+            parts.append(np.array([[across[column], down[start]],
+                                   [across[column], down[stop]]]))
+    # The same for the boundary rows, across the panel instead of down it.
+    for row in range(mask.shape[0] + 1):
+        differs = padded[row, 1:-1] != padded[row + 1, 1:-1]
+        for start, stop in _true_runs(differs):
+            parts.append(np.array([[across[start], down[row]],
+                                   [across[stop], down[row]]]))
+    return _joined(parts, 2)
+
+
 def _bounds(points, margin=PANEL_MARGIN):
     """The (low, high) pair per column of ``points``, with a fractional margin.
 
@@ -845,28 +991,35 @@ def _within(points, limits):
     return True
 
 
-def _fit_text(quantities):
-    """The fit statement of the text panel, in one short phrase.
-
-    The statement names the shape that was tested, because the answer depends
+def _lateral_fit_text(quantities):
+    """The lateral half of the fit statement: whether the shape tested stays
+    inside the detector's channel range in every view, and by how much it
+    misses when it does not.  The shape is named, because the answer depends
     on it: a scan with the region-of-reconstruction mask on is asked about the
-    cylinder and a scan without the mask is asked about the box.  A helical
-    cone scan is asked the two questions of the helical rule instead, so its
-    statement names whichever of them failed; see
-    ``GeometryScene.fit_report``.
-    """
-    if quantities['helical_fit_rule']:
-        if quantities['volume_fits_detector']:
-            return 'yes (helical rule)'
-        channels = quantities['worst_channel_overshoot_pixels']
-        if channels > 0.0:
-            return f'no (channels {_three_figures(channels)} px over)'
-        return 'no (z extent not swept)'
+    cylinder and a scan without the mask about the box."""
     shape = quantities['fit_shape']
-    if quantities['volume_fits_detector']:
+    if quantities['fits_laterally']:
         return f'yes ({shape})'
-    overshoot = _three_figures(quantities['worst_overshoot_pixels'])
-    return f'no ({shape}, {overshoot} px over)'
+    over = _three_figures(quantities['worst_channel_overshoot_pixels'])
+    return f'no ({shape}, {over} px over)'
+
+
+def _axial_fit_text(quantities):
+    """The axial half of the fit statement.  A scan that does not travel is
+    asked whether the shape stays inside the detector's row range in every
+    view.  A helical scan is asked whether the detector's coverage, swept over
+    the scan, contains the volume's z extent, and the swept range is printed;
+    see ``GeometryScene.fit_report``."""
+    if quantities['helical_fit_rule']:
+        swept = (f"{_three_figures(quantities['swept_z_min'])} to "
+                 f"{_three_figures(quantities['swept_z_max'])} ALU swept")
+        if quantities['fits_axially']:
+            return f'yes ({swept})'
+        return f'no (z extent not in {swept})'
+    if quantities['fits_axially']:
+        return 'yes'
+    over = _three_figures(quantities['worst_row_overshoot_pixels'])
+    return f'no ({over} px over)'
 
 
 #: Numbers in a comparison line are printed to this many significant figures,
@@ -963,9 +1116,16 @@ class GeometryFigure:
     views on and off, :meth:`set_zoom` switches the 3D panel between the whole
     scan and the volume, :meth:`set_show_reference` turns the angle-0 reference
     on and off, and :meth:`set_compare` overlays a second geometry.  The slider
-    and the three toggles under the panels call the same methods.
+    and the six toggles under the panels call the same methods.
     :meth:`set_sinogram` paints a sinogram on the detector face and
     :meth:`set_recon` draws a reconstruction's silhouette in the volume box.
+
+    Each of the three overlays has a toggle of its own as well:
+    :meth:`set_show_sinogram`, :meth:`set_show_recon`, and
+    :meth:`set_show_compare` hide the artists of one overlay and show them
+    again.  Hiding removes nothing, so showing an overlay again costs no
+    rebuilding, and an overlay that is hidden keeps whatever array or second
+    geometry it was given.
 
     This class calls no matplotlib window function.  Use :meth:`save` to write
     a file, :meth:`show` to open a window, or :func:`show_geometry` to do both
@@ -1006,6 +1166,12 @@ class GeometryFigure:
             voxel belongs to that silhouette.  None (default) uses
             :data:`DEFAULT_RECON_THRESHOLD_FRACTION` of the largest absolute
             value in ``recon``.
+        show_sinogram (bool, optional): whether the painted sinogram is drawn.
+            Defaults to True.
+        show_recon (bool, optional): whether the phantom's silhouette and
+            outlines are drawn.  Defaults to True.
+        show_compare (bool, optional): whether the comparison's artists are
+            drawn in the four drawing panels.  Defaults to True.
 
     Attributes:
         scene (GeometryScene): the geometry drawn.
@@ -1019,8 +1185,9 @@ class GeometryFigure:
             view, detector face, text panel.
         view_slider: the view ``Slider``, or None when the scan has one view or
             ``widgets`` is False.
-        trajectory_check, zoom_check, reference_check: the three
-            ``CheckButtons``, or None when ``widgets`` is False.
+        trajectory_check, zoom_check, reference_check, sinogram_check,
+            recon_check, compare_check: the six ``CheckButtons``, or None when
+            ``widgets`` is False.
         detector_volume_edges (ndarray): the twelve projected volume edges the
             detector-face panel drew, (12, 2, 2), as (row, channel) pairs taken
             from ``ViewScene.volume_outline_on_detector``.
@@ -1032,7 +1199,8 @@ class GeometryFigure:
                  azimuth_deg=DEFAULT_AZIMUTH_DEG,
                  compare=None, zoom=DEFAULT_ZOOM, show_reference=True,
                  widgets=True, blit=True, sinogram=None, recon=None,
-                 recon_threshold=None):
+                 recon_threshold=None, show_sinogram=True, show_recon=True,
+                 show_compare=True):
         _load_pyplot()
         self.scene = _as_scene(model_or_scene)
         self.compare_scene = None
@@ -1040,6 +1208,11 @@ class GeometryFigure:
         self._view_index = self._checked_view_index(view_index)
         self._show_trajectory = bool(show_trajectory)
         self._show_reference = bool(show_reference)
+        # The three overlay toggles are read while the overlays are installed,
+        # so they are set before anything is built.
+        self._show_sinogram = bool(show_sinogram)
+        self._show_recon = bool(show_recon)
+        self._show_compare = bool(show_compare)
         self._zoom = self._checked_zoom(zoom)
         self._elevation_deg = float(elevation_deg)
         self._azimuth_deg = float(azimuth_deg)
@@ -1076,11 +1249,14 @@ class GeometryFigure:
         self._arrow_3d = None
 
         # The two data overlays, which _install_sinogram and _install_recon
-        # create after the geometry's own artists exist.
+        # create after the geometry's own artists exist.  _recon_outlines holds
+        # the phantom's outline in the two projected panels and its wire box in
+        # the 3D panel, which are static artists like the silhouette itself.
         self._sinogram = None
         self._sinogram_image = None
         self._recon_support = None
         self._recon_images = []
+        self._recon_outlines = []
         self._recon_threshold = None
         self._recon_threshold_given = None
 
@@ -1134,6 +1310,21 @@ class GeometryFigure:
         """Whether the angle-0 reference is drawn."""
         return self._show_reference
 
+    @property
+    def show_sinogram(self):
+        """Whether a sinogram given to the figure is painted."""
+        return self._show_sinogram
+
+    @property
+    def show_recon(self):
+        """Whether the phantom's silhouette and outlines are drawn."""
+        return self._show_recon
+
+    @property
+    def show_compare(self):
+        """Whether the comparison's artists are drawn in the four panels."""
+        return self._show_compare
+
     def set_view(self, view_index):
         """Draw another view.
 
@@ -1164,6 +1355,9 @@ class GeometryFigure:
         self._sync_trajectory_check()
         for _, artist in self._trajectory_artists():
             artist.set_visible(flag)
+        # The comparison's path answers to the comparison's toggle as well, so
+        # its visibility is set from both flags.
+        self._apply_compare_visibility()
         # The path reaches beyond one view's source position, so the panel
         # limits change with it and the whole figure repaints.
         self._refresh(rebuild_limits=True)
@@ -1203,6 +1397,69 @@ class GeometryFigure:
         self._sync_reference_check()
         for _, artist in self._reference_artists:
             artist.set_visible(flag)
+        self._refresh(rebuild_limits=True)
+
+    def set_show_sinogram(self, flag):
+        """Turn the painted sinogram on or off.
+
+        Hiding the sinogram hides its image and takes the words "with
+        sinogram" out of the detector panel's title.  It removes nothing, so
+        the array stays and showing the sinogram again costs no rebuilding.  A
+        figure that holds no sinogram takes this call and draws nothing.
+
+        Args:
+            flag (bool): whether to paint the sinogram.
+        """
+        flag = bool(flag)
+        if flag == self._show_sinogram:
+            return
+        self._show_sinogram = flag
+        self._sync_sinogram_check()
+        self._apply_sinogram_visibility()
+        # The title and the footer say what is drawn, and both are settled by
+        # the repaint below.
+        self._refresh(rebuild_limits=True)
+
+    def set_show_recon(self, flag):
+        """Turn the phantom's silhouette and its outlines on or off.
+
+        The two silhouette fills, the outline in each projected panel, and the
+        wire box in the 3D panel are hidden together, because they are one
+        drawing of one array.  The 3D panel's legend keeps its phantom entry
+        while the phantom is hidden: the legend names what the figure holds,
+        and the toggle beside it says whether that is drawn.
+
+        Args:
+            flag (bool): whether to draw the phantom.
+        """
+        flag = bool(flag)
+        if flag == self._show_recon:
+            return
+        self._show_recon = flag
+        self._sync_recon_check()
+        self._apply_recon_visibility()
+        # The silhouette is static, so it belongs to the background.
+        self._refresh(rebuild_limits=True)
+
+    def set_show_compare(self, flag):
+        """Turn the comparison's drawn artists on or off.
+
+        Only the drawing is hidden.  The comparison window stays open and the
+        text panel keeps its comparison block, because those are the numbers a
+        calibration user is reading; the block's heading says that the drawing
+        is hidden.  The comparison's source path also follows the source-path
+        toggle, so it is drawn only when both toggles are on.
+
+        Args:
+            flag (bool): whether to draw the comparison.
+        """
+        flag = bool(flag)
+        if flag == self._show_compare:
+            return
+        self._show_compare = flag
+        self._sync_compare_check()
+        self._apply_compare_visibility()
+        self._update_static_text()
         self._refresh(rebuild_limits=True)
 
     def set_compare(self, compare):
@@ -1436,6 +1693,15 @@ class GeometryFigure:
         self.ax_top = self.figure.add_subplot(grid[0, 1])
         self.ax_side = self.figure.add_subplot(grid[0, 2])
         self.ax_detector = self.figure.add_subplot(grid[1, 1])
+        # The detector face gives up the bottom of its cell, so that its legend
+        # has a band outside the panel to sit in; see _create_legends.  The
+        # panel's box is reshaped to its equal aspect at every draw, so this
+        # takes width from the panel only when its box is taller than the
+        # shortened cell.
+        cell = self.ax_detector.get_subplotspec().get_position(self.figure)
+        self.ax_detector.set_position(
+            (cell.x0, DETECTOR_PANEL_BOTTOM, cell.width,
+             cell.y1 - DETECTOR_PANEL_BOTTOM))
         self.ax_text = self.figure.add_subplot(grid[1, 2])
         self.panel_axes = (self.ax_3d, self.ax_top, self.ax_side,
                            self.ax_detector, self.ax_text)
@@ -1455,18 +1721,27 @@ class GeometryFigure:
         self.figure.add_artist(self._clear_rect)
 
     def _create_widgets(self, wanted):
-        """Create the view slider and the three toggles.
+        """Create the view slider and the six toggles.
 
         The slider steps by one view and never by a fraction, and its own draw
         is turned off so that a step goes through this class's redraw instead.
         A scan with one view has nothing to slide, so the slider axes is
         hidden.  These are the conventions ``mbirtorch/viewer.py`` uses for its
         slice slider.
+
+        The three overlay toggles are built whatever data the figure holds, so
+        a toggle whose overlay is absent is drawn and does nothing.  An array
+        given later through :meth:`set_sinogram`, :meth:`set_recon`, or
+        :meth:`set_compare` then has its toggle ready and in the state the
+        toggle is showing.
         """
         self.view_slider = None
         self.trajectory_check = None
         self.zoom_check = None
         self.reference_check = None
+        self.sinogram_check = None
+        self.recon_check = None
+        self.compare_check = None
         self._slider_axes = None
         if not wanted:
             return
@@ -1484,29 +1759,50 @@ class GeometryFigure:
         else:
             self._slider_axes.set_visible(False)
 
-        trajectory_axes = self.figure.add_axes(TRAJECTORY_CHECK_RECT)
-        trajectory_axes.set_frame_on(False)
-        self.trajectory_check = CheckButtons(
-            trajectory_axes, ['source path'], [self._show_trajectory])
-        for label in self.trajectory_check.labels:
-            label.set_fontsize(WIDGET_FONT_SIZE)
-        self.trajectory_check.on_clicked(self._on_trajectory_check)
+        self.trajectory_check = self._add_check(
+            TRAJECTORY_CHECK_RECT, 'source path', self._show_trajectory,
+            self._on_trajectory_check)
+        self.zoom_check = self._add_check(
+            ZOOM_CHECK_RECT, '3D zoom to volume', self._zoom == 'volume',
+            self._on_zoom_check)
+        self.reference_check = self._add_check(
+            REFERENCE_CHECK_RECT, 'angle-0 reference', self._show_reference,
+            self._on_reference_check)
+        self.sinogram_check = self._add_check(
+            SINOGRAM_CHECK_RECT, 'sinogram', self._show_sinogram,
+            self._on_sinogram_check)
+        self.recon_check = self._add_check(
+            RECON_CHECK_RECT, PHANTOM_NAME, self._show_recon,
+            self._on_recon_check)
+        self.compare_check = self._add_check(
+            COMPARE_CHECK_RECT, 'comparison', self._show_compare,
+            self._on_compare_check)
 
-        zoom_axes = self.figure.add_axes(ZOOM_CHECK_RECT)
-        zoom_axes.set_frame_on(False)
-        self.zoom_check = CheckButtons(
-            zoom_axes, ['3D zoom to volume'], [self._zoom == 'volume'])
-        for label in self.zoom_check.labels:
-            label.set_fontsize(WIDGET_FONT_SIZE)
-        self.zoom_check.on_clicked(self._on_zoom_check)
+    def _add_check(self, rect, label, state, handler):
+        """Create one toggle of the widget row.
 
-        reference_axes = self.figure.add_axes(REFERENCE_CHECK_RECT)
-        reference_axes.set_frame_on(False)
-        self.reference_check = CheckButtons(
-            reference_axes, ['angle-0 reference'], [self._show_reference])
-        for label in self.reference_check.labels:
-            label.set_fontsize(WIDGET_FONT_SIZE)
-        self.reference_check.on_clicked(self._on_reference_check)
+        The six toggles differ only in where they sit, what they are called,
+        which state they start in, and what a click calls, so one routine
+        builds them all.  The frame is turned off, because a toggle is a box
+        and a label and not a panel.
+
+        Args:
+            rect (tuple): where the toggle goes, as (left, bottom, width,
+                height) in figure coordinates.
+            label (str): the toggle's one label.
+            state (bool): whether it starts checked.
+            handler (callable): what a click on it calls.
+
+        Returns:
+            CheckButtons: the toggle.
+        """
+        axes = self.figure.add_axes(rect)
+        axes.set_frame_on(False)
+        check = CheckButtons(axes, [label], [bool(state)])
+        for text in check.labels:
+            text.set_fontsize(WIDGET_FONT_SIZE)
+        check.on_clicked(handler)
+        return check
 
     def _on_slider(self, value):
         """The view slider moved."""
@@ -1535,6 +1831,24 @@ class GeometryFigure:
             return
         self.set_show_reference(self.reference_check.get_status()[0])
 
+    def _on_sinogram_check(self, _label):
+        """The sinogram toggle was clicked."""
+        if self._syncing_widgets:
+            return
+        self.set_show_sinogram(self.sinogram_check.get_status()[0])
+
+    def _on_recon_check(self, _label):
+        """The phantom toggle was clicked."""
+        if self._syncing_widgets:
+            return
+        self.set_show_recon(self.recon_check.get_status()[0])
+
+    def _on_compare_check(self, _label):
+        """The comparison toggle was clicked."""
+        if self._syncing_widgets:
+            return
+        self.set_show_compare(self.compare_check.get_status()[0])
+
     def _sync_slider(self):
         """Move the slider to the current view without calling back."""
         if self.view_slider is None:
@@ -1547,41 +1861,49 @@ class GeometryFigure:
         finally:
             self._syncing_widgets = False
 
-    def _sync_trajectory_check(self):
-        """Match the toggle to the state, without calling back."""
-        if self.trajectory_check is None:
-            return
-        if self.trajectory_check.get_status()[0] == self._show_trajectory:
+    def _set_check(self, check, state):
+        """Match one toggle to a state, without calling its handler back.
+
+        A toggle is moved by clicking it, which calls the handler, and the
+        handler would call the method that is already running.  The flag this
+        sets is what every handler reads first.
+
+        Args:
+            check: the ``CheckButtons``, or None when the figure has no
+                widgets.
+            state (bool): the state the toggle is to show.
+        """
+        if check is None or check.get_status()[0] == bool(state):
             return
         self._syncing_widgets = True
         try:
-            self.trajectory_check.set_active(0)
+            check.set_active(0)
         finally:
             self._syncing_widgets = False
+
+    def _sync_trajectory_check(self):
+        """Match the toggle to the state, without calling back."""
+        self._set_check(self.trajectory_check, self._show_trajectory)
 
     def _sync_zoom_check(self):
         """Match the zoom toggle to the state, without calling back."""
-        if self.zoom_check is None:
-            return
-        if self.zoom_check.get_status()[0] == (self._zoom == 'volume'):
-            return
-        self._syncing_widgets = True
-        try:
-            self.zoom_check.set_active(0)
-        finally:
-            self._syncing_widgets = False
+        self._set_check(self.zoom_check, self._zoom == 'volume')
 
     def _sync_reference_check(self):
         """Match the reference toggle to the state, without calling back."""
-        if self.reference_check is None:
-            return
-        if self.reference_check.get_status()[0] == self._show_reference:
-            return
-        self._syncing_widgets = True
-        try:
-            self.reference_check.set_active(0)
-        finally:
-            self._syncing_widgets = False
+        self._set_check(self.reference_check, self._show_reference)
+
+    def _sync_sinogram_check(self):
+        """Match the sinogram toggle to the state, without calling back."""
+        self._set_check(self.sinogram_check, self._show_sinogram)
+
+    def _sync_recon_check(self):
+        """Match the phantom toggle to the state, without calling back."""
+        self._set_check(self.recon_check, self._show_recon)
+
+    def _sync_compare_check(self):
+        """Match the comparison toggle to the state, without calling back."""
+        self._set_check(self.compare_check, self._show_compare)
 
     # ------------------------------------------------------------------
     # Creating the artists
@@ -1857,21 +2179,24 @@ class GeometryFigure:
         self._top = self._create_projected_moving_artists(axes)
         # Only the top view names the pixel-0 marker.  In the side view that
         # marker sits at the end of the detector, where the detector's own
-        # label already is.  The label sits well above the marker, because a
-        # scan whose detector is short against the panel puts the marker close
-        # to the detector iso, whose own two labels take the lines nearer the
-        # detector.
+        # label already is.  The label sits a whole line from the marker,
+        # because a scan whose detector is short against the panel puts the
+        # marker close to the detector iso, whose own two labels take the lines
+        # nearer the detector.  Which side of the marker it sits on is chosen
+        # per view by _update_projected_panel.
         self._top['pixel0_label'] = self._moving_text(
-            axes, 'pixel (0,0)', COLORS['pixel0'], 14)
+            axes, 'pixel (0,0)', COLORS['pixel0'], PIXEL0_LABEL_GAP_POINTS)
         self._arc_top = self._moving_line(axes, COLORS['axis'], linewidth=1.4)
         self._arrow_top = FancyArrowPatch(
             (0.0, 0.0), (0.0, 0.0), arrowstyle='-|>', mutation_scale=9,
             linewidth=1.4, color=COLORS['axis'], shrinkA=0.0, shrinkB=0.0)
         axes.add_patch(self._arrow_top)
         self._moving.append((axes, self._arrow_top))
+        # Which side of the arc's end this label sits on is chosen per view by
+        # _update_arc_and_trajectory.
         self._arc_text_top = axes.annotate(
             'source travel', xy=(0.0, 0.0), textcoords='offset points',
-            xytext=(3, -8), fontsize=ANNOTATION_FONT_SIZE,
+            xytext=(3, -ARC_LABEL_GAP_POINTS), fontsize=ANNOTATION_FONT_SIZE,
             color=COLORS['axis'])
         self._moving.append((axes, self._arc_text_top))
         axes.set_xlabel('y (ALU)', fontsize=LABEL_FONT_SIZE)
@@ -2274,7 +2599,10 @@ class GeometryFigure:
              triple('detector_center_u', 'detector_center_v'), 'ALU'),
             ('helical travel',
              _three_figures(quantities['helical_travel_alu']), 'ALU'),
-            ('volume fits det', _fit_text(quantities), ''),
+            # The fit statement, in its two halves: the channels, and the rows
+            # or, for a helical scan, the swept coverage (Greg, 2026-09-11).
+            ('lateral fit', _lateral_fit_text(quantities), ''),
+            ('axial fit', _axial_fit_text(quantities), ''),
             # How many views the fit statement's shape leaves the detector in.
             # A helical scan leaves it in every view by design, so the count
             # is the number that says whether "no" means a scan that is wrong
@@ -2283,21 +2611,17 @@ class GeometryFigure:
              f'{quantities["views_leaving_detector"]} of '
              f'{quantities["num_views"]}', ''),
         ]
-        if quantities['helical_fit_rule']:
-            # The z range on the rotation axis that the detector sweeps over
-            # the whole scan.  Only a helical scan is judged by it.
-            rows.append(('swept z at axis',
-                         _three_figures(quantities['swept_z_min']) + ' to '
-                         + _three_figures(quantities['swept_z_max']), 'ALU'))
         width = max(len(name) for name, _, _ in rows)
         lines = [f'{name:<{width}} : {value}{" " + unit if unit else ""}'
                  for name, value, unit in rows]
         lines.append('')
-        # Two sentences about the drawing itself: what the offsets of the
-        # detector center are measured from, and which way z is drawn.  The
-        # second names the display convention, which every panel follows.
-        for note in (f'(du, dv) from {ISO_NAME} to {CENTER_NAME}.',
-                     _convention_note(), quantities['drawing_note']):
+        # Two notes about the drawing itself.  The first line says what the
+        # offsets of the detector center are measured from and which way z is
+        # drawn, which is the display convention every panel follows; the two
+        # facts share a line because the panel is short of lines.  The scene's
+        # own note then names every position that is a drawing choice.
+        for note in (f'(du, dv): {ISO_NAME} to {CENTER_NAME}; '
+                     f'{_convention_note()}', quantities['drawing_note']):
             lines.extend(textwrap.wrap(note, width=TEXT_PANEL_WRAP_WIDTH))
         self._static_text.set_text('\n'.join(lines))
 
@@ -2395,12 +2719,22 @@ class GeometryFigure:
         The parameter list is capped twice: at :data:`MAX_COMPARISON_ENTRIES`
         entries, and at the number of lines the panel has room for, which
         :meth:`_place_text_blocks` measures.  What is left out is counted in a
-        line of its own.
+        line of its own.  When the room runs out, the sentence about the
+        derived quantities goes first and the parameter entries last, because
+        the entries are what a calibration user changed and the window holds
+        the rest anyway.
+
+        The section stays as it is while the comparison toggle is off, because
+        these numbers are what a calibration user reads and the toggle hides a
+        drawing and not a number.  The heading then says that the drawing is
+        hidden.
         """
         if self.compare_scene is None:
             return []
         parameters, derived = self._difference_groups()
-        lines = ['Comparison (dashed):']
+        heading = ('Comparison (dashed):' if self._show_compare
+                   else 'Comparison (dashed, hidden):')
+        lines = [heading]
         if not parameters and not derived:
             lines.append('  nothing differs')
             return lines
@@ -2422,10 +2756,11 @@ class GeometryFigure:
         if left_out:
             noun = 'parameter' if left_out == 1 else 'parameters'
             lines.append(f'  and {left_out} more {noun}')
-        lines.extend(textwrap.wrap(_derived_difference_sentence(len(derived)),
-                                   width=TEXT_PANEL_WRAP_WIDTH,
-                                   initial_indent='  ',
-                                   subsequent_indent='  '))
+        sentence = textwrap.wrap(_derived_difference_sentence(len(derived)),
+                                 width=TEXT_PANEL_WRAP_WIDTH,
+                                 initial_indent='  ', subsequent_indent='  ')
+        if limit is None or len(lines) + len(sentence) <= limit:
+            lines.extend(sentence)
         return lines
 
     def _footer_lines(self):
@@ -2454,13 +2789,36 @@ class GeometryFigure:
         """Build the legend of the 3D panel and of the detector face.
 
         The legends are rebuilt when a comparison is added or removed, because
-        the comparison adds an entry to each of them.
+        the comparison adds an entry to each of them, and when a phantom is
+        added or removed, because its wire box adds an entry to the 3D panel's
+        legend.  That entry stays while the phantom's toggle hides the box: the
+        legend names what the figure holds, and the toggle says whether it is
+        drawn.
+
+        The 3D panel's legend sits in the panel's upper left corner, where the
+        drawing leaves room.  The detector face's legend sits outside its
+        panel, in the band under it: inside the panel it covered the projected
+        outlines and the sinogram there (Greg, 2026-09-11).  The legend is
+        placed in the figure's own coordinates rather than the panel's, because
+        the panel's box changes shape with the detector's row and channel
+        counts while the band does not.  The legend still belongs to the
+        detector's axes, so it carries that panel's entries and is drawn with
+        that panel.
         """
         self.ax_3d.legend(loc='upper left', fontsize=LEGEND_FONT_SIZE,
                           framealpha=0.85, borderpad=0.3, labelspacing=0.25)
-        self.ax_detector.legend(loc='upper right', fontsize=LEGEND_FONT_SIZE,
-                                framealpha=0.85, borderpad=0.3,
-                                labelspacing=0.25)
+        cell = self.ax_detector.get_subplotspec().get_position(self.figure)
+        # borderaxespad is the gap a legend leaves between its anchor and
+        # itself.  It is zero here, so that the anchor is the legend's own
+        # bottom edge and the band it sits in can be read from the constants.
+        self.ax_detector.legend(
+            loc='lower center',
+            bbox_to_anchor=(0.5 * (cell.x0 + cell.x1),
+                            DETECTOR_LEGEND_BOTTOM),
+            bbox_transform=self.figure.transFigure,
+            ncol=DETECTOR_LEGEND_COLUMNS, borderaxespad=0.0,
+            fontsize=LEGEND_FONT_SIZE, framealpha=0.85, borderpad=0.3,
+            labelspacing=0.25)
 
     def _place_text_blocks(self):
         """Stack the text panel's three blocks from the top of the panel.
@@ -2777,8 +3135,8 @@ class GeometryFigure:
                 linestyle='--'))
             self._compare_static.append((self.ax_detector, grid))
 
-        # The comparison's source path follows the same toggle as the
-        # primary's.
+        # The comparison's source path follows the source-path toggle as the
+        # primary's does, and the comparison's own toggle as well.
         self._compare_trajectory_lines = []
         for axes in (self.ax_3d, self.ax_top, self.ax_side):
             if axes is self.ax_3d:
@@ -2788,10 +3146,22 @@ class GeometryFigure:
             else:
                 line, = axes.plot([], [], color=color, linewidth=1.0,
                                   linestyle='-.')
-            line.set_visible(self._show_trajectory)
             self._compare_static.append((axes, line))
             self._compare_trajectory_lines.append((axes, line))
+        self._apply_compare_visibility()
         self._set_animated(self._animate_moving())
+
+    def _apply_compare_visibility(self):
+        """Show or hide every comparison artist, following the toggles.
+
+        A comparison artist is drawn when the comparison toggle is on.  The
+        comparison's source path answers to the source-path toggle as well, so
+        that the two paths are drawn together or not at all.
+        """
+        for _, artist in self._compare_moving + self._compare_static:
+            artist.set_visible(self._show_compare)
+        for _, line in self._compare_trajectory_lines:
+            line.set_visible(self._show_compare and self._show_trajectory)
 
     def _remove_compare_artists(self):
         """Remove every comparison artist from its axes."""
@@ -2848,15 +3218,27 @@ class GeometryFigure:
             vmin=float(np.min(values)), vmax=float(np.max(values)),
             zorder=SINOGRAM_ZORDER)
         self._moving.append((axes, self._sinogram_image))
+        self._apply_sinogram_visibility()
         self._set_animated(self._animate_moving())
+
+    def _apply_sinogram_visibility(self):
+        """Show or hide the painted sinogram, following its toggle."""
+        if self._sinogram_image is not None:
+            self._sinogram_image.set_visible(self._show_sinogram)
 
     def _install_recon(self, recon, threshold=None):
         """Create, replace, or remove the reconstruction silhouette.
 
         The silhouette is two images, one in the top view and one in the side
         view.  Each is the support projected along the one object coordinate
-        its panel does not draw.  Both are static artists, because the object
-        does not move with the view.  The 3D panel gets none.
+        its panel does not draw.  Each of those panels also gets the outline of
+        the support, and the 3D panel gets the support's bounding box as a wire
+        box.  All of these are static artists, because the object does not move
+        with the view.
+
+        The 3D panel's legend is built again at the end, because the wire box
+        carries the one legend entry the phantom has.  A call that removes the
+        phantom therefore takes that entry out of the legend.
 
         Args:
             recon (array_like): the array, or None to remove the silhouette.
@@ -2865,13 +3247,15 @@ class GeometryFigure:
                 :data:`DEFAULT_RECON_THRESHOLD_FRACTION` of the largest
                 absolute value in the array.
         """
-        for _, image in self._recon_images:
-            image.remove()
+        for _, artist in self._recon_images + self._recon_outlines:
+            artist.remove()
         self._recon_images = []
+        self._recon_outlines = []
         self._recon_support = None
         self._recon_threshold = None
         self._recon_threshold_given = None
         if recon is None:
+            self._create_legends()
             return
         values = _as_array(recon)
         expected = tuple(self.scene.recon_shape)
@@ -2899,12 +3283,18 @@ class GeometryFigure:
         self._create_silhouette(self.ax_side,
                                 self._recon_support.any(axis=1).T,
                                 SIDE_PANEL_COLUMNS)
+        self._create_support_box()
+        self._apply_recon_visibility()
+        self._create_legends()
 
     def _create_silhouette(self, axes, support, columns):
-        """Draw one panel's silhouette image and keep it.
+        """Draw one panel's silhouette image and its outline, and keep them.
 
         The fill is one color drawn through a masked array, so the outside of
         the support is transparent and the panel's own lines read through it.
+        The fill is also light, which leaves the support faint against a busy
+        panel.  The outline of that same support is therefore drawn over the
+        fill, as a solid line through the outer faces of its voxels.
 
         Args:
             axes: the panel.
@@ -2931,6 +3321,72 @@ class GeometryFigure:
                             vmin=0.0, vmax=1.0, zorder=SILHOUETTE_ZORDER)
         self._recon_images.append((axes, image))
 
+        # The cells of that image, as their edges in the panel's own
+        # coordinates.  The image spans the volume box, and one cell of it is
+        # one voxel, so a row of the image has one more edge than it has cells.
+        down = np.linspace(low[vertical], high[vertical],
+                           support.shape[0] + 1)
+        across = np.linspace(low[horizontal], high[horizontal],
+                             support.shape[1] + 1)
+        outline = _mask_outline(support, across, down)
+        if outline.shape[0] == 0:
+            return
+        line, = axes.plot(outline[:, 0], outline[:, 1],
+                          color=COLORS['volume'],
+                          linewidth=RECON_OUTLINE_LINEWIDTH,
+                          zorder=RECON_OUTLINE_ZORDER)
+        self._recon_outlines.append((axes, line))
+
+    def _create_support_box(self):
+        """Draw the support's bounding box in the 3D panel, and keep it.
+
+        The 3D panel draws no silhouette, because a filled shape there would
+        hide the geometry behind it.  It draws this box instead, which says
+        where the phantom sits in all three directions.  The box is dashed, so
+        that it is not read as the volume box, which is the same color and
+        solid.  Its corners come from the scene's own ``voxel_centers``, half a
+        voxel outside the first and the last voxel of the support in each
+        direction, so that it encloses every voxel of the support.
+
+        A support with no voxel in it gets no box.
+        """
+        if self._recon_support is None or not self._recon_support.any():
+            return
+        # The first and the last index of the support along each of the three
+        # voxel indices, which are the row, the column, and the slice.
+        first, last = [], []
+        for axis in range(3):
+            other = tuple(index for index in range(3) if index != axis)
+            used = np.flatnonzero(self._recon_support.any(axis=other))
+            first.append(float(used[0]) - 0.5)
+            last.append(float(used[-1]) + 0.5)
+        low, high = self.scene.voxel_centers([first, last])
+        # The corners in the order VOLUME_BOX_EDGES reads: the sign in x
+        # changes slowest and the sign in z fastest.  The voxel pitches are
+        # positive, so the low index corner is the low corner in x, y, and z.
+        corners = np.array([[x, y, z]
+                            for x in (low[0], high[0])
+                            for y in (low[1], high[1])
+                            for z in (low[2], high[2])], dtype=np.float64)
+        box = _joined([corners[[start, end]]
+                       for start, end in VOLUME_BOX_EDGES])
+        line, = self.ax_3d.plot(box[:, 0], box[:, 1], box[:, 2],
+                                color=COLORS['volume'],
+                                linewidth=RECON_BOX_LINEWIDTH,
+                                linestyle='--', label=PHANTOM_NAME,
+                                **AXLIM_CLIP)
+        self._recon_outlines.append((self.ax_3d, line))
+
+    def _apply_recon_visibility(self):
+        """Show or hide the phantom's fills and outlines, following its toggle.
+
+        The two fills, the outline in each projected panel, and the wire box in
+        the 3D panel are one drawing of one array, so one flag governs them
+        all.
+        """
+        for _, artist in self._recon_images + self._recon_outlines:
+            artist.set_visible(self._show_recon)
+
     def _volume_box_corners(self):
         """The volume box's corner at voxel (0, 0, 0) and its opposite one.
 
@@ -2949,14 +3405,20 @@ class GeometryFigure:
     def _overlay_names(self):
         """What the text panel's footer calls the overlays drawn, as a list.
 
+        The line names what is drawn and not what the figure holds, so an
+        overlay whose toggle is off is left out of it.  With both toggles off
+        the footer has no overlay line at all, which is the same line a figure
+        with no overlay shows.  The state of each toggle is in the widget row,
+        beside its label.
+
         The threshold is named the way it was chosen: a caller's own threshold
         is printed as the number it is, and the default is printed as the
         fraction of the largest absolute value that it is.
         """
         names = []
-        if self._sinogram_image is not None:
+        if self._sinogram_image is not None and self._show_sinogram:
             names.append('sinogram')
-        if self._recon_images:
+        if self._recon_images and self._show_recon:
             if self._recon_threshold_given is None:
                 fraction = _three_figures(DEFAULT_RECON_THRESHOLD_FRACTION)
                 names.append(f'recon above {fraction} max')
@@ -2999,10 +3461,10 @@ class GeometryFigure:
         self._update_projected_panel(self._top, view, TOP_PANEL_COLUMNS,
                                      TOP_EDGE_RAYS,
                                      self.scene.det_channel_offset,
-                                     'det_channel_offset')
+                                     CHANNEL_OFFSET_LABEL)
         self._update_projected_panel(self._side, view, SIDE_PANEL_COLUMNS,
                                      SIDE_EDGE_RAYS, self.scene.row_offset,
-                                     'det_row_offset')
+                                     ROW_OFFSET_LABEL)
         self._place_slice_offset_label(view)
         self._update_arc_and_trajectory(view)
         self._update_detector_panel(view)
@@ -3056,8 +3518,10 @@ class GeometryFigure:
         label = self._view_label()
         self._title_3d.set_text(f'3D view, view {self._view_index}, {label}')
         # A sinogram painted on the detector face gets no legend entry, so the
-        # title is where the panel says that it is drawn.
-        note = ', with sinogram' if self._sinogram_image is not None else ''
+        # title is where the panel says that it is drawn.  A sinogram the
+        # toggle hides is not drawn, so the title does not name it.
+        painted = self._sinogram_image is not None and self._show_sinogram
+        note = ', with sinogram' if painted else ''
         # The row order is a display choice, so the detector panel's title
         # names it on its own line above the view drawn.
         self._title_detector.set_text(
@@ -3148,9 +3612,6 @@ class GeometryFigure:
                       (view.source_draw[first], view.source_draw[second]))
         _place_beside(artists['detector_label'],
                       (anchor[first], anchor[second]))
-        pixel0_label = artists.get('pixel0_label')
-        if pixel0_label is not None:
-            _place_beside(pixel0_label, (pixel0[first], pixel0[second]))
 
         # The labels at the detector iso stack on the side of the detector
         # away from its far corner, where the detector's own label is.  A
@@ -3168,6 +3629,20 @@ class GeometryFigure:
         if float(offset) != 0.0:
             offset_label.set_text(f'{offset_name} {_three_figures(offset)}')
             _place_beside(offset_label, iso_point, vertical=away * gap)
+
+        # The pixel-0 marker sits at the end of the detector opposite the far
+        # corner, so the labels at the detector iso stack toward it.  Its own
+        # label therefore reads outward from the marker, on the side away from
+        # the iso.  A fixed side put the label above the marker whichever way
+        # the detector was turned, and at the views where the iso was above the
+        # marker the label landed on the iso's own label; that is the "detector
+        # iso" against "pixel (0,0)" collision of 2026-09-10.
+        pixel0_label = artists.get('pixel0_label')
+        if pixel0_label is not None:
+            outward = _screen_step(pixel0[second]
+                                   - view.detector_origin[second])
+            _place_beside(pixel0_label, (pixel0[first], pixel0[second]),
+                          vertical=outward * PIXEL0_LABEL_GAP_POINTS)
 
         # The offset segment runs from the detector iso to the center of the
         # detector grid.  Projected onto this panel it shows exactly the offset
@@ -3253,8 +3728,15 @@ class GeometryFigure:
                 (end[top_first], end[top_second]))
             # The arc's label reads into the panel, because the arc's end
             # sits at the source's radius, which is near a panel edge.
+            # It hangs on the side of that end away from the source, which is
+            # the point the arc runs from.  The source carries its own label a
+            # few points away on its own side, and with both labels between the
+            # two points they ran into each other.
+            ahead = _screen_step(end[top_second]
+                                 - view.source_draw[top_second])
             _place_beside(self._arc_text_top,
-                          (end[top_first], end[top_second]))
+                          (end[top_first], end[top_second]),
+                          vertical=ahead * ARC_LABEL_GAP_POINTS)
 
         if self._show_trajectory:
             path = self._source_trajectory()
@@ -3748,7 +4230,8 @@ def geometry_viewer(model_or_scene, view_index=0, show_trajectory=False,
                     title=None, figsize=(15.0, 9.0),
                     elevation_deg=DEFAULT_ELEVATION_DEG,
                     azimuth_deg=DEFAULT_AZIMUTH_DEG, sinogram=None,
-                    recon=None, recon_threshold=None, block=True):
+                    recon=None, recon_threshold=None, show_sinogram=True,
+                    show_recon=True, show_compare=True, block=True):
     """Launch the interactive geometry viewer on a model.
 
     This function builds a :class:`GeometryFigure`, shows it, and returns it.
@@ -3759,11 +4242,13 @@ def geometry_viewer(model_or_scene, view_index=0, show_trajectory=False,
     The window shows five panels for one view of the scan: a 3D view, a top
     view of the xy plane, a side view of the yz plane, the detector face in row
     and channel index, and the derived numbers.  A slider steps through the
-    views, and three toggles turn the source's path, the 3D zoom to the volume,
-    and the angle-0 reference on and off.  Every panel draws negative z at the
-    top, and the beam runs from the source on the left to the detector on the
-    right.  Two arrays can be drawn beside the geometry: a sinogram on the
-    detector face and a reconstruction's silhouette in the volume box.
+    views, and six toggles sit beside it.  Three of them turn the source's
+    path, the 3D zoom to the volume, and the angle-0 reference on and off, and
+    three turn the sinogram, the phantom, and the comparison on and off.  Every
+    panel draws negative z at the top, and the beam runs from the source on the
+    left to the detector on the right.  Two arrays can be drawn beside the
+    geometry: a sinogram on the detector face and a reconstruction's silhouette
+    in the volume box.
 
     Args:
         model_or_scene: a ``TomographyModel`` or a ``GeometryScene``.
@@ -3795,6 +4280,12 @@ def geometry_viewer(model_or_scene, view_index=0, show_trajectory=False,
             voxel belongs to that silhouette.  Defaults to None, which uses
             :data:`DEFAULT_RECON_THRESHOLD_FRACTION` of the largest absolute
             value in ``recon``.
+        show_sinogram (bool, optional): whether the sinogram starts drawn.
+            Defaults to True.  Its toggle turns it on and off.
+        show_recon (bool, optional): whether the phantom starts drawn.
+            Defaults to True.
+        show_compare (bool, optional): whether the comparison starts drawn.
+            Defaults to True.
         block (bool, optional): If True (default), block until the window is
             closed.  If False, leave the window open and return immediately;
             the window becomes fully interactive when the next blocking call
@@ -3812,7 +4303,10 @@ def geometry_viewer(model_or_scene, view_index=0, show_trajectory=False,
                             azimuth_deg=azimuth_deg, compare=compare,
                             zoom=zoom, show_reference=show_reference,
                             sinogram=sinogram, recon=recon,
-                            recon_threshold=recon_threshold)
+                            recon_threshold=recon_threshold,
+                            show_sinogram=show_sinogram,
+                            show_recon=show_recon,
+                            show_compare=show_compare)
     figure.show(block=block)
     if not block:
         _NONBLOCKING_FIGURES.append(figure)

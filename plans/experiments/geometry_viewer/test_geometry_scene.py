@@ -884,6 +884,7 @@ def test_a_helical_scan_is_judged_by_the_helical_rule():
     assert report['z_extent_covered'] is True
     assert report['worst_channel_overshoot_pixels'] == 0.0
     assert report['fits'] is True
+    assert report['fits_laterally'] is True and report['fits_axially'] is True
 
     # The same scan with a volume taller than one view's axial coverage.
     tall = GeometryScene(dict(scene.params, recon_shape=(10, 12, 25)), 'cone')
@@ -896,10 +897,38 @@ def test_a_helical_scan_is_judged_by_the_helical_rule():
     assert tall_report['worst_channel_overshoot_pixels'] == 0.0
     assert tall_report['z_extent_covered'] is True
     assert tall_report['fits'] is True
-    # The answer is the two questions of the helical rule and nothing else.
+    # The answer is the two questions of the helical rule and nothing else,
+    # and the axial half is the swept coverage, not the rows.
+    assert tall_report['fits_axially'] is True
     assert tall_report['fits'] == (
         tall_report['worst_channel_overshoot_pixels'] == 0.0
         and tall_report['z_extent_covered'])
+
+
+def test_the_fit_report_answers_laterally_and_axially():
+    """The two halves of the fit statement are reported apart.
+
+    The automatically sized cone scan of the web page's defaults fits in
+    channels and misses in rows, which is the case the split was asked for
+    (Greg, 2026-09-11): one answer would hide which direction misses.  A volume
+    grown past the field of view misses laterally as well.
+    """
+    import geometry_defaults
+    params = geometry_defaults.default_parameters(
+        'cone', (180, 96, 128), angles=geometry_defaults.view_angles(180),
+        source_detector_dist=512.0, source_iso_dist=256.0)
+    report = GeometryScene(params, 'cone').fit_report()
+    assert report['shape'] == 'cylinder'
+    assert report['fits_laterally'] is True
+    assert report['fits_axially'] is False
+    assert report['fits'] is False
+    assert report['worst_channel_overshoot_pixels'] == 0.0
+    assert report['worst_row_overshoot_pixels'] > 1.0
+
+    grown = GeometryScene(dict(params, recon_shape=(200, 200, 96)), 'cone')
+    grown_report = grown.fit_report()
+    assert grown_report['fits_laterally'] is False
+    assert grown_report['fits'] is False
 
 
 def test_a_helical_scan_with_a_gap_does_not_sweep_its_volume():

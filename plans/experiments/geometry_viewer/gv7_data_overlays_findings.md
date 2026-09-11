@@ -98,6 +98,37 @@ in that scan, and the projector's footprint spreads the mass by up to half a
 channel more.  Any pixel with some mass counts as lit in that test, so the lit edge
 lies outside the rims by up to about 1.4 channels.
 
+## The toggles and the phantom's outline (2026-09-11, later)
+
+Greg asked for toggles that show and hide the sinogram, the phantom, and the
+comparison, and for the phantom to be drawn as a wire outline where the filled
+silhouette is faint.  The widget row now holds six check boxes in two rows of
+three, at the right of the slider: the three that change the geometry's drawing
+above, and "sinogram", "phantom", and "comparison" below.  Each has a property
+and a setter on `GeometryFigure`, `show_sinogram`, `show_recon`, and
+`show_compare`, and the same three arguments on `geometry_viewer`.  Hiding sets
+the artists invisible and removes nothing, so showing again costs no rebuilding.
+A toggle whose overlay is absent is drawn but does nothing, so that data added
+later has its toggle ready.  Hiding the comparison hides its drawn artists, marks
+the text panel's heading "Comparison (dashed, hidden):", and leaves the
+comparison window open.  The footer's "overlays" line names what is drawn.
+
+The phantom now has an outline besides its fill.  In the top view and the side
+view the outline follows the outer faces of the support's boundary voxels, drawn
+from the mask's cell edges rather than from a contour, so it encloses the fill.  In
+the 3D panel the support's bounding box is a dashed wire box of twelve edges, with
+corners from `scene.voxel_centers` half a pitch beyond the outermost voxels, and a
+legend entry "phantom".  Both belong to the phantom toggle and go with
+`set_recon(None)`.
+
+Two facts about the partial redraw were checked.  A hidden sinogram stays hidden
+through a view change, because the blit path skips an invisible artist and
+matplotlib's image draw returns at once for one; a test measures the rendered
+detector panel after two view changes.  The rectangle that repaints the slider row
+ends before the first toggle, so the six toggles are untouched by a partial redraw,
+which another test checks pixel by pixel.  The six toggles' labels clear one
+another by 26 pixels at the closest and clear the slider and the legend band.
+
 ## Timing
 
 A slider step on the 1800-view helical scan of `gv4_timing.py`, with a sinogram
@@ -109,8 +140,10 @@ without an overlay, so the gate holds there with the same margin.
 ## What the example shows
 
 `gv_show_example.py` has two new constants, `SHOW_SINOGRAM` and `SHOW_RECON`, both
-False.  With either on, it builds mbirtorch's cube phantom, forward projects it
-with the model, and passes the arrays to the viewer.  In the review figure of the
+True since Greg asked to see the overlays (2026-09-11).  With either on, it builds
+mbirtorch's cube phantom, forward projects it with the model, and passes the
+arrays to the viewer; for the default cone example the phantom and its projection
+take 1.1 s and the figure 0.8 s.  In the review figure of the
 flat cone configuration the phantom's shadow sits inside both drawn outlines with
 row 0 at the top, and it slants toward higher channels as the row index grows,
 which is the cube phantom's own shift with the slice index seen the right way up.
@@ -121,7 +154,12 @@ the panels a few volume widths across, and the silhouette is plain there.
 
 ## Tests
 
-The suite grew from 255 to 266 tests, and all pass with gradio 5.45.0.  The new
-tests cover the two gates on the rendered pixels, the projector's shadow against
-the rims, the shape checks of both arrays, removal of each overlay, the animated
-rule, a comparison added and removed with overlays drawn, and the timing gate.
+The suite grew from 255 to 266 tests with the overlays, and to 289 with the
+toggles and the outline, and all pass with gradio 5.45.0.  The overlay tests cover
+the two gates on the rendered pixels, the projector's shadow against the rims, the
+shape checks of both arrays, removal of each overlay, the animated rule, a
+comparison added and removed with overlays drawn, and the timing gate.  The
+toggle tests cover each toggle's effect, the check buttons following the setters,
+a hidden sinogram through a view change, the toggles after a partial redraw, the
+widget row's layout, the wire box's corners, the top view's outline, and their
+removal.

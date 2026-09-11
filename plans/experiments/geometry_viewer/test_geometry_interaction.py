@@ -22,6 +22,16 @@ and removed.  The last of them measures the Increment 4 timing gate again with
 a sinogram drawn: a slider step on the 1800-view scan of `gv4_timing.py` must
 stay under 100 ms.
 
+A later group covers the three overlay toggles of 2026-09-11.  Each toggle
+hides the artists of its own overlay and no others, and the state of each
+toggle follows its ``set_show_`` method and a click on the widget.  A toggle
+whose overlay is absent is built all the same and does nothing.  Hiding the
+sinogram takes its note out of the detector panel's title, and hiding the
+comparison leaves its numbers in the text panel.  The last of them renders the
+figure: a sinogram hidden and then stepped past twice must leave the detector
+panel's own background on the screen, which is what the partial-redraw path
+does with an artist that is animated and invisible at once.
+
 Later tests cover the display-test follow-up of 2026-09-09.  The labels on the
 source, the detector, and the pixel-0 marker exist in the panels that carry
 them, they follow the source when the view changes, and they are animated
@@ -608,6 +618,43 @@ def test_the_partial_redraw_matches_a_full_repaint(tmp_path):
         close(direct)
 
 
+def test_the_partial_redraw_leaves_the_six_toggles_painted():
+    """A view change repaints the slider row and leaves the toggles alone.
+
+    The partial redraw restores the cached background and paints an opaque
+    rectangle over the slider before drawing it again, because the slider's bar
+    moved and the background holds it where it was.  The six toggles do not
+    move with the view, so they belong to that background and must lie outside
+    the rectangle.  A toggle inside it would be painted over and not drawn
+    again, which would leave a blank place in the widget row after one step.
+    """
+    _, figure = build_figure(view_index=0)
+    try:
+        canvas = figure.figure.canvas
+        canvas.draw()
+        before = np.asarray(canvas.buffer_rgba()).copy()
+        figure.set_view(3)
+        after = np.asarray(canvas.buffer_rgba()).copy()
+        assert (before != after).any(), 'the step painted nothing'
+
+        height = before.shape[0]
+        renderer = canvas.get_renderer()
+        for check in (figure.trajectory_check, figure.zoom_check,
+                      figure.reference_check, figure.sinogram_check,
+                      figure.recon_check, figure.compare_check):
+            box = check.ax.get_window_extent(renderer)
+            # The rendered array's first row is the top of the figure, and a
+            # display box measures its height from the bottom.
+            rows = slice(height - int(np.ceil(box.y1)), height - int(box.y0))
+            columns = slice(int(box.x0), int(np.ceil(box.x1)))
+            assert np.array_equal(before[rows, columns],
+                                  after[rows, columns]), (
+                f'the step repainted the {check.labels[0].get_text()!r} '
+                'toggle')
+    finally:
+        close(figure)
+
+
 @pytest.mark.parametrize('name', list(CONFIGS_BY_NAME))
 def test_every_geometry_takes_every_control(name, tmp_path):
     """Each of the six geometries survives the slider, the toggles, and a
@@ -952,6 +999,286 @@ def test_a_slider_step_with_a_sinogram_stays_under_the_gate():
         assert times.mean() < STEP_GATE_MS, (
             f'a slider step took {times.mean():.1f} ms on average, against '
             f'a gate of {STEP_GATE_MS:.0f} ms')
+    finally:
+        close(figure)
+
+
+# ── the three overlay toggles ───────────────────────────────────────────────
+
+#: How dark a pixel must be, in summed red, green, and blue out of 765, to
+#: count as painted by the sinogram of
+#: ``test_a_hidden_sinogram_is_not_drawn_after_a_view_change``.  That sinogram
+#: is zeros but for one pixel, and zero is black in the gray colormap, so the
+#: painted image covers the detector face in black.
+DARK_SUM = 100
+
+#: What fraction of the sinogram image's area is that dark with the sinogram
+#: painted, and what fraction may be with the sinogram hidden.  The panel draws
+#: its detector-iso marker in near black over the same area, which is the few
+#: pixels the second number allows.
+DARK_FRACTION_PAINTED = 0.5
+DARK_FRACTION_HIDDEN = 0.01
+
+
+def overlay_figure(name='cone flat', **kwargs):
+    """A figure with all three overlays installed.
+
+    The sinogram and the phantom are the arrays of ``overlay_arrays`` and the
+    comparison is the ten-channel offset the other comparison tests use.
+    """
+    scene, figure = build_figure(name, **kwargs)
+    sinogram, recon = overlay_arrays(scene)
+    figure.set_sinogram(sinogram)
+    figure.set_recon(recon)
+    figure.set_compare(compare_overrides(scene))
+    return scene, figure
+
+
+def overlay_artists(figure):
+    """The artists each overlay toggle governs, by the name of its toggle.
+
+    The comparison's source path is left out, because it answers to the
+    source-path toggle as well;
+    ``test_the_comparison_path_follows_both_toggles`` covers it.
+    """
+    paths = [line for _, line in figure._compare_trajectory_lines]
+    return {
+        'sinogram': [figure._sinogram_image],
+        'phantom': [artist for _, artist in
+                    figure._recon_images + figure._recon_outlines],
+        'comparison': [artist for _, artist in
+                       figure._compare_moving + figure._compare_static
+                       if artist not in paths],
+    }
+
+
+def test_each_overlay_toggle_hides_and_shows_its_artists():
+    """Each toggle hides the artists of its own overlay and no others.
+
+    Hiding removes nothing, so the counts do not change and showing the
+    overlay again costs no rebuilding.  The phantom's toggle governs its two
+    fills, its outline in each projected panel, and its wire box in the 3D
+    panel, because those are one drawing of one array.
+    """
+    _, figure = overlay_figure()
+    try:
+        groups = overlay_artists(figure)
+        assert len(groups['phantom']) == 5, 'two fills, two outlines, a box'
+        assert groups['comparison']
+
+        for name, setter in (('sinogram', figure.set_show_sinogram),
+                             ('phantom', figure.set_show_recon),
+                             ('comparison', figure.set_show_compare)):
+            setter(False)
+            assert not any(artist.get_visible() for artist in groups[name])
+            others = [artist for key, group in groups.items() if key != name
+                      for artist in group]
+            assert all(artist.get_visible() for artist in others), name
+            setter(True)
+            assert all(artist.get_visible() for artist in groups[name])
+        # Nothing was removed, so the artists are the ones we started with.
+        assert overlay_artists(figure) == groups
+    finally:
+        close(figure)
+
+
+def test_the_overlay_toggles_and_the_set_show_methods_agree():
+    """get_status of each toggle follows its set_show_ method, and a click on
+    the toggle changes the figure's state.
+
+    A click is made the way the widget makes one: ``set_active`` moves the
+    button and calls the handler.  The handler is then called again by hand, so
+    that the test covers the handler itself and not only the method it calls.
+    """
+    _, figure = overlay_figure()
+    try:
+        toggles = (('sinogram', figure.sinogram_check,
+                    figure.set_show_sinogram, figure._on_sinogram_check,
+                    lambda: figure.show_sinogram),
+                   ('phantom', figure.recon_check, figure.set_show_recon,
+                    figure._on_recon_check, lambda: figure.show_recon),
+                   ('comparison', figure.compare_check,
+                    figure.set_show_compare, figure._on_compare_check,
+                    lambda: figure.show_compare))
+        for label, check, setter, handler, state in toggles:
+            assert state() is True, label
+            assert check.get_status()[0] is True, label
+
+            setter(False)
+            assert state() is False
+            assert check.get_status()[0] is False, label
+
+            # Clicking the toggle turns the overlay back on.
+            check.set_active(0)
+            handler(label)
+            assert state() is True, label
+            assert check.get_status()[0] is True, label
+    finally:
+        close(figure)
+
+
+def test_a_toggle_whose_overlay_is_absent_does_nothing():
+    """A figure with no overlay has the three toggles all the same.
+
+    The toggles are built whatever data the figure holds, so an array added
+    later has its toggle ready and in the state the toggle is showing.
+    """
+    scene, figure = build_figure()
+    try:
+        assert figure.sinogram_check is not None
+        assert figure.recon_check is not None
+        assert figure.compare_check is not None
+        assert figure._sinogram_image is None
+        assert figure.compare_scene is None
+
+        figure.set_show_sinogram(False)
+        figure.set_show_recon(False)
+        figure.set_show_compare(False)
+        assert figure.show_sinogram is False
+        assert figure.show_recon is False
+        assert figure.show_compare is False
+        # The figure still redraws, with nothing to hide.
+        figure.set_view(2)
+        assert figure.view_index == 2
+
+        # An array given now is installed hidden, because the toggle says so.
+        sinogram, recon = overlay_arrays(scene)
+        figure.set_sinogram(sinogram)
+        figure.set_recon(recon)
+        assert figure._sinogram_image.get_visible() is False
+        assert not any(artist.get_visible() for _, artist
+                       in figure._recon_images + figure._recon_outlines)
+        figure.set_show_sinogram(True)
+        assert figure._sinogram_image.get_visible() is True
+    finally:
+        close(figure)
+
+
+def test_hiding_an_overlay_leaves_its_numbers_in_the_text_panel():
+    """The sinogram's title note follows its toggle and the comparison's
+    numbers do not.
+
+    The detector panel's title names a painted sinogram, so hiding the
+    sinogram takes the note out of it, and the footer names only the overlays
+    drawn.  The comparison is the other way: the drawing is hidden and the
+    parameters stay, because those are the numbers a calibration user is
+    reading.  The heading of that block says the drawing is hidden.
+    """
+    _, figure = overlay_figure()
+    try:
+        assert 'with sinogram' in figure.ax_detector.get_title()
+        assert 'overlays : sinogram' in figure._footer_text.get_text()
+
+        figure.set_show_sinogram(False)
+        figure.set_show_recon(False)
+        assert 'with sinogram' not in figure.ax_detector.get_title()
+        assert 'overlays' not in figure._footer_text.get_text()
+
+        block = figure._compare_text.get_text()
+        assert 'det_channel_offset' in block
+        assert 'hidden' not in block.splitlines()[0]
+        figure.set_show_compare(False)
+        block = figure._compare_text.get_text()
+        assert 'hidden' in block.splitlines()[0]
+        assert 'det_channel_offset' in block
+        # The comparison window stays open, because it holds the numbers too.
+        import matplotlib.pyplot as plt
+        assert plt.fignum_exists(figure.compare_figure.number)
+    finally:
+        close(figure)
+
+
+def test_the_comparison_path_follows_both_toggles():
+    """The comparison's source path is drawn only with both toggles on.
+
+    The path belongs to the comparison and to the source-path toggle, so
+    either one hides it.
+    """
+    scene, figure = build_figure('cone helical', show_trajectory=True)
+    try:
+        figure.set_compare(compare_overrides(scene))
+        lines = [line for _, line in figure._compare_trajectory_lines]
+        assert lines and all(line.get_visible() for line in lines)
+
+        figure.set_show_compare(False)
+        assert not any(line.get_visible() for line in lines)
+        figure.set_show_compare(True)
+        assert all(line.get_visible() for line in lines)
+
+        figure.set_show_trajectory(False)
+        assert not any(line.get_visible() for line in lines)
+        # With the path off, turning the comparison on leaves the path off.
+        figure.set_show_compare(False)
+        figure.set_show_compare(True)
+        assert not any(line.get_visible() for line in lines)
+    finally:
+        close(figure)
+
+
+def rendered_figure(figure):
+    """The figure drawn, as an array of red, green, and blue values.
+
+    A draw on a blitting backend paints the background and then the moving
+    artists, so the buffer holds both by the time it is read.
+    """
+    canvas = figure.figure.canvas
+    canvas.draw()
+    return np.asarray(canvas.buffer_rgba())[:, :, :3].astype(np.int16)
+
+
+def dark_fraction(rendered, box):
+    """What fraction of one display box is painted near black."""
+    height, width = rendered.shape[:2]
+    horizontal = np.arange(width)[None, :] + 0.5
+    # The rendered array's first row is the top of the figure, and a display
+    # box measures its height from the bottom.
+    vertical = height - np.arange(height)[:, None] - 0.5
+    inside = ((horizontal >= box.x0) & (horizontal <= box.x1)
+              & (vertical >= min(box.y0, box.y1))
+              & (vertical <= max(box.y0, box.y1)))
+    dark = (rendered.sum(axis=2) < DARK_SUM) & inside
+    return float(dark.sum()) / float(max(inside.sum(), 1))
+
+
+def test_a_hidden_sinogram_is_not_drawn_after_a_view_change():
+    """A hidden sinogram stays hidden through the partial-redraw path.
+
+    The sinogram's image is a moving artist, and on a blitting backend a
+    moving artist is marked animated, which keeps it out of a full draw and
+    leaves it to ``_draw_moving_and_blit``.  That routine draws an artist
+    through its axes, which is a path a full draw does not take, so hiding the
+    image has to stop it there too.  It does, twice over: the routine draws
+    only the artists that report themselves visible, and matplotlib's own draw
+    returns at once for an invisible artist.
+
+    The check is the rendered figure and not only the flag.  The sinogram is
+    zeros but for one pixel, and zero is black in the gray colormap, so a
+    painted sinogram covers the detector face in black and a hidden one leaves
+    the panel's own light background.
+    """
+    scene, figure = build_figure()
+    try:
+        assert figure._blit_usable(), 'the fast path is what this test covers'
+        sinogram = np.zeros(scene.sinogram_shape, dtype=np.float32)
+        sinogram[0, 0, 0] = 1.0
+        figure.set_sinogram(sinogram)
+        assert figure._sinogram_image.get_animated() is True
+
+        rendered = rendered_figure(figure)
+        box = figure._sinogram_image.get_window_extent(
+            figure.figure.canvas.get_renderer())
+        assert dark_fraction(rendered, box) > DARK_FRACTION_PAINTED
+
+        figure.set_show_sinogram(False)
+        figure.set_view(1)
+        figure.set_view(2)
+        assert figure.view_index == 2
+        assert figure._sinogram_image.get_visible() is False
+        # The image still holds the view the slider is on, so the step did run.
+        drawn = np.asarray(figure._sinogram_image.get_array())
+        assert np.array_equal(drawn, sinogram[2])
+        rendered = rendered_figure(figure)
+        assert dark_fraction(rendered, box) < DARK_FRACTION_HIDDEN
     finally:
         close(figure)
 

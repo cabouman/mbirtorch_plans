@@ -18,15 +18,20 @@ panel of derived numbers.  Every panel is drawn with negative z at the top, and
 the top and side views put y to the left, so the source of a view at angle 0 is
 on the left and the detector is on the right.
 
-The controls.  A slider steps through the views, and three toggles sit beside
-it.  "source path" draws the source's trajectory over all views.  "3D zoom to
+The controls.  A slider steps through the views, and six toggles sit beside it
+in two rows of three.  The top row changes the drawing of the geometry.
+"source path" draws the source's trajectory over all views.  "3D zoom to
 volume" switches the 3D panel between the whole scan and a cube around the
 volume.  "angle-0 reference", on by default, draws the source and the detector
 at their zero-angle position as faint dotted outlines, with a dotted central
-ray whose arrowhead shows the projection direction at angle 0.  The 3D panel
-can be rotated with the mouse.  The script ends when every window it opened is
-closed, which is the figure and, when ``COMPARE`` is set, the comparison table
-beside it.
+ray whose arrowhead shows the projection direction at angle 0.  The bottom row
+turns each overlay on and off: "sinogram" the painted sinogram, "phantom" the
+phantom's silhouette and outlines, and "comparison" the second geometry.  Each
+of those three hides a drawing and removes nothing, so turning one back on
+costs no rebuilding, and a toggle whose overlay this run does not build is
+drawn all the same and does nothing.  The 3D panel can be rotated with the
+mouse.  The script ends when every window it opened is closed, which is the
+figure and, when ``COMPARE`` is set, the comparison table beside it.
 
 To view your own model instead, pass it to ``geometry_viewer`` in place of the
 model this script builds, for example the one that a scanner reader returns:
@@ -46,8 +51,11 @@ alone.  With either one True the script builds a phantom, and with
 ``SHOW_SINOGRAM`` it also forward projects that phantom, which takes about a
 second for the scan built here.  The sinogram is then painted on the detector
 face, one view at a time, and the phantom is drawn as a silhouette in the
-volume box of the top view and the side view.  Together they show whether the
-object's shadow stays on the detector, which the geometry alone cannot say.
+volume box of the top view and the side view, with the outline of that
+silhouette over it and a wire box in the 3D panel.  Together they show whether
+the object's shadow stays on the detector, which the geometry alone cannot say.
+The two constants say what the figure is built with, and the toggles in the
+widget row turn the same two overlays on and off once the window is open.
 """
 
 import numpy as np
@@ -109,8 +117,8 @@ SHOW_TRAJECTORY = True
 # side view.  Both are False so that the example opens on the geometry alone;
 # turning either one on adds about a second to the start, which is what the
 # projection costs.
-SHOW_SINOGRAM = False
-SHOW_RECON = False
+SHOW_SINOGRAM = True
+SHOW_RECON = True
 
 
 # ── one builder per geometry ─────────────────────────────────────────────────

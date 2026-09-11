@@ -199,8 +199,10 @@ painting a synthetic sinogram with one bright pixel at a known row and channel.
 Done 2026-09-11: `sinogram=` and `recon=` on `GeometryFigure` and `geometry_viewer`,
 with `set_sinogram` and `set_recon`; the gate passes on the rendered pixels, a
 forward-projected phantom lands inside the drawn rims, and a slider step with a
-sinogram takes 25 ms on the 1800-view model.  The 3D panel draws neither overlay.
-The record is `gv7_data_overlays_findings.md`.
+sinogram takes 25 ms on the 1800-view model.  Later the same day (Greg's request):
+three toggles show and hide the sinogram, the phantom, and the comparison, and the
+phantom is also drawn as an outline in the top and side views and as a wire box in
+the 3D panel.  The record is `gv7_data_overlays_findings.md`.
 
 **Increment 6.  The port.**  Move the scene and viewer into mbirtorch, add the entry
 point, a demo, a docs page, and the API specification row.  This increment runs in
@@ -282,10 +284,9 @@ with the shim to paste, is `gradio_lite_space_guide.md` in this directory.
   Done 2026-09-10: the statement tests the cylinder's two rims when the mask is on,
   and the detector face draws them.  The cylinder is the mask's own ellipse, through
   the centers of the outermost voxels, which a forward projection confirmed on
-  2026-09-11.  The automatically sized cone scan fits in channels and still reads
-  "no" by 6.8 rows, and the findings page says why that is the honest answer;
-  whether to add a statement about the field of view at the isocenter is a question
-  for Greg.
+  2026-09-11.  The statement is two rows, "lateral fit" and "axial fit" (Greg,
+  2026-09-11).  The automatically sized cone scan fits laterally and misses axially
+  by 6.8 rows, and the findings page says why that is the honest answer.
 - **The web page fixes the 3D camera.**  The figure is an image there, so it cannot
   be rotated.  Two numbers for the camera angles, which `GeometryFigure` already
   accepts, would give the page what the mouse gives the desktop.
@@ -302,6 +303,10 @@ with the shim to paste, is `gradio_lite_space_guide.md` in this directory.
   note is six lines, and the block placement then runs the static block's last line
   into the comparison header.  A shorter note for the parallel-type geometries, or a
   placement that keeps the blank line at the floor, would fix it.
+  Done 2026-09-11: the scene's drawing notes are shorter, the two convention notes
+  share a line, and the comparison block drops its sentence about the derived
+  quantities before it drops a parameter entry.  The multiaxis and parallel examples
+  with a comparison now sit above the floor, at 5.1 points, with every block whole.
 - **The slider has run only under the Agg backend.**  The partial-redraw path
   follows the slice viewer's, but it has not been watched on a screen.  Greg's use
   of the viewer is the first display test, before any port.
@@ -317,6 +322,15 @@ with the shim to paste, is `gradio_lite_space_guide.md` in this directory.
   two, and in the multiaxis geometry the channel-offset label reaches the source's
   marker.  The top view needs a placement pass of its own, after which the overlap
   test can cover it at several views as it now covers the side view.
+  Done 2026-09-11: three placement rules and shorter offset labels ("chan offset",
+  "row offset") clear the top view at views 0, 4, and 7 of every geometry, and the
+  overlap test measures the top view at view 0.  Seven transient collisions remain
+  at other views, listed in `gv6_review_items_findings.md`; Greg's decision is that
+  a label clear in most views need not be clear in every view.
+- **The detector-face legend covered the panel's content.**  Found by Greg,
+  2026-09-11.  Done the same day: the legend sits in a band under the panel, two
+  rows of three entries, measured against every panel and the widgets in every
+  geometry, with and without a comparison and a sinogram.
 
 ## Risks and open questions
 

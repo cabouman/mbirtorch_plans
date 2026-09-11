@@ -49,8 +49,7 @@ narrows toward the source.  The top rim on the source side is closer to the sour
 than the isocenter is, so it is magnified more and projects above the detector's
 first row.  That miss is a real property of a cone-beam scan whose volume is sized
 from the field of view at the isocenter.  The honest statement for this scan is
-therefore "no (cylinder, 6.8 px over)", and the text panel now says where the miss
-is.  Whether a second statement about the field of view at the isocenter would
+therefore "lateral fit : yes (cylinder)" and "axial fit : no (6.8 px over)".  Whether a second statement about the field of view at the isocenter would
 serve users better is a question for Greg.
 
 The cylinder's semi-axes were corrected on the way.  The scene had drawn the
@@ -64,10 +63,13 @@ the larger ellipse misses by about one channel.  The scene now uses the mask's
 ellipse, which is the projector's own, and the half channel is gone.  The record is
 `gv7_data_overlays_findings.md`.
 
-Two rows follow the statement in the text panel.  "leaves det in views" counts the
-views in which the shape reaches past any detector edge, which separates a scan
-that misses everywhere from one that misses in a few views.  "swept z at axis" is
-printed for helical scans only and is explained in the next section.
+The text panel gives the statement in two rows, "lateral fit" and "axial fit",
+because one answer would hide which direction misses (Greg, 2026-09-11).  The
+lateral row is about the channels and names the shape tested.  The axial row is
+about the rows or, for a helical scan, about the swept coverage explained in the
+next section, whose range it prints.  A third row, "leaves det in views", counts
+the views in which the shape reaches past any detector edge, which separates a
+scan that misses everywhere from one that misses in a few views.
 
 ## The helical rule
 
@@ -157,6 +159,49 @@ The multiaxis example still reaches the text panel's font floor of 5 points
 with a comparison, because its drawing note is six lines long.  At the floor the
 static block's last line touches the comparison header.  That is a
 placement fault that predates the window; the plan lists it.
+
+## The top view's labels and the detector-face legend
+
+The extended overlap test had found seven collisions in the top view at other
+views, and Greg found that the detector-face legend covered the panel's content.
+A placement pass on 2026-09-11 addressed both.  The pass was guided by Greg's rule:
+remove the systematic collisions with placement rules, but a label that is clear in
+most views and touches another in a few is acceptable, because the labels move
+with the view.
+
+Three rules and one wording change did the work.  The pixel (0, 0) label sits on
+the side of its marker away from the detector iso, so that it reads outward from
+the end of the detector while the iso's labels stack inward.  The "source travel"
+label sits on the side of the arc's end away from the source.  The two offset
+labels read "chan offset" and "row offset" instead of the full parameter names,
+which stay in the text panel; the shorter row label also removed two side-view
+collisions in the multiaxis example.  Counting label-label, marker-label, and
+out-of-panel faults over the three panels: at the three views the test measures,
+11 before and 0 after; over all eight views of the probe configurations, 27 before
+and 7 after.  The test now measures the top view at view 0, the view a figure
+opens with, and the side view at three views.  The seven that remain are all at
+views the test does not measure: the channel-offset label over the pixel (0, 0)
+label at view 5 of the flat and helical cone scans, where the detector is drawn
+under the angle-0 caption; the pixel (0, 0) label 2.3 pixels past the panel's top
+edge at view 3 of the curved cone scan; the detector's label over the angle-0
+caption at view 6 of the parallel scan; and the source's label over the detector's
+at view 5 of the two cone scans in the side view.
+
+The detector-face legend sits in a band under the panel, two rows of three
+entries.  The panel gives up the bottom of its grid cell for the band, and because
+the panel holds an equal aspect, only the curved cone scan's panel shrinks, from
+3.53 by 2.79 inches to 3.06 by 2.42.  The legend's place was measured against the
+five panels, the slider, the toggles, and the figure's edge in every geometry, with
+and without a comparison and a sinogram, at the desktop size and the web size, and
+it overlaps nothing.  A new test repeats that measurement.
+
+The text panel's font floor was reached less often after the same day's fit rows
+added a line.  The scene's drawing notes were shortened, the two convention notes
+share one line, and the comparison block drops its sentence about the derived
+quantities before it drops a parameter entry, since the window holds everything.
+At the web figure's size the cone scan with a comparison keeps its parameter line
+and the sentence, at the 5 point floor, and the multiaxis and parallel examples
+with a comparison sit above the floor at 5.1 points with every block whole.
 
 ## Tests
 

@@ -1425,10 +1425,17 @@ class GeometryScene:
             two groups of views reads False even though the gap lies between
             ``swept_z_min`` and ``swept_z_max``.
 
-            ``fits``: the answer.  Without the helical rule it is True when the
-            shape lands inside the detector in every view.  With the helical
-            rule it is True when the channel overshoot is zero in every view
-            and ``z_extent_covered`` is True.
+            ``fits_laterally``: whether the shape stays inside the detector's
+            channel range in every view.
+
+            ``fits_axially``: whether the shape stays inside the detector's row
+            range in every view or, under the helical rule, whether
+            ``z_extent_covered`` is True.
+
+            ``fits``: the answer, which is both of the two above.  Without the
+            helical rule it is True when the shape lands inside the detector in
+            every view.  With the helical rule it is True when the channel
+            overshoot is zero in every view and ``z_extent_covered`` is True.
         """
         points = self.fit_points()
         num_shape_points = int(points.shape[0])
@@ -1470,12 +1477,17 @@ class GeometryScene:
 
         worst = max(worst_row, worst_channel)
         helical_rule = self.kind == 'cone' and self.helical_travel() > 0.0
-        if helical_rule:
-            fits = worst_channel <= 0.0 and covered
-        else:
-            fits = worst <= 0.0
+        # The lateral question is the same for every scan.  The axial question
+        # is about the rows for a scan that does not travel, and about the
+        # swept coverage for one that does (Greg, 2026-09-11: the two answers
+        # are reported separately).
+        fits_laterally = worst_channel <= 0.0
+        fits_axially = covered if helical_rule else worst_row <= 0.0
+        fits = fits_laterally and fits_axially
         return dict(
             shape=self.fit_shape(),
+            fits_laterally=bool(fits_laterally),
+            fits_axially=bool(fits_axially),
             worst_overshoot_pixels=float(worst),
             worst_channel_overshoot_pixels=float(worst_channel),
             worst_row_overshoot_pixels=float(worst_row),
@@ -1599,7 +1611,9 @@ class GeometryScene:
             ``helical_travel_alu``: the range of the per-view z shifts.
 
             ``volume_fits_detector``: whether the detector covers the region
-            the scan reconstructs, which is :meth:`fit_report`'s ``fits``.
+            the scan reconstructs, which is :meth:`fit_report`'s ``fits``, and
+            ``fits_laterally`` and ``fits_axially`` are its two halves, the
+            channel question and the row or swept-coverage question.
             ``fit_shape`` names the shape that was tested,
             ``worst_overshoot_pixels`` says by how much the worst point of it
             misses the detector, ``worst_channel_overshoot_pixels`` and
@@ -1647,6 +1661,8 @@ class GeometryScene:
             detector_center_v=float(-self.row_offset),
             helical_travel_alu=travel,
             volume_fits_detector=fit['fits'],
+            fits_laterally=fit['fits_laterally'],
+            fits_axially=fit['fits_axially'],
             fit_shape=fit['shape'],
             worst_overshoot_pixels=fit['worst_overshoot_pixels'],
             worst_channel_overshoot_pixels=fit[
@@ -1663,33 +1679,28 @@ class GeometryScene:
         return quantities
 
     def drawing_note(self):
-        """One sentence naming every position in the drawing that is a choice."""
-        notes = []
+        """A short note naming every position in the drawing that is a choice.
+
+        The note is printed in the viewer's text panel, which has room for a
+        few lines only, so each version is as short as its facts allow (the
+        panel ran out of room on 2026-09-11 with the longer versions).
+        """
         if self.kind == 'parallel':
-            notes.append('The parallel geometry has no source position and its '
-                         'detector plane may sit anywhere along the rays, so '
-                         'both are drawn at the drawing distance from the '
-                         'volume.  The row pitch drawn is delta_voxel, because '
-                         'delta_det_row and det_row_offset take no part in a '
-                         'parallel projection.')
-        elif self.kind == 'multiaxis':
-            side = ('the +y side' if self.multiaxis_source_on_plus_y
-                    else 'the -y side')
-            notes.append('The multiaxis geometry has no source position, so '
-                         'the source and the detector are drawn at the drawing '
-                         f'distance from the volume, with the source on {side}. '
-                         'Which end of a ray holds the source is a convention, '
-                         'because a parallel projection is the same in both '
-                         'directions.')
-        elif self.kind == 'cone' and self.is_parallel_type:
-            notes.append('The source-detector distance is infinite, so the '
-                         'magnification is one and neither the source nor the '
-                         'detector has a finite position.  Both are drawn at '
-                         'the drawing distance from the volume.')
-        else:
-            notes.append('Every position in this drawing is a physical '
-                         'position taken from the parameters.')
-        return '  '.join(notes)
+            return ('Source and detector positions are drawing choices, at '
+                    'the drawing distance.  Rows are drawn at the delta_voxel '
+                    'pitch; delta_det_row and det_row_offset take no part in '
+                    'a parallel projection.')
+        if self.kind == 'multiaxis':
+            side = '+y' if self.multiaxis_source_on_plus_y else '-y'
+            return ('Source and detector positions are drawing choices, at '
+                    f'the drawing distance, with the source on the {side} '
+                    'side by convention: a parallel projection is the same '
+                    'from both ends.')
+        if self.kind == 'cone' and self.is_parallel_type:
+            return ('The source-detector distance is infinite: the '
+                    'magnification is one, and both positions are drawing '
+                    'choices at the drawing distance.')
+        return 'Every position drawn is taken from the parameters.'
 
     # ------------------------------------------------------------------
     # Comparing two scenes
