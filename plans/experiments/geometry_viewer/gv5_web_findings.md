@@ -519,19 +519,20 @@ top of the ``mbirtorch`` conda environment, which lacks gradio and Playwright.
 
 ### The Space files, and the acceptance list
 
-``web/lite/`` was rebuilt, and its three files are the Space's files.  The
-two that changed, ``index.html`` and ``README.md``, were copied into the Space
-checkout and committed there on 2026-09-10; the push to Hugging Face needs
-Greg's credentials, which this session did not hold, so the Space still
-serves the failing page until he pushes.  ``index.html`` carries the shim,
-the pinned versions, and the four Python modules with the ``AXLIM_CLIP``
-change.  The README no longer says that the
+``web/lite/`` was rebuilt, and its three files are the Space's files.  They
+were copied into the Space checkout and committed there, and Greg pushed them
+on 2026-09-10.  The live Space was then driven in the same headless Chromium
+as the local page, with the same result: the first figure 11 s after the page
+loads, renders of 360 to 435 ms, the slider and the dropdown at 0.8 s, and
+the "Nothing drawn" message for a view count of zero followed by a new figure
+0.8 s after the count is set again.  ``index.html`` carries the shim, the
+pinned versions, and the four Python modules with the ``AXLIM_CLIP`` change.  The README no longer says that the
 page was not tested, and it describes the pins.  The acceptance list of the
 Thingy Repository stands as before: the README metadata has ``license:
 bsd-3-clause`` and a one-line ``short_description``, and ``icon.png`` is a
 400 by 400 pixel tile at the Space root.  The remaining item, that the Space
 runs when opened, is what the evidence above establishes for a browser on this
-machine.
+machine, for the local page and for the live Space.
 
 ### If the page breaks again
 

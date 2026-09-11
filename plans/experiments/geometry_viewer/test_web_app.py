@@ -29,6 +29,7 @@ import os
 import re
 import socket
 import sys
+import textwrap
 import time
 import types
 
@@ -383,6 +384,27 @@ def test_the_static_page_holds_the_runtime_dependencies_at_fixed_versions(
     for anchor in (build_web.LITE_WHEEL_INSTALL, build_web.LITE_RUN_SYNC_MOCK):
         assert anchor.replace('"', '\\"') in text
     assert 'Lite runtime shim' in text
+
+
+#: The guide for other Thingy builders, which carries a copy of the shim.
+GUIDE = os.path.join(HERE, '..', '..', 'features', 'geometry_viewer',
+                     'gradio_lite_space_guide.md')
+
+
+def test_the_guide_carries_the_same_shim_as_the_page():
+    """The shim pasted into the guide is the one the page is built with.
+
+    The guide is what other builders copy, so its copy must not drift from the
+    build.  The guide holds the shim without the four spaces of indentation
+    the page gives it.
+    """
+    with open(GUIDE, 'r', encoding='utf-8') as handle:
+        guide = handle.read()
+    start = guide.index('```html\n<script>')
+    end = guide.index('</script>\n```', start) + len('</script>')
+    in_guide = guide[start + len('```html\n'):end]
+    built = textwrap.dedent(build_web.lite_shim(build_web.read_lite_pins()))
+    assert in_guide == built.rstrip('\n')
 
 
 def test_the_icon_is_a_square_tile(built):

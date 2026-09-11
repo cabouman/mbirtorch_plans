@@ -251,8 +251,10 @@ at their releases of 2025-09-10 and gives gradio's queue a thread-free runner, t
 viewer guards the argument, and under Pyodide the app reports an invalid value in its
 status line instead of raising.  The page runs in a headless Chromium: the first figure
 appears 13 s after the page loads and a render takes about 0.4 s in the browser.  The
-record is the last section of `gv5_web_findings.md`.  Greg's browser is the acceptance
-check that remains, and the Space is re-uploaded from `web/lite/`.
+record is the last section of `gv5_web_findings.md`.  The Space was re-uploaded from
+`web/lite/` the same day and runs, with the same times, in the headless browser; Greg's
+own browser is the acceptance check that remains.  A guide for other Thingy builders,
+with the shim to paste, is `gradio_lite_space_guide.md` in this directory.
 
 ## Open items from the Increment 4 review
 

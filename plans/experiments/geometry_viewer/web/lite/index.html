@@ -10,8 +10,9 @@
       // runtime resolves gradio's dependencies from PyPI at whatever versions
       // are current when the page loads, and three of them had moved on by
       // 2026-09-10, each stopping the page before the app started; the first
-      // patch holds the packages listed in web/lite_pins.txt at the releases
-      // that were current when the runtime was published.  gradio's queue
+      // patch holds gradio's dependencies at the releases that were current
+      // when the runtime was published, at the versions written into the
+      // patch below.  gradio's queue
       // keeps a thread runner that Pyodide cannot run, so one error in an
       // event handler stopped the queue for good; the second patch gives the
       // queue the runtime's own thread-free runner.  Nothing else changes.
