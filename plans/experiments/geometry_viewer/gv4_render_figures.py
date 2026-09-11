@@ -83,10 +83,16 @@ def base_scene():
 
 
 def save_and_close(figure, name):
-    """Write one figure and close it, returning the path written."""
+    """Write one figure and close it, returning the path written.
+
+    A figure with a comparison also owns a comparison window, which ``save``
+    writes beside the main file and which is closed here as well.
+    """
     import matplotlib.pyplot as plt
     path = figure.save(figure_path(name), dpi=DPI)
     plt.close(figure.figure)
+    if figure.compare_figure is not None:
+        plt.close(figure.compare_figure)
     return path
 
 

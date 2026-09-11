@@ -24,7 +24,9 @@ volume" switches the 3D panel between the whole scan and a cube around the
 volume.  "angle-0 reference", on by default, draws the source and the detector
 at their zero-angle position as faint dotted outlines, with a dotted central
 ray whose arrowhead shows the projection direction at angle 0.  The 3D panel
-can be rotated with the mouse.  Closing the window ends the script.
+can be rotated with the mouse.  The script ends when every window it opened is
+closed, which is the figure and, when ``COMPARE`` is set, the comparison table
+beside it.
 
 To view your own model instead, pass it to ``geometry_viewer`` in place of the
 model this script builds, for example the one that a scanner reader returns:
@@ -33,8 +35,19 @@ model this script builds, for example the one that a scanner reader returns:
     geometry_viewer(scan['model'])
 
 To compare two geometries, pass a second model or a dictionary of parameter
-overrides as ``compare``; the second geometry is drawn dashed and the text
-panel lists every parameter and derived quantity that differs.
+overrides as ``compare``.  The second geometry is then drawn dashed, and the
+text panel lists the parameters that differ and counts the derived quantities
+that differ.  A second window opens beside the figure, which tables every
+difference: the name, the primary geometry's value, and the comparison's.
+
+The two data overlays.  ``SHOW_SINOGRAM`` and ``SHOW_RECON`` add data to the
+drawing, and both are False by default, so the example opens with the geometry
+alone.  With either one True the script builds a phantom, and with
+``SHOW_SINOGRAM`` it also forward projects that phantom, which takes about a
+second for the scan built here.  The sinogram is then painted on the detector
+face, one view at a time, and the phantom is drawn as a silhouette in the
+volume box of the top view and the side view.  Together they show whether the
+object's shadow stays on the detector, which the geometry alone cannot say.
 """
 
 import numpy as np
@@ -89,6 +102,15 @@ COMPARE = dict(det_channel_offset=DET_CHANNEL_OFFSET + 10.0)
 
 VIEW_INDEX = 0
 SHOW_TRAJECTORY = True
+
+# The two data overlays.  With SHOW_SINOGRAM the script forward projects a
+# phantom and paints the result on the detector face.  With SHOW_RECON it draws
+# the same phantom as a silhouette in the volume box of the top view and the
+# side view.  Both are False so that the example opens on the geometry alone;
+# turning either one on adds about a second to the start, which is what the
+# projection costs.
+SHOW_SINOGRAM = False
+SHOW_RECON = False
 
 
 # ── one builder per geometry ─────────────────────────────────────────────────
@@ -209,10 +231,37 @@ def build_model(geometry=GEOMETRY):
     return model
 
 
+# ── the two data overlays ────────────────────────────────────────────────────
+
+def build_overlays(ct_model):
+    """The sinogram and the phantom the two overlay constants ask for.
+
+    Which phantom.  ``mbirtorch.gen_cube_phantom`` builds a block of ones a
+    quarter of the volume wide, and the block shifts sideways from one slice to
+    the next.  It is used because it is neither centered nor symmetric.  A ball
+    at the center would look the same however the drawing turned it, while this
+    block shows in the top view which way x and y run and in the side view how
+    far the slices carry it.
+
+    Args:
+        ct_model: the model the viewer is opened on.
+
+    Returns:
+        (sinogram, recon): the sinogram of the phantom and the phantom itself,
+        each None when its constant is False.
+    """
+    if not (SHOW_SINOGRAM or SHOW_RECON):
+        return None, None
+    phantom = mbirtorch.gen_cube_phantom(ct_model.get_params('recon_shape'))
+    sinogram = ct_model.forward_project(phantom) if SHOW_SINOGRAM else None
+    return sinogram, phantom if SHOW_RECON else None
+
+
 # ── Show it ──────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
     ct_model = build_model(GEOMETRY)
+    sino, recon_volume = build_overlays(ct_model)
     geometry_viewer(ct_model, view_index=VIEW_INDEX,
                   show_trajectory=SHOW_TRAJECTORY, compare=COMPARE,
-                  block=True)
+                  sinogram=sino, recon=recon_volume, block=True)

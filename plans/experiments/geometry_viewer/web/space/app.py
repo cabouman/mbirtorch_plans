@@ -8,7 +8,8 @@ slider steps through the views.  Three checkboxes turn the source's path, the
 3D zoom to the volume, and the angle-0 reference on and off.  A comparison
 section draws a second geometry over the first from a few parameter overrides,
 which is the calibration use: a vendor geometry against the same geometry with
-an estimated offset.
+an estimated offset.  A comparison also fills a second plot under the status,
+which tables every difference between the two geometries.
 
 Where the numbers come from.  ``geometry_defaults.default_parameters`` builds
 the complete parameter dictionary, including the reconstruction shape and the
@@ -72,6 +73,12 @@ for _directory in (_HERE, os.path.dirname(_HERE)):
 import geometry_defaults  # noqa: E402
 from geometry_scene import GeometryScene, required_parameter_names  # noqa: E402
 from geometry_viewer import GeometryFigure  # noqa: E402
+# The viewer's default 3D camera, under names of their own: this module's
+# DEFAULT_ELEVATION_DEG below is the multiaxis scan's elevation, another
+# angle altogether, and the two must not share a name.
+from geometry_viewer import (  # noqa: E402
+    DEFAULT_ELEVATION_DEG as CAMERA_ELEVATION_DEG,
+    DEFAULT_AZIMUTH_DEG as CAMERA_AZIMUTH_DEG)
 
 # ── the page's fixed choices ─────────────────────────────────────────────────
 
@@ -230,6 +237,7 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
            angle_start_deg, angle_end_deg, elevation_deg, helical_travel,
            num_x_translations, num_z_translations, x_spacing, z_spacing,
            view_index, show_trajectory, zoom_to_volume, show_reference,
+           camera_elevation_deg, camera_azimuth_deg,
            compare_enabled, compare_text, recon_rows, recon_cols,
            recon_slices):
     """Draw one figure and return it with a short status.
@@ -241,10 +249,16 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
     Gradio-Lite shows every exception a handler raises in a window with the
     Python traceback in front of the page.
 
+    The third value is the comparison table.  On the desktop the viewer puts
+    that table in a second window; here it is a second plot, which the page
+    shows only while a comparison is drawn.
+
     Returns:
-        (Figure or dict, str): the matplotlib figure the plot component shows,
-        or ``gr.update()`` to keep the figure it has, and the markdown of the
-        status block.
+        (Figure or dict, str, dict): the matplotlib figure the plot component
+        shows, or ``gr.update()`` to keep the figure it has; the markdown of
+        the status block; and an update for the comparison plot, which carries
+        the comparison figure when there is one and hides the component when
+        there is not.
     """
     started = time.perf_counter()
     try:
@@ -270,17 +284,25 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
                 show_trajectory=bool(show_trajectory),
                 zoom='volume' if zoom_to_volume else 'scan',
                 show_reference=bool(show_reference), compare=overrides,
+                elevation_deg=_camera_angle(camera_elevation_deg,
+                                            CAMERA_ELEVATION_DEG),
+                azimuth_deg=_camera_angle(camera_azimuth_deg,
+                                          CAMERA_AZIMUTH_DEG),
                 figsize=WEB_FIGSIZE, widgets=False, blit=False)
     except gr.Error as problem:
         if running_in_pyodide():
-            return gr.update(), _refusal_markdown(problem.message)
+            return gr.update(), _refusal_markdown(problem.message), gr.update()
         raise
     except (ValueError, TypeError, KeyError) as problem:
         if running_in_pyodide():
-            return gr.update(), _refusal_markdown(str(problem))
+            return gr.update(), _refusal_markdown(str(problem)), gr.update()
         raise gr.Error(str(problem))
     elapsed_ms = 1000.0 * (time.perf_counter() - started)
-    return figure.figure, _status_markdown(scene, elapsed_ms)
+    if figure.compare_figure is None:
+        comparison = gr.update(visible=False)
+    else:
+        comparison = gr.update(value=figure.compare_figure, visible=True)
+    return figure.figure, _status_markdown(scene, elapsed_ms), comparison
 
 
 def _refusal_markdown(message):
@@ -329,6 +351,18 @@ def _counted(value, name, largest):
         raise gr.Error(f'{name.capitalize()} must be at most {largest}; got '
                        f'{count}.')
     return count
+
+
+def _camera_angle(value, default):
+    """One 3D camera angle from the page, in degrees, or the viewer's default
+    when the box is blank.  The figure is an image on the web, so these two
+    numbers are what the mouse drag is on the desktop."""
+    if value is None or value == '':
+        return float(default)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise gr.Error(f'A camera angle must be a number; got {value!r}.')
 
 
 def _checked_view_index(view_index, num_views):
@@ -581,8 +615,9 @@ def build_page():
                     compare_text = gr.Textbox(
                         value=EXAMPLE_OVERRIDE_TEXT, lines=3,
                         label='parameter overrides, one name=value per line',
-                        info='The second geometry is drawn dashed, and the '
-                             'text panel lists what differs.')
+                        info='The second geometry is drawn dashed.  The text '
+                             'panel lists the parameters that differ, and the '
+                             'table under the figure lists every difference.')
                 with gr.Accordion('advanced', open=False):
                     gr.Markdown('Leave these blank for the reconstruction '
                                 'shape the model would choose.')
@@ -605,7 +640,30 @@ def build_page():
                                                  label='3D zoom to volume')
                     show_reference = gr.Checkbox(value=True,
                                                  label='angle-0 reference')
+                # The 3D camera.  On the desktop the panel is rotated with the
+                # mouse; here the figure is an image, so the two camera angles
+                # are numbers.  A change costs one render, as every control
+                # change does.
+                with gr.Row():
+                    camera_elevation_deg = gr.Number(
+                        value=CAMERA_ELEVATION_DEG,
+                        label='3D camera elevation (deg)',
+                        info='Negative looks from above the drawing\'s top, '
+                             'which is the -z side.',
+                        min_width=PAIR_MIN_WIDTH)
+                    camera_azimuth_deg = gr.Number(
+                        value=CAMERA_AZIMUTH_DEG,
+                        label='3D camera azimuth (deg)',
+                        info='Degrees off the +x axis; 0 looks along x and '
+                             'shows the detector edge on.',
+                        min_width=PAIR_MIN_WIDTH)
                 status = gr.Markdown('')
+                # The comparison table, which is a second window on the
+                # desktop.  It sits under the status and is hidden until a
+                # comparison is drawn, so a page without one looks as it did.
+                compare_plot = gr.Plot(
+                    label='comparison with the dashed geometry',
+                    format=PLOT_FORMAT, visible=False)
 
         # The render inputs, in the order render() takes them.
         inputs = [geometry, num_views, num_det_rows, num_det_channels,
@@ -614,9 +672,10 @@ def build_page():
                   angle_start, angle_end, elevation_deg, helical_travel,
                   num_x_translations, num_z_translations, x_spacing, z_spacing,
                   view_index, show_trajectory, zoom_to_volume, show_reference,
+                  camera_elevation_deg, camera_azimuth_deg,
                   compare_enabled, compare_text, recon_rows, recon_cols,
                   recon_slices]
-        outputs = [plot, status]
+        outputs = [plot, status, compare_plot]
 
         # The geometry choice shows and hides the controls that belong to one
         # geometry.  A control that sets the view count first updates the

@@ -57,7 +57,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 __all__ = ['GeometryScene', 'ViewScene', 'GEOMETRY_KINDS',
-           'required_parameter_names', 'CURVED_ARC_SAMPLES',
+           'required_parameter_names', 'CURVED_ARC_SAMPLES', 'RIM_SAMPLES',
            'DEFAULT_DRAWING_DISTANCE_FACTOR', 'MULTIAXIS_SOURCE_ON_PLUS_Y',
            'ROTATION_ARC_SWEEP', 'ROTATION_ARC_SAMPLES',
            'CLOCKWISE_FROM_PLUS_Z', 'COUNTERCLOCKWISE_FROM_PLUS_Z',
@@ -71,6 +71,14 @@ GEOMETRY_KINDS = ('parallel', 'cone', 'multiaxis', 'translation')
 #: outline is a closed polyline through the bottom edge and back along the top
 #: edge, so it holds 2 * CURVED_ARC_SAMPLES + 1 points.
 CURVED_ARC_SAMPLES = 33
+
+#: Number of points sampled around one rim of the region-of-reconstruction
+#: cylinder; see :meth:`GeometryScene.fit_points`.  The rim is a closed
+#: polyline whose last point repeats its first, so it holds 90 distinct points,
+#: one every four degrees.  A finite sample can miss the true widest point of a
+#: projected rim, and at this spacing that miss is far below the half detector
+#: pixel the plan's design rule allows.
+RIM_SAMPLES = 91
 
 #: Default multiple of the volume's largest half-extent used as the drawing
 #: distance for a geometry whose source or detector has no physical position.
@@ -196,6 +204,30 @@ def values_are_equal(first, second, tolerance=1e-12):
                             equal_nan=True))
 
 
+def _merged_intervals(intervals):
+    """Overlapping (low, high) pairs joined into the fewest pairs that cover
+    the same set.
+
+    The pairs are sorted and then walked once.  A pair that starts at or before
+    the end of the pair being built extends it; a pair that starts after it
+    begins a new one, which is the gap that makes the union smaller than the
+    hull.
+
+    Args:
+        intervals (sequence): the (low, high) pairs, in any order.
+
+    Returns:
+        list of [low, high]: the merged pairs, in increasing order.
+    """
+    merged = []
+    for low, high in sorted(intervals):
+        if merged and low <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], high)
+        else:
+            merged.append([low, high])
+    return merged
+
+
 def _unit(vector):
     """``vector`` scaled to unit length."""
     vector = np.asarray(vector, dtype=np.float64)
@@ -269,6 +301,13 @@ class ViewScene:
             Increment 3 review rejected.
         volume_outline_on_detector (ndarray): the detector indices of the eight
             volume corners, (8, 2), as (row, channel).
+        ror_outline_on_detector (ndarray or None): the detector indices of the
+            region of reconstruction's two rims, (2, RIM_SAMPLES, 2), as
+            (row, channel).  Entry 0 is the rim at ``z_min`` and entry 1 the
+            rim at ``z_max``, each a closed polyline whose last point repeats
+            its first.  The two rims bound the whole cylinder's projection, for
+            the reason :meth:`GeometryScene.fit_points` gives.  None when there
+            is no cylinder, which is the case ``ror_cylinder`` reports as None.
         ror_cylinder (dict or None): the region of reconstruction, when
             ``use_ror_mask`` is True.  Keys: ``center`` (3,), ``semi_axis_x``,
             ``semi_axis_y``, ``radius``, ``z_min``, ``z_max``.  None when the
@@ -304,6 +343,7 @@ class ViewScene:
     translation_path: object
     corner_rays: np.ndarray
     volume_outline_on_detector: np.ndarray
+    ror_outline_on_detector: object = field(default=None)
     ror_cylinder: object = field(default=None)
     rotation_direction_arc: object = field(default=None)
     source_travel_sense: object = field(default=None)
@@ -632,24 +672,33 @@ class GeometryScene:
     def ror_cylinder(self):
         """The region of reconstruction, or None when there is no mask to draw.
 
-        mbirtorch's default mask is the ellipse inscribed in the volume's row
-        and column extents, applied to every slice, so the region is an
-        elliptic cylinder about the rotation axis.  The semi-axes are half the
-        volume's physical width in x and in y.  The ``radius`` entry is the
-        larger semi-axis, which is the value ``vcd_utils.get_support_radius``
-        returns for this mask.
+        mbirtorch's default mask, ``vcd_utils.get_2d_ror_mask``, keeps the
+        voxels whose centers lie inside the ellipse through the centers of the
+        outermost voxels, and applies it to every slice, so the region is an
+        elliptic cylinder about the rotation axis.  The semi-axes are therefore
+        (n - 1) / 2 voxel pitches in x and in y, half a voxel less than half
+        the volume's physical width.  The projector's shadow of a volume of
+        ones inside the mask matches this ellipse to about a tenth of a
+        detector channel, and the ellipse half a voxel larger by about one
+        channel (measured 2026-09-11, ``gv7_data_overlays_findings.md``).
+        ``vcd_utils.get_support_radius`` is the half voxel larger on purpose,
+        because it bounds the outer edge of every voxel the projectors update.
+        The ``radius`` entry is the larger semi-axis.  In z the cylinder spans
+        the volume's full extent, because the mask has no z part and a voxel's
+        material reaches its outer face.
 
         A ``use_ror_mask`` value of False means no mask.  A custom array cannot
         be described as an ellipse, so this returns None for that too.
         """
         if self.use_ror_mask is not True:
             return None
-        half_x, half_y, _ = self.volume_half_extents()
+        semi_axis_x = 0.5 * (self.num_cols - 1) * self.delta_voxel
+        semi_axis_y = 0.5 * (self.num_rows - 1) * self.delta_voxel_row
         z_min, z_max = self.volume_z_range()
         return dict(center=np.array([0.0, 0.0, 0.5 * (z_min + z_max)]),
-                    semi_axis_x=float(half_x),
-                    semi_axis_y=float(half_y),
-                    radius=float(max(half_x, half_y)),
+                    semi_axis_x=float(semi_axis_x),
+                    semi_axis_y=float(semi_axis_y),
+                    radius=float(max(semi_axis_x, semi_axis_y)),
                     z_min=float(z_min), z_max=float(z_max))
 
     # ------------------------------------------------------------------
@@ -1043,6 +1092,17 @@ class GeometryScene:
         row, channel = self.project_points(volume_corners, view_index)
         volume_outline_on_detector = np.stack([row, channel], axis=1)
 
+        # The region of reconstruction's own outline on the detector, from the
+        # same projection the box outline uses.  The two rims come back as one
+        # array of points, so the result is split into one entry per rim.
+        cylinder = self.ror_cylinder()
+        ror_outline_on_detector = None
+        if cylinder is not None:
+            rim_row, rim_channel = self.project_points(self.fit_points(),
+                                                       view_index)
+            ror_outline_on_detector = np.stack(
+                [rim_row, rim_channel], axis=1).reshape(2, RIM_SAMPLES, 2)
+
         if self.kind == 'translation':
             rotation_axis = None
             translation_path = self.translation_vectors.copy()
@@ -1075,7 +1135,8 @@ class GeometryScene:
             translation_path=translation_path,
             corner_rays=corner_rays,
             volume_outline_on_detector=volume_outline_on_detector,
-            ror_cylinder=self.ror_cylinder(),
+            ror_outline_on_detector=ror_outline_on_detector,
+            ror_cylinder=cylinder,
             rotation_direction_arc=arc,
             source_travel_sense=travel_sense,
         )
@@ -1272,25 +1333,195 @@ class GeometryScene:
     # Derived numbers
     # ------------------------------------------------------------------
 
-    def volume_fits_detector(self):
-        """Whether every volume corner projects inside the detector.
+    def fit_shape(self):
+        """Which shape the fit statement tests, as ``'cylinder'`` or ``'box'``.
 
-        The test is geometric and ignores the projector's point spread, so a
-        volume that just fits can still spread a little past the edge.
+        The shape is the cylinder whenever :meth:`ror_cylinder` describes one,
+        because that cylinder is the region the reconstruction actually solves
+        for.  The automatic reconstruction box is the square around that
+        cylinder, so its corners stick out past the field of view by
+        construction and asking whether they land on the detector answers a
+        question nobody asked.  The shape is the box when there is no mask.
+        """
+        return 'cylinder' if self.ror_cylinder() is not None else 'box'
+
+    def fit_points(self):
+        """Object-frame points that bound the fit shape's projection, (N, 3).
+
+        For the box the points are the eight :meth:`volume_corners`.  For the
+        cylinder they are its two rims, the ellipse at ``z_min`` and the
+        ellipse at ``z_max``, each sampled at :data:`RIM_SAMPLES` points, with
+        the rim at ``z_min`` first.
+
+        Why the two rims bound the whole cylinder.  A point's channel index
+        does not depend on its z in any of the four geometries, and the two
+        rims run through the same x and y values as the rest of the cylinder,
+        so the rims reach every channel index the cylinder reaches.  A point's
+        row index is an affine function of its z when x and y are held fixed,
+        so along each line of the cylinder parallel to the axis the row index
+        is largest at one end and smallest at the other, and both ends are on a
+        rim.  The projected rims therefore bound the projected cylinder.
 
         Returns:
-            (bool, float): whether every corner of the volume projects inside
-            the detector in every view, and the largest overshoot past an edge
-            in detector pixels, which is zero when it fits.
+            ndarray: the points, (8, 3) for the box and
+            (2 * RIM_SAMPLES, 3) for the cylinder.
         """
-        corners = self.volume_corners()
-        worst = 0.0
+        cylinder = self.ror_cylinder()
+        if cylinder is None:
+            return self.volume_corners()
+        angle = np.linspace(0.0, 2.0 * np.pi, RIM_SAMPLES)
+        x = cylinder['center'][0] + cylinder['semi_axis_x'] * np.cos(angle)
+        y = cylinder['center'][1] + cylinder['semi_axis_y'] * np.sin(angle)
+        rims = [np.stack([x, y, np.full(RIM_SAMPLES, float(height))], axis=1)
+                for height in (cylinder['z_min'], cylinder['z_max'])]
+        return np.concatenate(rims)
+
+    def fit_report(self):
+        """Whether the scan's detector covers the region it reconstructs.
+
+        The statement is geometric and ignores the projector's point spread, so
+        a shape that just fits can still spread a little past the edge.
+
+        Two rules are used.  A scan that does not travel along the axis is
+        asked whether the fit shape lands on the detector in every view.  A
+        helical cone scan is asked something else, because its volume is taller
+        than one view's detector by design and so leaves the detector in every
+        view.  It is asked whether the shape stays inside the detector's
+        channel range, and whether the detector's axial coverage sweeps the
+        whole volume over the scan.
+
+        The axial coverage of one view is worked out from
+        :meth:`project_points` and not from a second formula.  The two points
+        (0, 0, z_min) and (0, 0, z_max) on the line x = y = 0 are projected,
+        and the row index is an affine function of z along that line in every
+        geometry, so the two rows give the line that is then solved for the z
+        at row -0.5 and at row ``num_det_rows`` - 0.5.  That pair of z values
+        is the view's coverage.  For the translation geometry the line
+        x = y = 0 is not a rotation axis, because that geometry does not
+        rotate; the computation needs no special case all the same.
+
+        Returns:
+            dict: the entries are
+
+            ``shape``: what was tested, from :meth:`fit_shape`.
+
+            ``worst_overshoot_pixels``, ``worst_channel_overshoot_pixels``,
+            ``worst_row_overshoot_pixels``: how far the shape reaches past a
+            detector edge, in detector pixels, over all views.  Each is zero
+            when nothing reaches past that edge.
+
+            ``views_leaving_detector``: the number of views in which the shape
+            reaches past any detector edge.
+
+            ``helical_rule``: whether the helical rule above was used.
+
+            ``swept_z_min``, ``swept_z_max``: the lowest and highest z on the
+            line x = y = 0 that any view's detector covers.  Both are nan when
+            no view has an axial coverage.
+
+            ``z_extent_covered``: whether every z of :meth:`volume_z_range`
+            lies in the union of the per-view coverage intervals.  The union is
+            merged interval by interval, so a scan that leaves a gap between
+            two groups of views reads False even though the gap lies between
+            ``swept_z_min`` and ``swept_z_max``.
+
+            ``fits``: the answer.  Without the helical rule it is True when the
+            shape lands inside the detector in every view.  With the helical
+            rule it is True when the channel overshoot is zero in every view
+            and ``z_extent_covered`` is True.
+        """
+        points = self.fit_points()
+        num_shape_points = int(points.shape[0])
+        z_min, z_max = self.volume_z_range()
+        # The two axis points ride along with the shape's points, so one view
+        # costs one call to project_points and not two.
+        probe_points = np.concatenate([points,
+                                       np.array([[0.0, 0.0, z_min],
+                                                 [0.0, 0.0, z_max]])])
+
+        worst_row = 0.0
+        worst_channel = 0.0
+        views_leaving = 0
+        intervals = []
         for view_index in range(self.num_views):
-            row, channel = self.project_points(corners, view_index)
-            worst = max(worst,
-                        self._overshoot(row, self.num_det_rows),
-                        self._overshoot(channel, self.num_det_channels))
-        return bool(worst <= 0.0), float(worst)
+            row, channel = self.project_points(probe_points, view_index)
+            row_over = self._overshoot(row[:num_shape_points],
+                                       self.num_det_rows)
+            channel_over = self._overshoot(channel[:num_shape_points],
+                                           self.num_det_channels)
+            worst_row = max(worst_row, row_over)
+            worst_channel = max(worst_channel, channel_over)
+            if max(row_over, channel_over) > 0.0:
+                views_leaving += 1
+            coverage = self._axial_coverage(float(row[num_shape_points]),
+                                            float(row[num_shape_points + 1]),
+                                            z_min, z_max)
+            if coverage is not None:
+                intervals.append(coverage)
+
+        if intervals:
+            swept_z_min = min(low for low, _ in intervals)
+            swept_z_max = max(high for _, high in intervals)
+            covered = any(low <= z_min and z_max <= high
+                          for low, high in _merged_intervals(intervals))
+        else:
+            swept_z_min = swept_z_max = float('nan')
+            covered = False
+
+        worst = max(worst_row, worst_channel)
+        helical_rule = self.kind == 'cone' and self.helical_travel() > 0.0
+        if helical_rule:
+            fits = worst_channel <= 0.0 and covered
+        else:
+            fits = worst <= 0.0
+        return dict(
+            shape=self.fit_shape(),
+            worst_overshoot_pixels=float(worst),
+            worst_channel_overshoot_pixels=float(worst_channel),
+            worst_row_overshoot_pixels=float(worst_row),
+            views_leaving_detector=int(views_leaving),
+            helical_rule=bool(helical_rule),
+            swept_z_min=float(swept_z_min),
+            swept_z_max=float(swept_z_max),
+            z_extent_covered=bool(covered),
+            fits=bool(fits),
+        )
+
+    def _axial_coverage(self, row_at_z_min, row_at_z_max, z_min, z_max):
+        """The z range one view's detector covers on the line x = y = 0.
+
+        The caller supplies the row indices the two ends of the volume's axis
+        project to.  The row index is an affine function of z along that line,
+        so those two rows give the line's slope and intercept, and the coverage
+        is the z range that lands between the detector's first and last row
+        edge.
+
+        Args:
+            row_at_z_min, row_at_z_max (float): the projected row indices of
+                (0, 0, z_min) and (0, 0, z_max).
+            z_min, z_max (float): the volume's z extent.
+
+        Returns:
+            tuple or None: the (low, high) z pair, or None when the two rows
+            are equal, which means this view's rows say nothing about z.
+        """
+        if row_at_z_max == row_at_z_min or z_max == z_min:
+            return None
+        slope = (row_at_z_max - row_at_z_min) / (z_max - z_min)
+        intercept = row_at_z_min - slope * z_min
+        first = (-0.5 - intercept) / slope
+        last = (self.num_det_rows - 0.5 - intercept) / slope
+        return (min(first, last), max(first, last))
+
+    def volume_fits_detector(self):
+        """The two entries of :meth:`fit_report` that older callers ask for.
+
+        Returns:
+            (bool, float): the report's ``fits`` and
+            ``worst_overshoot_pixels``.
+        """
+        report = self.fit_report()
+        return report['fits'], report['worst_overshoot_pixels']
 
     @staticmethod
     def _overshoot(indices, count):
@@ -1367,9 +1598,18 @@ class GeometryScene:
 
             ``helical_travel_alu``: the range of the per-view z shifts.
 
-            ``volume_fits_detector`` and ``worst_overshoot_pixels``: whether
-            every volume corner projects inside the detector in every view, and
-            by how much the worst corner misses.
+            ``volume_fits_detector``: whether the detector covers the region
+            the scan reconstructs, which is :meth:`fit_report`'s ``fits``.
+            ``fit_shape`` names the shape that was tested,
+            ``worst_overshoot_pixels`` says by how much the worst point of it
+            misses the detector, ``worst_channel_overshoot_pixels`` and
+            ``worst_row_overshoot_pixels`` split that miss between the two
+            detector directions, and ``views_leaving_detector`` counts the
+            views in which the shape reaches past an edge.
+            ``helical_fit_rule`` says whether the helical rule was used, and
+            ``swept_z_min``, ``swept_z_max``, and ``z_extent_covered``
+            describe the detector's axial coverage over the scan.  The entries
+            of :meth:`fit_report` explain all of these.
 
             ``drawing_distance`` and ``drawing_note``: the distance used where
             a position is a drawing choice, and what was chosen.
@@ -1379,7 +1619,7 @@ class GeometryScene:
         extent_x, extent_y, _ = self.volume_half_extents()
         z_min, z_max = self.volume_z_range()
         travel = self.helical_travel()
-        fits, overshoot = self.volume_fits_detector()
+        fit = self.fit_report()
 
         quantities = dict(
             geometry_kind=self.kind,
@@ -1406,8 +1646,17 @@ class GeometryScene:
             detector_center_u=float(-self.det_channel_offset),
             detector_center_v=float(-self.row_offset),
             helical_travel_alu=travel,
-            volume_fits_detector=fits,
-            worst_overshoot_pixels=overshoot,
+            volume_fits_detector=fit['fits'],
+            fit_shape=fit['shape'],
+            worst_overshoot_pixels=fit['worst_overshoot_pixels'],
+            worst_channel_overshoot_pixels=fit[
+                'worst_channel_overshoot_pixels'],
+            worst_row_overshoot_pixels=fit['worst_row_overshoot_pixels'],
+            views_leaving_detector=fit['views_leaving_detector'],
+            helical_fit_rule=fit['helical_rule'],
+            swept_z_min=fit['swept_z_min'],
+            swept_z_max=fit['swept_z_max'],
+            z_extent_covered=fit['z_extent_covered'],
             drawing_distance=float(self.drawing_distance),
             drawing_note=self.drawing_note(),
         )

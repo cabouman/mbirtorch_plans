@@ -29,8 +29,8 @@ from geometry_scene import (CLOCKWISE_FROM_PLUS_Z,  # noqa: E402
                             COUNTERCLOCKWISE_FROM_PLUS_Z,
                             CURVED_ARC_SAMPLES,
                             DIFFERENCE_EXCLUDED_QUANTITIES, GeometryScene,
-                            ROTATION_ARC_SAMPLES, required_parameter_names,
-                            values_are_equal)
+                            RIM_SAMPLES, ROTATION_ARC_SAMPLES,
+                            required_parameter_names, values_are_equal)
 
 # The gate: the largest allowed difference between a measured footprint
 # centroid and the scene's prediction, in detector pixels.  Half a pixel is the
@@ -646,16 +646,20 @@ def test_multiaxis_source_side_is_a_documented_choice():
 # ── the region of reconstruction and the drawing distance ───────────────────
 
 def test_ror_cylinder_matches_the_inscribed_ellipse():
-    """The drawn region is the ellipse inscribed in the volume's x and y width.
+    """The drawn region is the mask's own ellipse, through the centers of the
+    outermost voxels.
 
-    mbirtorch's default mask is that ellipse, applied to every slice, and
-    ``vcd_utils.get_support_radius`` returns its larger semi-axis.
+    mbirtorch's default mask, ``vcd_utils.get_2d_ror_mask``, keeps the voxels
+    whose centers lie inside that ellipse, so its semi-axes are (n - 1) / 2
+    voxel pitches.  The projector's shadow of a volume of ones inside the mask
+    matches this ellipse and not the one half a voxel larger, which is what
+    ``get_support_radius`` bounds (measured 2026-09-11).
     """
     cfg = CONFIGS_BY_NAME['cone flat']
     _, scene = build_scene(cfg)
     cylinder = scene.ror_cylinder()
-    half_x = 0.5 * scene.num_cols * scene.delta_voxel
-    half_y = 0.5 * scene.num_rows * scene.delta_voxel_row
+    half_x = 0.5 * (scene.num_cols - 1) * scene.delta_voxel
+    half_y = 0.5 * (scene.num_rows - 1) * scene.delta_voxel_row
     assert cylinder['semi_axis_x'] == pytest.approx(half_x)
     assert cylinder['semi_axis_y'] == pytest.approx(half_y)
     assert cylinder['radius'] == pytest.approx(max(half_x, half_y))
@@ -710,6 +714,262 @@ def test_volume_fits_detector_detects_a_volume_that_does_not():
     fits, overshoot = grown.volume_fits_detector()
     assert fits is False
     assert overshoot > 1.0
+
+
+# ── the fit statement: which shape, which rule, and the swept coverage ──────
+
+#: The flat cone configuration with its detector narrowed to this many
+#: channels.  At 28 channels the volume box's corners project past the
+#: detector's edge while the region-of-reconstruction cylinder still lands
+#: inside it, which is the pair of answers
+#: ``test_the_fit_statement_tests_the_region_of_reconstruction`` is about.
+NARROW_CHANNEL_COUNT = 28
+
+#: The relative tolerance of the swept-coverage identities.  Each identity is
+#: exact in exact arithmetic, and the computation is a handful of
+#: multiplications and divisions in float64, so only rounding separates the two
+#: sides.
+COVERAGE_TOLERANCE = 1e-9
+
+
+def narrow_detector_cone_scene(use_ror_mask=True):
+    """The flat cone scene with a detector too narrow for its volume box.
+
+    The probe's own flat cone configuration keeps the volume well inside the
+    detector, so it cannot show the difference between the two shapes.  This
+    copy narrows the detector to :data:`NARROW_CHANNEL_COUNT` channels and
+    changes nothing else.
+    """
+    _, scene = build_scene(CONFIGS_BY_NAME['cone flat'])
+    params = dict(scene.params)
+    params['sinogram_shape'] = (scene.num_views, scene.num_det_rows,
+                                NARROW_CHANNEL_COUNT)
+    params['use_ror_mask'] = use_ror_mask
+    return GeometryScene(params, 'cone')
+
+
+def test_the_fit_statement_tests_the_region_of_reconstruction():
+    """With the mask on the cylinder is tested, and it fits where the box does
+    not.
+
+    This is the bug the Increment 4 review recorded.  The reconstruction box is
+    the square around the region of reconstruction, so its corners stick out
+    past the field of view and the fit statement read "no" for a scan that
+    reconstructs nothing outside the detector.  The scene must test the
+    cylinder whenever the mask describes one.
+
+    The probe's flat cone configuration cannot show this, because its volume
+    was chosen to sit well inside the detector and both shapes fit.  The
+    detector is narrowed to :data:`NARROW_CHANNEL_COUNT` channels instead,
+    which puts the box's corners outside it and leaves the cylinder inside.
+    """
+    masked = narrow_detector_cone_scene(use_ror_mask=True)
+    report = masked.fit_report()
+    assert report['shape'] == 'cylinder'
+    assert report['fits'] is True
+    assert report['worst_overshoot_pixels'] == 0.0
+    assert report['worst_channel_overshoot_pixels'] == 0.0
+    assert report['worst_row_overshoot_pixels'] == 0.0
+    assert report['views_leaving_detector'] == 0
+
+    unmasked = narrow_detector_cone_scene(use_ror_mask=False)
+    report = unmasked.fit_report()
+    assert report['shape'] == 'box'
+    assert report['fits'] is False
+    assert report['worst_channel_overshoot_pixels'] > 1.0
+    # The box leaves the detector sideways and not in the rows.
+    assert report['worst_row_overshoot_pixels'] == 0.0
+    # The count is a count of views and not a yes or no: the box's corners
+    # swing past the detector's edge in some views and not in others.
+    assert 0 < report['views_leaving_detector'] < unmasked.num_views
+
+
+def test_the_cylinder_rule_shrinks_the_overshoot_of_an_automatic_cone_scan():
+    """An automatically sized cone scan reports a far smaller miss.
+
+    ``geometry_defaults`` reproduces mbirtorch's automatic reconstruction
+    geometry, whose box is the square around the field-of-view circle.  The
+    box's corners therefore miss the detector by tens of channels in every
+    view.  The cylinder inside that box misses by less than one channel, which
+    is the size of the miss the user needs to see.
+
+    The cylinder does not fit even so, and the row entry says why.  The beam
+    narrows toward the source, so the top of the cylinder on the source side
+    sits outside the rows the detector covers.  The statement therefore still
+    reads "no" for this scan, with a number that names a real truncation
+    instead of a corner nobody reconstructs.
+    """
+    import geometry_defaults
+
+    params = geometry_defaults.default_parameters(
+        'cone', (60, 96, 128), angles=geometry_defaults.view_angles(60),
+        source_detector_dist=512.0, source_iso_dist=256.0)
+    cylinder = GeometryScene(params, 'cone').fit_report()
+    box = GeometryScene(dict(params, use_ror_mask=False), 'cone').fit_report()
+
+    assert box['shape'] == 'box' and cylinder['shape'] == 'cylinder'
+    assert box['worst_channel_overshoot_pixels'] > 10.0
+    assert cylinder['worst_channel_overshoot_pixels'] < 1.0
+    assert cylinder['worst_row_overshoot_pixels'] > 1.0
+    assert cylinder['fits'] is False
+
+
+def test_the_swept_coverage_of_a_non_helical_scan_is_one_views_coverage():
+    """A scan that does not travel sweeps exactly one view's axial coverage.
+
+    Every view of such a scan covers the same z range on the rotation axis, so
+    the swept range is that range.  Its length is the detector's height divided
+    by the magnification, which is the axial field of view, and it is centered
+    on the z the central ray lands at, which is minus the row offset divided by
+    the magnification.
+    """
+    _, scene = build_scene(CONFIGS_BY_NAME['cone flat'])
+    report = scene.fit_report()
+    length = report['swept_z_max'] - report['swept_z_min']
+    height, magnification = scene.detector_size()[1], scene.magnification
+    assert length == pytest.approx(height / magnification,
+                                   rel=COVERAGE_TOLERANCE)
+    assert length == pytest.approx(scene.derived_quantities()['axial_fov_alu'],
+                                   rel=COVERAGE_TOLERANCE)
+    center = 0.5 * (report['swept_z_min'] + report['swept_z_max'])
+    assert center == pytest.approx(-scene.row_offset / magnification,
+                                   rel=COVERAGE_TOLERANCE)
+
+
+def test_the_swept_coverage_of_a_helical_scan_grows_by_the_travel():
+    """Helical travel adds itself to the swept range and to nothing else.
+
+    The comparison holds every parameter of the helical configuration fixed and
+    sets the per-view z shifts to zero, so the only difference between the two
+    scenes is the travel.
+    """
+    _, scene = build_scene(CONFIGS_BY_NAME['cone helical'])
+    params = dict(scene.params)
+    view_params = np.asarray(params['view_params_array'],
+                             dtype=np.float64).copy()
+    view_params[:, 1] = 0.0
+    params['view_params_array'] = view_params
+    still = GeometryScene(params, 'cone')
+
+    moving_report, still_report = scene.fit_report(), still.fit_report()
+    moving = moving_report['swept_z_max'] - moving_report['swept_z_min']
+    standing = still_report['swept_z_max'] - still_report['swept_z_min']
+    assert scene.helical_travel() > 0.0
+    assert still.helical_travel() == 0.0
+    assert moving - standing == pytest.approx(scene.helical_travel(),
+                                              rel=COVERAGE_TOLERANCE)
+
+
+def test_a_helical_scan_is_judged_by_the_helical_rule():
+    """A helical scan is asked about its channels and its swept z extent.
+
+    Three helical scans are checked.  The probe's own helical configuration has
+    a volume small enough to land on the detector in every view, so it leaves
+    the detector in no view at all.  The second grows that volume until it is
+    taller than one view's axial coverage, which is what an automatically sized
+    helical scan is: it then leaves the detector in every view, and the
+    statement still reads "yes" because the detector sweeps the whole volume
+    over the scan.  That is the bug the Increment 4 review recorded, because
+    the old rule read "no" for every helical scan.
+
+    A helical scan leaves the detector either in no view or in every view, and
+    not in some of them, whenever what it leaves is the axial coverage.  The
+    volume's z extent is the same in every view, and so is one view's coverage,
+    so the two either overlap in every view or in none.
+    """
+    _, scene = build_scene(CONFIGS_BY_NAME['cone helical'])
+    report = scene.fit_report()
+    assert report['helical_rule'] is True
+    assert report['views_leaving_detector'] == 0
+    assert report['z_extent_covered'] is True
+    assert report['worst_channel_overshoot_pixels'] == 0.0
+    assert report['fits'] is True
+
+    # The same scan with a volume taller than one view's axial coverage.
+    tall = GeometryScene(dict(scene.params, recon_shape=(10, 12, 25)), 'cone')
+    tall_report = tall.fit_report()
+    z_min, z_max = tall.volume_z_range()
+    one_view = tall.detector_size()[1] / tall.magnification
+    assert z_max - z_min > one_view
+    assert tall_report['views_leaving_detector'] == tall.num_views
+    assert tall_report['worst_row_overshoot_pixels'] > 0.0
+    assert tall_report['worst_channel_overshoot_pixels'] == 0.0
+    assert tall_report['z_extent_covered'] is True
+    assert tall_report['fits'] is True
+    # The answer is the two questions of the helical rule and nothing else.
+    assert tall_report['fits'] == (
+        tall_report['worst_channel_overshoot_pixels'] == 0.0
+        and tall_report['z_extent_covered'])
+
+
+def test_a_helical_scan_with_a_gap_does_not_sweep_its_volume():
+    """Views in two groups leave a z range that no view covers.
+
+    The z shifts here sit in two groups far enough apart that the two coverage
+    ranges do not meet.  The volume runs from the first group to the second, so
+    it lies between ``swept_z_min`` and ``swept_z_max`` and yet part of it is
+    covered by no view.  The union of the per-view ranges reports this and
+    their hull does not, which is why the union is what
+    ``z_extent_covered`` uses.
+    """
+    _, scene = build_scene(CONFIGS_BY_NAME['cone helical'])
+    params = dict(scene.params)
+    view_params = np.asarray(params['view_params_array'],
+                             dtype=np.float64).copy()
+    view_params[:, 1] = np.repeat([0.0, 40.0], scene.num_views // 2)
+    params['view_params_array'] = view_params
+    params['recon_shape'] = (10, 12, 50)
+    params['recon_slice_offset'] = 20.0
+    gapped = GeometryScene(params, 'cone')
+
+    report = gapped.fit_report()
+    z_min, z_max = gapped.volume_z_range()
+    assert report['helical_rule'] is True
+    # The hull holds the whole volume; the union does not.
+    assert report['swept_z_min'] < z_min and z_max < report['swept_z_max']
+    assert report['z_extent_covered'] is False
+    assert report['worst_channel_overshoot_pixels'] == 0.0
+    assert report['fits'] is False
+
+
+@pytest.mark.parametrize('name', list(CONFIGS_BY_NAME))
+def test_ror_outline_is_the_two_projected_rims(name):
+    """The drawn region outline is project_points of the scene's fit points.
+
+    The outline must come from the one projection the scene has, for the reason
+    the volume box's outline must: a second projection could disagree with the
+    projector.  The rim at ``z_min`` also has to project to lower row indices
+    than the rim at ``z_max``, point for point, because a larger z lands on a
+    larger row in every one of these geometries.
+    """
+    cfg = CONFIGS_BY_NAME[name]
+    _, scene = build_scene(cfg)
+    for view_index in (0, scene.num_views - 1):
+        view = scene.view(view_index)
+        if scene.ror_cylinder() is None:
+            assert view.ror_outline_on_detector is None
+            continue
+        outline = view.ror_outline_on_detector
+        assert outline.shape == (2, RIM_SAMPLES, 2)
+        row, channel = scene.project_points(scene.fit_points(), view_index)
+        expected = np.stack([row, channel], axis=1).reshape(2, RIM_SAMPLES, 2)
+        assert np.allclose(outline, expected, atol=GEOMETRY_TOLERANCE)
+        assert np.all(outline[0, :, 0] < outline[1, :, 0])
+
+    # The translation model turns the mask off, so it has no outline to draw.
+    if name == 'translation':
+        assert scene.ror_cylinder() is None
+        assert scene.view(0).ror_outline_on_detector is None
+
+
+def test_fit_points_are_the_corners_without_a_mask():
+    """With no mask the shape is the box and its points are its corners."""
+    _, scene = build_scene(CONFIGS_BY_NAME['cone flat'])
+    unmasked = GeometryScene(dict(scene.params, use_ror_mask=False), 'cone')
+    assert unmasked.fit_shape() == 'box'
+    assert np.allclose(unmasked.fit_points(), unmasked.volume_corners())
+    assert scene.fit_shape() == 'cylinder'
+    assert scene.fit_points().shape == (2 * RIM_SAMPLES, 3)
 
 
 def test_view_index_is_checked():

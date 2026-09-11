@@ -11,7 +11,8 @@ against the conventions record with no disagreement.  Increment 4 is done
 (2026-09-09): the view slider, the source-path toggle, the 3D zoom, and the comparison
 overlay are built, 152 tests pass, and a slider step on an 1800-view model takes 41 ms
 against the 100 ms gate (`gv4_interaction_findings.md`, `gv4_timing.md`).  Increment 5
-is next, after Greg has used the interactive viewer.  Greg's first use (2026-09-09
+was done on 2026-09-11, after the open items of the Increment 4 review; Increment 6,
+the port, is next.  Greg's first use (2026-09-09
 and 2026-09-10) produced four changes: a display fix for backends outside the blit
 path, labels on the source and detector, an angle-0 reference, and the display
 convention that negative z is the top of every drawing, recorded in
@@ -195,6 +196,11 @@ face and lists it in the text panel.
 reconstruction silhouette in the volume box.  Gate: the sinogram view is drawn with
 the same row and channel orientation the detector-face grid uses, checked by
 painting a synthetic sinogram with one bright pixel at a known row and channel.
+Done 2026-09-11: `sinogram=` and `recon=` on `GeometryFigure` and `geometry_viewer`,
+with `set_sinogram` and `set_recon`; the gate passes on the rendered pixels, a
+forward-projected phantom lands inside the drawn rims, and a slider step with a
+sinogram takes 25 ms on the 1800-view model.  The 3D panel draws neither overlay.
+The record is `gv7_data_overlays_findings.md`.
 
 **Increment 6.  The port.**  Move the scene and viewer into mbirtorch, add the entry
 point, a demo, a docs page, and the API specification row.  This increment runs in
@@ -264,20 +270,53 @@ with the shim to paste, is `gradio_lite_space_guide.md` in this directory.
   so the text panel says "no" for every helical scan.  The statement should count
   the views in which the volume leaves the detector, and for a helical scan it
   should compare the volume's z extent with the detector's swept coverage instead.
+  Done 2026-09-10: `fit_report` applies the helical rule, the text panel counts the
+  views the volume leaves the detector in and prints the swept z range, and
+  `gv6_review_items_findings.md` records the numbers.
 - **The fit statement tests the wrong shape.**  `volume_fits_detector` projects
   the corners of the reconstruction box.  The automatic box is the square around the
   field-of-view circle, so its corners always project outside the detector and every
   automatically sized cone scan reads "volume fits det: no".  When the
   region-of-reconstruction mask is on, the check should project the cylinder's
   outline instead, and the detector-face panel should draw it.
+  Done 2026-09-10: the statement tests the cylinder's two rims when the mask is on,
+  and the detector face draws them.  The cylinder is the mask's own ellipse, through
+  the centers of the outermost voxels, which a forward projection confirmed on
+  2026-09-11.  The automatically sized cone scan fits in channels and still reads
+  "no" by 6.8 rows, and the findings page says why that is the honest answer;
+  whether to add a statement about the field of view at the isocenter is a question
+  for Greg.
 - **The web page fixes the 3D camera.**  The figure is an image there, so it cannot
   be rotated.  Two numbers for the camera angles, which `GeometryFigure` already
   accepts, would give the page what the mouse gives the desktop.
+  Done 2026-09-10: two number boxes under the toggles set the camera; a change costs
+  one render, as every control change does.
 - **The comparison section runs out of room** in the text panel when two
   geometries differ in many parameters.  A panel or window of its own is the fix.
+  Done 2026-09-10: a comparison opens a second figure, `compare_figure`, that tables
+  every difference with the parameters first; the text panel keeps the parameter
+  differences and a count of the derived quantities that differ; `save` writes the
+  window beside the main file; the web page shows the table as a second plot.
+- **The text panel is cramped at its font floor.**  Found 2026-09-10: the
+  multiaxis example with a comparison reaches the 5 point floor, because its drawing
+  note is six lines, and the block placement then runs the static block's last line
+  into the comparison header.  A shorter note for the parallel-type geometries, or a
+  placement that keeps the blank line at the floor, would fix it.
 - **The slider has run only under the Agg backend.**  The partial-redraw path
   follows the slice viewer's, but it has not been watched on a screen.  Greg's use
   of the viewer is the first display test, before any port.
+  Closed 2026-09-10: Greg's use of the viewer on the 9th and 10th was that test.
+- **The multiaxis side view's source marker covered part of the
+  `recon_slice_offset` label.**  Done 2026-09-10: the label is a moving artist placed
+  on the side of its segment away from the source, and the label overlap test now
+  checks the source marker against the labels of the side view at three views.
+- **The top view's labels collide in some views.**  Found 2026-09-10 by running the
+  extended overlap test on the top view at three views: the channel-offset label
+  runs into the angle-0 caption in three geometries, the source-travel label into
+  the source's label in two, the detector-iso label touches the pixel-0 label in
+  two, and in the multiaxis geometry the channel-offset label reaches the source's
+  marker.  The top view needs a placement pass of its own, after which the overlap
+  test can cover it at several views as it now covers the side view.
 
 ## Risks and open questions
 

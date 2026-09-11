@@ -8,6 +8,20 @@ not one marker per view.  The zoom toggle puts a cube around the volume on the
 projected volume outline ten channels over from the primary's and lists the
 change in the text panel.  Removing the comparison removes its artists.
 
+A comparison also opens a second figure, which tables every difference between
+the two geometries.  The tests check what that table holds, that removing the
+comparison closes the window, and that saving the figure writes the window
+beside it.  The text panel keeps the parameters that differ and counts the
+derived quantities.
+
+A later group covers the two data overlays of Increment 5.  Passing None
+removes an overlay and leaves the view change working.  The sinogram's image is
+a moving artist, animated exactly where the other moving artists are, and the
+silhouette's two images are static.  Both come through a comparison being added
+and removed.  The last of them measures the Increment 4 timing gate again with
+a sinogram drawn: a slider step on the 1800-view scan of `gv4_timing.py` must
+stay under 100 ms.
+
 Later tests cover the display-test follow-up of 2026-09-09.  The labels on the
 source, the detector, and the pixel-0 marker exist in the panels that carry
 them, they follow the source when the view changes, and they are animated
@@ -36,7 +50,8 @@ matplotlib.use('Agg')  # the tests draw into a buffer and open no window
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import gv1_conventions_probe as probe  # noqa: E402
-from geometry_scene import GeometryScene  # noqa: E402
+from geometry_scene import (GeometryScene,  # noqa: E402
+                            required_parameter_names)
 import geometry_viewer  # noqa: E402
 from geometry_viewer import (COLORS, GeometryFigure,  # noqa: E402
                              VOLUME_BOX_EDGES, ZOOM_VOLUME_WIDTH_FACTOR,
@@ -56,6 +71,15 @@ CONFIGS_BY_NAME = {cfg['name']: cfg for cfg in probe.CONFIGS}
 #: gate names ten channels.
 COMPARISON_CHANNEL_SHIFT = 10
 
+#: The slider-step gate, in milliseconds, and how the step is timed: ten steps
+#: spread over the scan so that each one changes every drawn position.  The
+#: gate is the Increment 4 one, which ``gv4_timing.py`` measures without a
+#: sinogram; ``test_a_slider_step_with_a_sinogram_stays_under_the_gate``
+#: measures it with one.
+STEP_GATE_MS = 100.0
+TIMED_STEPS = 10
+TIMED_STEP_STRIDE = 89
+
 
 def build_figure(name='cone flat', **kwargs):
     """Build the scene and a figure for one probe configuration."""
@@ -65,8 +89,13 @@ def build_figure(name='cone flat', **kwargs):
 
 
 def close(figure):
-    """Close a figure's matplotlib figure so that the tests do not pile up."""
+    """Close a figure's matplotlib figures so that the tests do not pile up.
+
+    A comparison opens a second figure, which is closed here as well.
+    """
     import matplotlib.pyplot as plt
+    if figure.compare_figure is not None:
+        plt.close(figure.compare_figure)
     plt.close(figure.figure)
 
 
@@ -368,6 +397,122 @@ def test_a_comparison_at_construction_is_drawn():
         close(figure)
 
 
+# ── the comparison window ───────────────────────────────────────────────────
+
+def compare_window_lines(figure):
+    """The rows of the comparison window's table, in the order they are drawn.
+
+    Each row is one text artist on the window's single axes, and the artists
+    are created from the top down, so their order is the table's order.
+    """
+    return [artist.get_text()
+            for artist in figure.compare_figure.axes[0].texts]
+
+
+def test_the_comparison_window_tables_every_difference():
+    """The window lists every difference, parameters before derived.
+
+    The text panel can hold only a few lines, so the whole comparison lives in
+    a window of its own.  This checks the three columns of the changed
+    parameter and then checks the table against what the scene reports: one row
+    per difference, in the order the scene gives them, with the parameters
+    above the rule and the derived quantities below it.
+    """
+    scene, figure = build_figure(view_index=2)
+    try:
+        overrides = compare_overrides(scene)
+        figure.set_compare(overrides)
+        assert figure.compare_figure is not None
+        lines = compare_window_lines(figure)
+
+        assert 'primary (solid)' in lines[0]
+        assert 'comparison (dashed)' in lines[0]
+        changed = [line for line in lines if 'det_channel_offset' in line]
+        assert len(changed) == 1
+        assert f'{scene.det_channel_offset:.3g}' in changed[0]
+        assert f'{overrides["det_channel_offset"]:.3g}' in changed[0]
+
+        body = lines[1:]
+        rule = [index for index, line in enumerate(body)
+                if line.startswith('--')]
+        assert len(rule) == 1, 'one rule separates the two kinds of entry'
+        names = [line.split()[0] for line in body
+                 if not line.startswith('--')]
+        rows = scene.differences(figure.compare_scene)
+        assert names == [name for name, _, _ in rows]
+        parameters = set(required_parameter_names(scene.kind))
+        assert all(line.split()[0] in parameters for line in body[:rule[0]])
+        assert not any(line.split()[0] in parameters
+                       for line in body[rule[0] + 1:])
+    finally:
+        close(figure)
+
+
+def test_removing_the_comparison_closes_its_window():
+    """set_compare(None) closes the window, and a new comparison opens one."""
+    import matplotlib.pyplot as plt
+    scene, figure = build_figure()
+    try:
+        figure.set_compare(compare_overrides(scene))
+        first = figure.compare_figure
+        assert plt.fignum_exists(first.number)
+
+        figure.set_compare(None)
+        assert figure.compare_figure is None
+        assert not plt.fignum_exists(first.number)
+
+        figure.set_compare(compare_overrides(scene, channels=4))
+        assert figure.compare_figure is not None
+        assert figure.compare_figure is not first
+        assert plt.fignum_exists(figure.compare_figure.number)
+    finally:
+        close(figure)
+
+
+def test_save_writes_the_comparison_window_beside_the_figure(tmp_path):
+    """A save with a comparison drawn writes a second file.
+
+    The second file carries the same name with ``_comparison`` before the
+    extension, so the two images stay together.  A save with no comparison
+    writes nothing beside the figure.
+    """
+    scene, figure = build_figure(view_index=1)
+    try:
+        path = tmp_path / 'scan.png'
+        companion = tmp_path / 'scan_comparison.png'
+        assert figure.save(str(path), dpi=80) == str(path)
+        assert not companion.exists()
+
+        figure.set_compare(compare_overrides(scene))
+        assert figure.save(str(path), dpi=80) == str(path)
+        assert companion.stat().st_size > 1024
+    finally:
+        close(figure)
+
+
+def test_the_text_panel_keeps_the_parameters_and_counts_the_derived():
+    """The panel lists the changed parameter and counts what it moved.
+
+    The derived quantities are named in the window instead, so the panel names
+    none of them.  This is what makes room for the parameter line at the
+    smallest font the panel uses.
+    """
+    scene, figure = build_figure(view_index=2)
+    try:
+        figure.set_compare(compare_overrides(scene))
+        block = ' '.join(figure._compare_text.get_text().split())
+        parameters, derived = figure._difference_groups()
+        assert [name for name, _, _ in parameters] == ['det_channel_offset']
+        assert derived, 'a channel offset should move a derived quantity'
+        assert 'det_channel_offset: ' in block
+        assert f'{len(derived)} derived quantities differ' in block
+        assert 'see the comparison window' in block
+        for name, _, _ in derived:
+            assert name not in block, f'{name} belongs in the window'
+    finally:
+        close(figure)
+
+
 # ── construction never opens a window ───────────────────────────────────────
 
 def test_construction_does_not_call_show(monkeypatch):
@@ -652,6 +797,163 @@ def test_the_labels_are_animated_with_the_other_moving_artists():
     finally:
         close(with_blit)
         close(without)
+
+
+# ── the two data overlays ───────────────────────────────────────────────────
+
+def overlay_arrays(scene):
+    """A sinogram and a reconstruction of the shapes one scan asks for.
+
+    The sinogram counts up over its whole array and the reconstruction is one
+    block of ones, so neither is flat and both have a support to draw.
+    """
+    sinogram = np.arange(int(np.prod(scene.sinogram_shape)),
+                         dtype=np.float32).reshape(scene.sinogram_shape)
+    recon = np.zeros(scene.recon_shape, dtype=np.float32)
+    recon[:3, :3, :3] = 1.0
+    return sinogram, recon
+
+
+def test_removing_the_overlays_leaves_the_view_change_working():
+    """Passing None takes both overlays away and the slider still works.
+
+    The sinogram's image is a moving artist, so removing it has to take it out
+    of the list the partial redraw walks.  A view change after the removal
+    would otherwise draw an artist that no longer belongs to any axes.
+    """
+    scene, figure = build_figure()
+    try:
+        sinogram, recon = overlay_arrays(scene)
+        figure.set_sinogram(sinogram)
+        figure.set_recon(recon)
+        assert len(figure.ax_detector.images) == 1
+        assert len(figure.ax_top.images) == 1
+        assert len(figure.ax_side.images) == 1
+
+        figure.set_sinogram(None)
+        figure.set_recon(None)
+        for axes in (figure.ax_detector, figure.ax_top, figure.ax_side):
+            assert len(axes.images) == 0
+        assert figure._recon_images == []
+        # The image is gone from the list the partial redraw walks as well.
+        from matplotlib.image import AxesImage
+        assert figure._sinogram_image is None
+        assert not any(isinstance(artist, AxesImage)
+                       for _, artist in figure._moving)
+
+        figure.set_view(3)
+        assert figure.view_index == 3
+        assert 'view 3' in figure.ax_detector.get_title()
+    finally:
+        close(figure)
+
+
+def test_the_overlays_follow_the_rule_of_their_kind_of_artist():
+    """The sinogram is a moving artist and the silhouette is a static one.
+
+    The sinogram carries the view drawn, so it joins the artists the partial
+    redraw updates and is animated exactly where they are.  The silhouette is
+    the object, which this drawing holds fixed, so it belongs to the background
+    and is never animated.
+    """
+    scene, with_blit = build_figure(blit=True)
+    _, without = build_figure(blit=False)
+    try:
+        sinogram, recon = overlay_arrays(scene)
+        for figure in (with_blit, without):
+            figure.set_sinogram(sinogram)
+            figure.set_recon(recon)
+
+        assert with_blit._sinogram_image in moving_artists(with_blit)
+        assert with_blit._sinogram_image.get_animated() is True
+        assert all(artist.get_animated()
+                   for artist in moving_artists(with_blit))
+        assert without._sinogram_image.get_animated() is False
+
+        for figure in (with_blit, without):
+            for _, image in figure._recon_images:
+                assert image not in moving_artists(figure)
+                assert image.get_animated() is False
+    finally:
+        close(with_blit)
+        close(without)
+
+
+def test_the_overlays_survive_a_comparison_being_added_and_removed():
+    """A comparison leaves both overlays drawn and the view change working.
+
+    Installing a comparison rebuilds the legends, re-flows the text panel, and
+    repaints the whole figure, and removing one closes a second window.  The
+    overlays must come through all of that: the sinogram is still the moving
+    artist the partial redraw draws, and the silhouette is still in its two
+    panels.
+    """
+    scene, figure = build_figure()
+    try:
+        sinogram, recon = overlay_arrays(scene)
+        figure.set_sinogram(sinogram)
+        figure.set_recon(recon)
+
+        figure.set_compare(compare_overrides(scene))
+        assert figure.compare_scene is not None
+        assert figure._sinogram_image in moving_artists(figure)
+        assert len(figure._recon_images) == 2
+        # The comparison gets no overlay of its own, so the counts do not grow.
+        assert len(figure.ax_detector.images) == 1
+
+        figure.set_view(3)
+        drawn = np.asarray(figure._sinogram_image.get_array())
+        assert np.array_equal(drawn, sinogram[3])
+
+        figure.set_compare(None)
+        figure.set_view(4)
+        drawn = np.asarray(figure._sinogram_image.get_array())
+        assert np.array_equal(drawn, sinogram[4])
+        assert len(figure.ax_top.images) == 1
+        assert len(figure.ax_side.images) == 1
+    finally:
+        close(figure)
+
+
+def test_a_slider_step_with_a_sinogram_stays_under_the_gate():
+    """A slider step on the 1800-view scan stays under 100 ms with a sinogram.
+
+    This is the Increment 4 gate measured again with the Increment 5 overlay.
+    The model is the one ``gv4_timing.py`` times, so the only thing that has
+    changed is the painted sinogram.  A step replaces the image's data with one
+    view of the array, and the partial redraw then draws the image with the
+    other moving artists.  The test prints the mean and the largest of ten
+    steps, because the number is what the gate is about.
+    """
+    import time
+    import gv4_timing
+
+    model = gv4_timing.build_model()
+    scene = GeometryScene.from_model(model)
+    sinogram = np.zeros(scene.sinogram_shape, dtype=np.float32)
+    # One bright pixel per view, walking across the detector, so that every
+    # step really replaces the image's data.
+    for view_index in range(scene.num_views):
+        sinogram[view_index, view_index % scene.num_det_rows,
+                 view_index % scene.num_det_channels] = 1.0
+    figure = GeometryFigure(scene, sinogram=sinogram)
+    try:
+        # One step before the measurement, so that the background is cached
+        # and the first step timed is like every later one.
+        figure.set_view(1)
+        times = []
+        for step in range(TIMED_STEPS):
+            started = time.perf_counter()
+            figure.set_view((step + 1) * TIMED_STEP_STRIDE % scene.num_views)
+            times.append(1000.0 * (time.perf_counter() - started))
+        times = np.asarray(times)
+        print(f'\nset_view step with a sinogram, {scene.num_views} views: '
+              f'mean {times.mean():.1f} ms, max {times.max():.1f} ms')
+        assert times.mean() < STEP_GATE_MS, (
+            f'a slider step took {times.mean():.1f} ms on average, against '
+            f'a gate of {STEP_GATE_MS:.0f} ms')
+    finally:
+        close(figure)
 
 
 # ── the angle-0 reference ───────────────────────────────────────────────────

@@ -4,12 +4,13 @@ The tests cover three things.  The first is the render function of ``web/app.py`
 it must return a matplotlib figure for each of the six geometries the page
 offers, for a comparison, and for a reconstruction shape given by hand, and it
 must raise ``gr.Error`` with a plain sentence for a bad number and for an
-override line it cannot read.  The second is the build script: every Python file
-inside ``web/lite/index.html`` must decode back to its source byte for byte, and
-both Space directories must hold the files a Hugging Face Space needs.  The
-third is the whole page: the test launches the Gradio app, opens it in a
-headless Chromium through Playwright, waits for the plot, moves the view
-slider, and checks that the plot's image changed.
+override line it cannot read.  Its third return value is the comparison table,
+which is shown only while a comparison is drawn.  The second is the build
+script: every Python file inside ``web/lite/index.html`` must decode back to
+its source byte for byte, and both Space directories must hold the files a
+Hugging Face Space needs.  The third is the whole page: the test launches the
+Gradio app, opens it in a headless Chromium through Playwright, waits for the
+plot, moves the view slider, and checks that the plot's image changed.
 
 Nothing here imports mbirtorch or torch, because the web app does not.  The
 test that pins ``geometry_defaults.py`` against the real models is
@@ -108,6 +109,8 @@ def render_arguments(**changes):
         show_trajectory=False,
         zoom_to_volume=False,
         show_reference=True,
+        camera_elevation_deg=app.CAMERA_ELEVATION_DEG,
+        camera_azimuth_deg=app.CAMERA_AZIMUTH_DEG,
         compare_enabled=False,
         compare_text='',
         recon_rows=None,
@@ -124,13 +127,18 @@ def render_arguments(**changes):
 
 @pytest.mark.parametrize('geometry', app.GEOMETRY_CHOICES)
 def test_render_returns_a_figure(geometry):
-    """Each geometry renders to a matplotlib figure at the web figure size."""
-    figure, status = app.render(*render_arguments(geometry=geometry,
-                                                  view_index=2))
+    """Each geometry renders to a matplotlib figure at the web figure size.
+
+    No comparison is asked for here, so the third output hides the comparison
+    plot and carries no figure.
+    """
+    figure, status, comparison = app.render(
+        *render_arguments(geometry=geometry, view_index=2))
     assert isinstance(figure, plt.Figure)
     assert tuple(figure.get_size_inches()) == app.WEB_FIGSIZE
     assert figure.dpi == app.WEB_DPI
     assert 'Rendered in' in status
+    assert comparison['visible'] is False and 'value' not in comparison
     plt.close(figure)
 
 
@@ -138,24 +146,34 @@ def test_render_draws_a_comparison():
     """A comparison override draws a second geometry.
 
     The figure then holds the comparison's own artists, which the viewer keeps
-    in a list of its own, so the check is that the list is not empty.
+    in a list of its own, so the check is that the list is not empty.  The
+    third output shows the comparison plot and carries the viewer's second
+    figure, which is the table of every difference.
     """
     arguments = render_arguments(compare_enabled=True,
                                  compare_text='det_channel_offset=13.0')
-    figure, _ = app.render(*arguments)
+    figure, _, comparison = app.render(*arguments)
     assert isinstance(figure, plt.Figure)
     # Two more axes lines exist in the comparison case than without it; the
     # text panel's comparison block is the visible difference.
     texts = [artist.get_text() for artist in figure.findobj(plt.Text)]
     assert any('det_channel_offset' in text for text in texts), (
         'the text panel should list the parameter the comparison changed')
+
+    assert comparison['visible'] is True
+    table = comparison['value']
+    assert isinstance(table, plt.Figure) and table is not figure
+    table_texts = [artist.get_text() for artist in table.findobj(plt.Text)]
+    assert any('det_channel_offset' in text for text in table_texts), (
+        'the comparison table should hold the parameter that changed')
     plt.close(figure)
+    plt.close(table)
 
 
 def test_render_takes_a_recon_shape():
     """The advanced section's three counts replace the automatic shape."""
-    figure, _ = app.render(*render_arguments(recon_rows=40, recon_cols=44,
-                                             recon_slices=12))
+    figure, _, _ = app.render(*render_arguments(recon_rows=40, recon_cols=44,
+                                                recon_slices=12))
     titles = [artist.get_text() for artist in figure.findobj(plt.Text)]
     assert any('(40, 44, 12)' in text for text in titles), (
         'the figure should report the reconstruction shape it was given')
@@ -168,9 +186,39 @@ def test_under_pyodide_a_bad_value_is_reported_in_the_status(monkeypatch):
     window in front of the page.  A ``pyodide`` module in ``sys.modules`` is
     how the app tells that it runs there."""
     monkeypatch.setitem(sys.modules, 'pyodide', types.ModuleType('pyodide'))
-    figure, status = app.render(*render_arguments(num_views=0))
+    figure, status, comparison = app.render(*render_arguments(num_views=0))
     assert isinstance(figure, dict) and figure.get('__type__') == 'update'
     assert 'Nothing drawn' in status and 'at least one' in status
+    # The comparison plot keeps whatever it holds, as the figure does.
+    assert comparison == gr.update()
+
+
+def test_the_camera_fields_turn_the_3d_panel():
+    """The two camera numbers reach the 3D panel, and a blank box keeps the
+    viewer's default.  The 3D axes come first in the figure's axes list.
+
+    The default is checked against the viewer's own constant and not against
+    a name of this module, because the module has a ``DEFAULT_ELEVATION_DEG``
+    of its own, the multiaxis scan's elevation, and a first version of the
+    camera fields took that angle for the camera's default without any test
+    noticing.
+    """
+    import geometry_viewer
+    figure, _, _ = app.render(*render_arguments(camera_elevation_deg=10.0,
+                                               camera_azimuth_deg=30.0))
+    axes_3d = figure.axes[0]
+    assert axes_3d.elev == pytest.approx(10.0)
+    assert axes_3d.azim == pytest.approx(30.0)
+    plt.close(figure)
+    figure, _, _ = app.render(*render_arguments(camera_elevation_deg=None,
+                                                camera_azimuth_deg=None))
+    assert figure.axes[0].elev == pytest.approx(
+        geometry_viewer.DEFAULT_ELEVATION_DEG)
+    assert figure.axes[0].azim == pytest.approx(
+        geometry_viewer.DEFAULT_AZIMUTH_DEG)
+    assert app.CAMERA_ELEVATION_DEG == geometry_viewer.DEFAULT_ELEVATION_DEG
+    assert app.CAMERA_ELEVATION_DEG != app.DEFAULT_ELEVATION_DEG
+    plt.close(figure)
 
 
 def test_render_refuses_zero_views():
@@ -206,11 +254,11 @@ def test_a_blank_recon_shape_is_the_automatic_one():
     runs the older release, where the page would otherwise refuse to draw
     anything until a user filled the advanced section in.
     """
-    automatic, _ = app.render(*render_arguments())
+    automatic, _, _ = app.render(*render_arguments())
     blank_title = automatic.get_suptitle()
     plt.close(automatic)
     for entries in (dict(), dict(recon_rows=0, recon_cols=0, recon_slices=0)):
-        figure, _ = app.render(*render_arguments(**entries))
+        figure, _, _ = app.render(*render_arguments(**entries))
         assert figure.get_suptitle() == blank_title
         plt.close(figure)
 
@@ -519,7 +567,7 @@ def test_render_times_are_measured_and_printed():
                               num_views=TIMED_HELICAL_VIEWS,
                               helical_travel=30.0))):
         started = time.perf_counter()
-        figure, _ = app.render(*arguments)
+        figure, _, _ = app.render(*arguments)
         times[name] = time.perf_counter() - started
         plt.close(figure)
 
