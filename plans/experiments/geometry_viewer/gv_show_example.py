@@ -52,10 +52,14 @@ alone.  With either one True the script builds a phantom, and with
 second for the scan built here.  The sinogram is then painted on the detector
 face, one view at a time, and the phantom is drawn as a silhouette in the
 volume box of the top view and the side view, with the outline of that
-silhouette over it and a wire box in the 3D panel.  Together they show whether
-the object's shadow stays on the detector, which the geometry alone cannot say.
-The two constants say what the figure is built with, and the toggles in the
-widget row turn the same two overlays on and off once the window is open.
+silhouette over it.  The 3D panel draws a dashed outline of the phantom that
+follows it one slice at a time, and the detector face draws that same outline
+projected onto it.  The cube phantom this script builds steps sideways from one
+slice to the next, so its outline is a sheared box and not a box.  Together the
+two overlays show whether the object's shadow stays on the detector, which the
+geometry alone cannot say.  The two constants say what the figure is built
+with, and the toggles in the widget row turn the same two overlays on and off
+once the window is open.
 """
 
 import numpy as np

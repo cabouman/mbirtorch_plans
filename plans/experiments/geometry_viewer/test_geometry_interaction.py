@@ -17,10 +17,11 @@ derived quantities.
 A later group covers the two data overlays of Increment 5.  Passing None
 removes an overlay and leaves the view change working.  The sinogram's image is
 a moving artist, animated exactly where the other moving artists are, and the
-silhouette's two images are static.  Both come through a comparison being added
-and removed.  The last of them measures the Increment 4 timing gate again with
-a sinogram drawn: a slider step on the 1800-view scan of `gv4_timing.py` must
-stay under 100 ms.
+silhouette's two images are static.  The phantom's outline on the detector face
+is a moving artist as well, and a view change puts it somewhere else.  All of
+them come through a comparison being added and removed.  The last of them
+measures the Increment 4 timing gate again with a sinogram drawn: a slider step
+on the 1800-view scan of `gv4_timing.py` must stay under 100 ms.
 
 A later group covers the three overlay toggles of 2026-09-11.  Each toggle
 hides the artists of its own overlay and no others, and the state of each
@@ -926,6 +927,49 @@ def test_the_overlays_follow_the_rule_of_their_kind_of_artist():
         close(without)
 
 
+def test_a_view_change_moves_the_phantoms_projected_outline():
+    """The phantom's outline on the detector face follows the view.
+
+    The phantom does not move and the source and the detector do, so the
+    phantom's shadow lands somewhere else in each view.  The line that outlines
+    that shadow is therefore a moving artist: it is in the list the partial
+    redraw walks, it is animated exactly where the other moving artists are,
+    and a view change replaces its data.  The scan is the cone helical one,
+    whose source turns and rises from one view to the next, so two views put
+    the outline in two clearly different places.
+    """
+    scene, figure = build_figure('cone helical')
+    try:
+        _, recon = overlay_arrays(scene)
+        figure.set_recon(recon)
+        line = figure._recon_detector_line
+        assert line is not None
+        assert line in moving_artists(figure)
+        assert line.get_animated() == figure._animate_moving()
+
+        def drawn():
+            return np.stack([np.asarray(line.get_xdata(), dtype=np.float64),
+                             np.asarray(line.get_ydata(), dtype=np.float64)],
+                            axis=1)
+
+        figure.set_view(0)
+        first = drawn()
+        figure.set_view(scene.num_views // 2)
+        second = drawn()
+        assert first.shape == second.shape
+        # The two arrays break their polylines at the same places, so the
+        # finite points of one match the finite points of the other.
+        finite = np.isfinite(first).all(axis=1)
+        assert finite.any()
+        assert np.array_equal(finite, np.isfinite(second).all(axis=1))
+        moved = float(np.max(np.abs(first[finite] - second[finite])))
+        assert moved > 1.0, ('the outline stayed where it was; the largest '
+                             f'change between the two views was {moved} '
+                             'detector pixels')
+    finally:
+        close(figure)
+
+
 def test_the_overlays_survive_a_comparison_being_added_and_removed():
     """A comparison leaves both overlays drawn and the view change working.
 
@@ -1057,13 +1101,16 @@ def test_each_overlay_toggle_hides_and_shows_its_artists():
 
     Hiding removes nothing, so the counts do not change and showing the
     overlay again costs no rebuilding.  The phantom's toggle governs its two
-    fills, its outline in each projected panel, and its wire box in the 3D
-    panel, because those are one drawing of one array.
+    fills, its outline in each projected panel, its outline in the 3D panel,
+    and its projected outline on the detector face, because those are one
+    drawing of one array.
     """
     _, figure = overlay_figure()
     try:
         groups = overlay_artists(figure)
-        assert len(groups['phantom']) == 5, 'two fills, two outlines, a box'
+        assert len(groups['phantom']) == 6, (
+            'two fills, two projected outlines, a 3D outline, a detector line')
+        assert figure._recon_detector_line in groups['phantom']
         assert groups['comparison']
 
         for name, setter in (('sinogram', figure.set_show_sinogram),

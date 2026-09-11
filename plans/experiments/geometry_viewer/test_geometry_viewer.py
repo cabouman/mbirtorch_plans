@@ -20,12 +20,16 @@ phantom with the real projector and compares the painted sinogram with the
 projected outline the panel draws over it.
 
 The last group covers the phantom's outline and the widget row of 2026-09-11.
-A phantom of one block of voxels must get a wire box in the 3D panel whose
-eight corners are the scene's own voxel centers half a voxel outside that
-block, and an outline in the top view that lies on the block's projected
-rectangle.  Removing the phantom removes both and takes its entry out of the 3D
-panel's legend.  The widget row now carries six toggles, and no toggle's label
-may overlap another, the view slider, or the legend band above the row.
+The 3D panel's outline follows the support one slice at a time.  A phantom of
+one block of voxels therefore gets its bounding box, whose eight corners are
+the scene's own voxel centers half a voxel outside that block, and mbirtorch's
+cube phantom gets a parallelepiped, whose rails follow the sideways step of
+that phantom.  The same outline is projected onto the detector face, where it
+has to follow the shadow the real projector paints there.  The top view gets an
+outline that lies on the block's projected rectangle.  Removing the phantom
+removes all of these and takes its entry out of both legends.  The widget row
+now carries six toggles, and no toggle's label may overlap another, the view
+slider, or the legend band above the row.
 
 Run:
     cd plans/experiments/geometry_viewer
@@ -1349,24 +1353,77 @@ def outlines_in(figure, axes):
             if panel is axes]
 
 
-def test_the_wire_box_holds_the_blocks_eight_corners():
-    """The 3D wire box is the block's bounding box, corner for corner.
+def nan_separated_parts(points):
+    """The polylines one NaN-separated array holds, as a list of arrays.
 
-    The box is drawn as twelve edges joined into one polyline, so its data
-    holds each of the eight corners three times.  Every drawn point has to be
-    one of the eight corners the scene puts half a voxel outside the block, and
-    every one of those eight has to be drawn.  The three voxel pitches differ
-    in this geometry and its volume is offset in z, so a box built from
-    anything but the scene's own voxel centers would land somewhere else.
+    The viewer joins several polylines into one line artist with a row of NaN
+    between them, and these tests read those polylines back one at a time.
+
+    Args:
+        points (ndarray): (N, 2) or (N, 3), with a row of NaN between one
+            polyline and the next.
+
+    Returns:
+        list of ndarray: the polylines, in the order they are drawn in.
+    """
+    points = np.asarray(points, dtype=np.float64)
+    finite = np.isfinite(points).all(axis=1)
+    parts, start = [], 0
+    while start < finite.size:
+        if not finite[start]:
+            start += 1
+            continue
+        stop = start
+        while stop < finite.size and finite[stop]:
+            stop += 1
+        parts.append(points[start:stop])
+        start = stop
+    return parts
+
+
+def outline_parts_3d(figure):
+    """The six polylines of the phantom's outline in the 3D panel.
+
+    The order is the one ``GeometryFigure._support_outline_parts`` builds: the
+    rectangle at the first slice's lower face, the rectangle at the last
+    slice's upper face, and then one rail per corner of those rectangles.
+    """
+    lines = outlines_in(figure, figure.ax_3d)
+    assert len(lines) == 1
+    return nan_separated_parts(np.stack(lines[0].get_data_3d(), axis=1))
+
+
+def outline_point_count(num_slices):
+    """How many points the 3D outline holds, for a support in that many slices.
+
+    Each of the two end rectangles is its four corners with the first drawn
+    again, so that the rectangle closes.  Each of the four rails runs through
+    the slices that hold support, with an end rectangle's corner at each end.
+    """
+    return 2 * 5 + 4 * (num_slices + 2)
+
+
+def test_the_3d_outline_of_a_block_is_its_bounding_box():
+    """A block phantom's 3D outline is the block's bounding box.
+
+    The outline follows the support one slice at a time.  Every slice of this
+    block holds the same rectangle, so the four rails are straight and the
+    outline is the block's bounding box.  The eight corners the scene puts half
+    a voxel outside the block all have to be drawn, and every drawn point has
+    to sit on one of the four rails, which are the box's edges in z.  The three
+    voxel pitches differ in this geometry and its volume is offset in z, so an
+    outline built from anything but the scene's own voxel centers would land
+    somewhere else.
     """
     scene = build_scene(SILHOUETTE_CONFIG)
     figure = GeometryFigure(scene, recon=block_phantom(scene))
     try:
-        boxes = outlines_in(figure, figure.ax_3d)
-        assert len(boxes) == 1
-        drawn = np.stack(boxes[0].get_data_3d(), axis=1)
+        lines = outlines_in(figure, figure.ax_3d)
+        assert len(lines) == 1
+        drawn = np.stack(lines[0].get_data_3d(), axis=1)
         drawn = drawn[np.isfinite(drawn).all(axis=1)]
-        assert drawn.shape == (2 * len(VOLUME_BOX_EDGES), 3)
+        slice0, slice1 = OUTLINE_BLOCK[2]
+        assert drawn.shape == (outline_point_count(slice1 - slice0), 3)
 
         low, high = block_corners(scene)
         expected = np.array([[x, y, z] for x in (low[0], high[0])
@@ -1375,19 +1432,30 @@ def test_the_wire_box_holds_the_blocks_eight_corners():
         for corner in expected:
             gap = np.linalg.norm(drawn - corner[None, :], axis=1)
             assert float(np.min(gap)) < 1e-9, f'corner {corner} was not drawn'
+        # Every drawn point sits on an edge of that box that runs along z: its
+        # x and its y are a corner's and its z is between the two faces.  An
+        # outline that wandered off the block would break this, and so would
+        # one built from anything but the scene's own voxel centers.
         for point in drawn:
-            gap = np.linalg.norm(expected - point[None, :], axis=1)
-            assert float(np.min(gap)) < 1e-9, f'{point} is not a corner'
-        # Each of the twelve segments is an edge of the box and not a
-        # diagonal, which is to say its two ends differ in one coordinate.
-        # A box whose corners were listed in another order would draw the
-        # right eight points joined the wrong way.
-        for start, end in drawn.reshape(len(VOLUME_BOX_EDGES), 2, 3):
-            assert int(np.count_nonzero(start != end)) == 1
-        # The box is dashed, so that it is not read as the volume box, which
-        # is solid and the same color.
-        assert boxes[0].get_linestyle() not in ('-', 'solid')
-        assert boxes[0].get_color() == COLORS['volume']
+            assert min(abs(point[0] - low[0]), abs(point[0] - high[0])) < 1e-9
+            assert min(abs(point[1] - low[1]), abs(point[1] - high[1])) < 1e-9
+            assert low[2] - 1e-9 <= point[2] <= high[2] + 1e-9
+
+        # The six polylines are the two end rectangles and the four rails.
+        parts = outline_parts_3d(figure)
+        assert len(parts) == 6
+        for rectangle, face in zip(parts[:2], (low[2], high[2])):
+            assert rectangle.shape == (5, 3)
+            assert np.allclose(rectangle[:, 2], face)
+            assert np.allclose(rectangle[0], rectangle[-1])
+        for rail in parts[2:]:
+            assert rail.shape == (slice1 - slice0 + 2, 3)
+            assert np.allclose(rail[:, :2], rail[0, :2])
+
+        # The outline is dashed, so that it is not read as the volume box,
+        # which is solid and the same color.
+        assert lines[0].get_linestyle() not in ('-', 'solid')
+        assert lines[0].get_color() == COLORS['volume']
     finally:
         close(figure)
 
@@ -1433,34 +1501,306 @@ def test_the_top_view_outline_traces_the_blocks_rectangle():
         close(figure)
 
 
-def test_removing_the_phantom_removes_its_outlines_and_legend_entry():
-    """set_recon(None) takes away the fills, the outlines, and the entry.
+#: How far the lit part of the cube phantom's painted sinogram may sit from the
+#: phantom's projected outline, in detector pixels.
+#: ``test_the_projected_outline_follows_the_cube_phantoms_shadow`` says why one
+#: pixel is the right number.
+SHADOW_TOLERANCE = 1.0
 
-    The wire box carries the phantom's one legend entry, so removing the
-    phantom has to rebuild the 3D panel's legend without it.
+#: How far off the straight line between its two ends a rail of the cube
+#: phantom's outline must lie, in voxel pitches, for that outline to be a
+#: parallelepiped rather than a box.  The phantom steps a whole column sideways
+#: at a time, so a rail is a staircase about that line.  A quarter of a pitch is
+#: well inside the largest step this phantom takes, which is 0.6 of a pitch.
+RAIL_STEP_FLOOR = 0.25
+
+
+def cube_phantom(scene):
+    """mbirtorch's cube phantom for one scan's reconstruction shape."""
+    import mbirtorch
+    return np.asarray(mbirtorch.gen_cube_phantom(scene.recon_shape))
+
+
+def cube_phantom_shear(scene):
+    """How far the cube phantom steps sideways over all of its slices.
+
+    ``mbirtorch.gen_cube_phantom`` fills a block a quarter of the volume wide
+    and shifts slice k of it by ``int(k * phantom_cols / num_slices)`` columns.
+    The shift of the last slice is therefore the shear of the whole phantom,
+    in voxel pitches along the column index, which is x.
+    """
+    _, num_cols, num_slices = scene.recon_shape
+    return int((num_slices - 1) * (num_cols // 4) / num_slices)
+
+
+def slice_rectangle(scene, phantom, index, face):
+    """The bounding rectangle of one slice of a phantom, in object coordinates.
+
+    The rectangle's four corners sit at the outer faces of the voxels that
+    bound the filled part of that slice, which is half an index outside the
+    first and the last filled row and column.  The first corner is drawn again
+    at the end, so the rectangle closes.  Every position comes from the scene's
+    own ``voxel_centers``, at the fractional slice index the caller gives.
+
+    Args:
+        scene (GeometryScene): the scan.
+        phantom (ndarray): an array of the scan's recon shape.
+        index (int): which slice to take the rectangle of.
+        face (float): the fractional slice index to put the rectangle at.
+
+    Returns:
+        ndarray: (5, 3) as (x, y, z).
+    """
+    filled = np.abs(phantom[:, :, index]) > 0.0
+    rows = np.flatnonzero(filled.any(axis=1))
+    cols = np.flatnonzero(filled.any(axis=0))
+    low_row, high_row = rows[0] - 0.5, rows[-1] + 0.5
+    low_col, high_col = cols[0] - 0.5, cols[-1] + 0.5
+    corners = [(low_row, low_col), (low_row, high_col),
+               (high_row, high_col), (high_row, low_col)]
+    corners.append(corners[0])
+    return scene.voxel_centers([[row, col, face] for row, col in corners])
+
+
+def distance_to_line(points, start, end):
+    """How far each point lies from the straight line through two points."""
+    start = np.asarray(start, dtype=np.float64)
+    direction = np.asarray(end, dtype=np.float64) - start
+    unit = direction / np.linalg.norm(direction)
+    offset = np.asarray(points, dtype=np.float64) - start[None, :]
+    along = offset @ unit
+    return np.linalg.norm(offset - along[:, None] * unit[None, :], axis=1)
+
+
+def test_the_cube_phantoms_3d_outline_is_a_parallelepiped():
+    """mbirtorch's cube phantom gets an outline that follows its shear.
+
+    The cube phantom is a rectangle of the same size in every slice, stepped
+    sideways from one slice to the next, so it is a parallelepiped and not a
+    box.  Three things say that the outline follows it.  The rectangle at each
+    end is that end slice's own bounding rectangle, at the slice's outer face,
+    which is checked against the scene's ``voxel_centers``.  The top rectangle
+    sits shifted along x from the bottom one by the phantom's shear.  And each
+    of the four rails, which are the polylines that join one end rectangle's
+    corner to the other's, leaves the straight line between its two ends,
+    because the phantom steps sideways a whole column at a time.
+
+    The shear is compared to one voxel pitch, because a rail's ends sit at the
+    slice faces half a slice outside the first and the last slice, while the
+    shear counts the shift between those two slices' centers.
+    """
+    scene = build_scene(SINOGRAM_CONFIG)
+    phantom = cube_phantom(scene)
+    num_slices = scene.recon_shape[2]
+    figure = GeometryFigure(scene, recon=phantom)
+    try:
+        parts = outline_parts_3d(figure)
+        assert len(parts) == 6
+        # The cube phantom fills every slice, so the two end rectangles sit
+        # half a slice outside slice 0 and slice num_slices - 1.
+        bottom, top = parts[0], parts[1]
+        assert np.allclose(bottom, slice_rectangle(scene, phantom, 0, -0.5))
+        assert np.allclose(top, slice_rectangle(scene, phantom,
+                                                num_slices - 1,
+                                                num_slices - 0.5))
+
+        shear = cube_phantom_shear(scene) * scene.delta_voxel
+        assert shear > 0.0, 'this phantom has no shear to measure'
+        assert np.all(np.abs((top[:, 0] - bottom[:, 0]) - shear)
+                      <= scene.delta_voxel)
+        # The step is along x alone, so the two rectangles share their y.
+        assert np.allclose(top[:, 1], bottom[:, 1])
+
+        for rail in parts[2:]:
+            assert rail.shape == (num_slices + 2, 3)
+            gaps = distance_to_line(rail, rail[0], rail[-1])
+            # Within one voxel pitch of the straight line between its ends,
+            # which is what makes the outline a parallelepiped.
+            assert float(np.max(gaps)) <= scene.delta_voxel
+            # And off that line by a real step, which is what makes it not a
+            # box.  An outline that took the support's bounding box would draw
+            # four straight rails here.
+            assert float(np.max(gaps)) >= RAIL_STEP_FLOOR * scene.delta_voxel
+    finally:
+        close(figure)
+
+
+def convex_hull(points):
+    """The convex hull of a set of points in a plane, counterclockwise.
+
+    This is Andrew's monotone chain.  The points are sorted, then walked once
+    forward for the lower chain and once backward for the upper one, and a
+    point is dropped whenever the last three turn the wrong way.
+
+    Args:
+        points (ndarray): (N, 2).
+
+    Returns:
+        ndarray: (M, 2), the hull's vertices in order.
+    """
+    ordered = np.asarray(points, dtype=np.float64)
+    ordered = ordered[np.lexsort((ordered[:, 1], ordered[:, 0]))]
+
+    def turn(first, second, third):
+        return ((second[0] - first[0]) * (third[1] - first[1])
+                - (second[1] - first[1]) * (third[0] - first[0]))
+
+    def chain(sequence):
+        kept = []
+        for point in sequence:
+            while len(kept) >= 2 and turn(kept[-2], kept[-1], point) <= 0.0:
+                kept.pop()
+            kept.append(point)
+        # The last point of one chain is the first of the other.
+        return kept[:-1]
+
+    return np.array(chain(ordered) + chain(ordered[::-1]))
+
+
+def inside_hull(points, hull, tolerance=1e-6):
+    """Whether each point lies inside a counterclockwise convex hull.
+
+    Args:
+        points (ndarray): (N, 2).
+        hull (ndarray): (M, 2), the hull's vertices counterclockwise.
+        tolerance (float, optional): how far outside an edge a point may lie,
+            in the units the points are in.  The default absorbs rounding.
+
+    Returns:
+        ndarray: (N,) of bool.
+    """
+    points = np.asarray(points, dtype=np.float64)
+    flags = np.ones(points.shape[0], dtype=bool)
+    for index in range(hull.shape[0]):
+        first = hull[index]
+        second = hull[(index + 1) % hull.shape[0]]
+        edge = second - first
+        # The cross product is the distance to the edge's line times the
+        # edge's length, so dividing by that length gives a distance.
+        side = (edge[0] * (points[:, 1] - first[1])
+                - edge[1] * (points[:, 0] - first[0]))
+        flags &= side / np.linalg.norm(edge) >= -tolerance
+    return flags
+
+
+def test_the_projected_outline_follows_the_cube_phantoms_shadow():
+    """The outline on the detector face bounds the shadow the projector paints.
+
+    The phantom is mbirtorch's cube phantom, and ``model.forward_project``
+    turns it into the sinogram the panel paints.  The panel draws that
+    phantom's own outline over the image, so the lit part of the image and the
+    outline are two accounts of one shape: one from the projector and one from
+    the scene.  The test compares their extents in rows and in channels, in
+    every view.
+
+    The extents are compared edge to edge.  A lit pixel covers the half pixel
+    on each side of its index, so the lit extent runs from the lowest lit index
+    less a half to the highest plus a half, and the outline is already in
+    continuous index coordinates.
+
+    One pixel is the tolerance, in rows and in channels alike.  The outline
+    runs through the outer faces of the phantom's voxels, so the material it
+    encloses ends where the outline does.  The projector's footprint then
+    spreads that material's mass by up to half a pixel.  Any pixel with some
+    mass counts as lit here, which puts the lit edge up to half a pixel further
+    out again.  Those two half pixels are the one pixel allowed.
+
+    The outline also has to project inside the volume box's projected outline,
+    because the phantom lies inside the volume.  That is what lets the panel
+    draw this line without splitting it at the detector's edge: a part of it
+    that leaves the grid leaves it inside the volume box's outline, which is
+    split and already carries the overshoot color.
+    """
+    import torch
+    import mbirtorch
+
+    model = probe.build_model(CONFIGS_BY_NAME[SINOGRAM_CONFIG])
+    scene = GeometryScene.from_model(model)
+    phantom = np.asarray(mbirtorch.gen_cube_phantom(scene.recon_shape))
+    sinogram = np.asarray(model.forward_project(torch.tensor(phantom)))
+    floor = LIT_FRACTION * float(np.max(sinogram))
+
+    figure = GeometryFigure(scene, sinogram=sinogram, recon=phantom)
+    try:
+        for view_index in range(scene.num_views):
+            figure.set_view(view_index)
+            drawn = np.asarray(figure._sinogram_image.get_array())
+            lit = drawn > floor
+            assert lit.any(), f'view {view_index} painted nothing'
+
+            line = figure._recon_detector_line
+            outline = np.stack(
+                [np.asarray(line.get_xdata(), dtype=np.float64),
+                 np.asarray(line.get_ydata(), dtype=np.float64)], axis=1)
+            outline = outline[np.isfinite(outline).all(axis=1)]
+            assert outline.shape[0] == outline_point_count(
+                scene.recon_shape[2])
+            # The panel's axes are (channel, row), and the lit extents below
+            # are taken the way the array is indexed, as (row, channel).
+            indexed = outline[:, ::-1]
+            for axis, name in ((0, 'row'), (1, 'channel')):
+                indices = np.flatnonzero(lit.any(axis=1 - axis))
+                for edge, reached in ((indices.min() - 0.5,
+                                       indexed[:, axis].min()),
+                                      (indices.max() + 0.5,
+                                       indexed[:, axis].max())):
+                    assert (abs(float(edge) - float(reached))
+                            <= SHADOW_TOLERANCE), (
+                        f'view {view_index}: the lit {name} edge is at '
+                        f'{edge}, and the outline reaches {reached}')
+
+            box = np.asarray(scene.view(view_index).volume_outline_on_detector,
+                             dtype=np.float64)
+            hull = convex_hull(box[:, ::-1])
+            assert np.all(inside_hull(outline, hull)), (
+                f'view {view_index}: the outline left the volume box')
+    finally:
+        close(figure)
+
+
+def test_removing_the_phantom_removes_its_outlines_and_legend_entry():
+    """set_recon(None) takes away the fills, the outlines, and the entries.
+
+    The 3D panel's outline carries the phantom's entry in that panel's legend,
+    and the projected outline carries its entry in the detector face's legend,
+    so removing the phantom has to rebuild both legends without it.  The
+    projected outline is also a moving artist, so removing it has to take it
+    out of the list the partial redraw walks; the view change at the end would
+    otherwise draw an artist that no longer belongs to any panel.
     """
     scene = build_scene(SILHOUETTE_CONFIG)
     figure = GeometryFigure(scene)
     try:
-        def legend_labels():
+        def legend_labels(axes):
             return [text.get_text()
-                    for text in figure.ax_3d.get_legend().get_texts()]
+                    for text in axes.get_legend().get_texts()]
 
-        assert geometry_viewer.PHANTOM_NAME not in legend_labels()
+        panels = (figure.ax_3d, figure.ax_detector)
+        for axes in panels:
+            assert geometry_viewer.PHANTOM_NAME not in legend_labels(axes)
 
         figure.set_recon(block_phantom(scene))
         assert len(figure._recon_images) == 2
-        assert len(figure._recon_outlines) == 3
-        assert geometry_viewer.PHANTOM_NAME in legend_labels()
+        # The two projected panels, the 3D panel, and the detector face.
+        assert len(figure._recon_outlines) == 4
+        projected = figure._recon_detector_line
+        assert projected is not None
+        assert any(artist is projected for _, artist in figure._moving)
+        for axes in panels:
+            assert geometry_viewer.PHANTOM_NAME in legend_labels(axes)
 
         figure.set_recon(None)
         assert figure._recon_images == []
         assert figure._recon_outlines == []
-        assert geometry_viewer.PHANTOM_NAME not in legend_labels()
-        for axes in (figure.ax_top, figure.ax_side, figure.ax_3d):
+        assert figure._recon_detector_line is None
+        for axes in panels:
+            assert geometry_viewer.PHANTOM_NAME not in legend_labels(axes)
+        for axes in (figure.ax_top, figure.ax_side, figure.ax_3d,
+                     figure.ax_detector):
             assert not [line for line in axes.get_lines()
                         if line.get_color() == COLORS['volume']
                         and line.get_linestyle() == '--']
+        assert not any(artist is projected for _, artist in figure._moving)
         # The figure still redraws with no phantom.
         figure.set_view(1)
     finally:

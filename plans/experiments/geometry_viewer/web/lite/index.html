@@ -3262,10 +3262,16 @@ because the object is the thing this drawing holds fixed.
 The phantom's outline.  The silhouette's fill is light, so that the lines drawn
 over it stay readable, and against a busy panel it can be hard to see.  Each of
 the two projected panels therefore also draws the outline of the support, as a
-solid line through the outer faces of the voxels in it.  The 3D panel draws the
-support's bounding box as a dashed wire box of twelve edges, which is the one
-thing that panel shows of the phantom.  The outlines belong to the phantom's
-toggle, and they are removed when the phantom is.
+solid line through the outer faces of the voxels in it.  The 3D panel draws a
+dashed outline of the support instead, which is the one thing that panel shows
+of the phantom.  That outline follows the support one slice at a time, because
+a phantom need not be a box.  mbirtorch's cube phantom is a rectangle that
+steps sideways from one slice to the next, so its bounding box is larger than
+the phantom and the wrong shape (Greg, 2026-09-11).  The detector face draws
+that same outline projected onto it.  The projected outline says where the
+phantom's shadow falls, against the outlines of the volume box and of the
+region of reconstruction already drawn there.  All of these belong to the
+phantom's toggle, and they are removed when the phantom is.
 
 Import discipline.  This module imports numpy and the matplotlib base package
 at import time, and nothing else.  ``pyplot``, the widgets, and the 3D toolkit
@@ -3550,12 +3556,17 @@ SINOGRAM_COLORMAP = 'gray'
 #: dark enough to be seen against the panel's white background.
 RECON_FILL_ALPHA = 0.35
 
-#: The line width of the phantom's outline in the two projected panels, and of
-#: its wire box in the 3D panel.  The outline is drawn a little thicker than
-#: the volume box's own line, which is 1.2 in those panels and 1.0 in the 3D
-#: panel, so that the two can be told apart where they run close together.
+#: The line width of the phantom's outline in each panel that draws it.  In the
+#: two projected panels and in the 3D panel the outline is drawn a little
+#: thicker than the volume box's own line, which is 1.2 in those panels and 1.0
+#: in the 3D panel, so that the two can be told apart where they run close
+#: together.  On the detector face it is drawn thinner than the volume box's
+#: line, which is 1.2 there, because the phantom's outline always projects
+#: inside the volume box's and a thin line is easier to follow over a painted
+#: sinogram.
 RECON_OUTLINE_LINEWIDTH = 1.6
-RECON_BOX_LINEWIDTH = 1.4
+RECON_OUTLINE_3D_LINEWIDTH = 1.4
+RECON_OUTLINE_DETECTOR_LINEWIDTH = 0.9
 
 #: Where the phantom's outline sits in the drawing order of a projected panel.
 #: It is above the silhouette's fill, which is at :data:`SILHOUETTE_ZORDER`,
@@ -4383,13 +4394,20 @@ class GeometryFigure:
 
         # The two data overlays, which _install_sinogram and _install_recon
         # create after the geometry's own artists exist.  _recon_outlines holds
-        # the phantom's outline in the two projected panels and its wire box in
-        # the 3D panel, which are static artists like the silhouette itself.
+        # every line of the phantom: the outline in each of the two projected
+        # panels, the outline in the 3D panel, and the projected outline on the
+        # detector face.  The first three are static artists like the
+        # silhouette itself, and the last one moves with the view, so it is
+        # also in _moving and is named on its own in _recon_detector_line.
+        # _recon_outline_parts holds the six polylines of the 3D outline, which
+        # the detector face projects for each view.
         self._sinogram = None
         self._sinogram_image = None
         self._recon_support = None
         self._recon_images = []
         self._recon_outlines = []
+        self._recon_outline_parts = []
+        self._recon_detector_line = None
         self._recon_threshold = None
         self._recon_threshold_given = None
 
@@ -4556,11 +4574,12 @@ class GeometryFigure:
     def set_show_recon(self, flag):
         """Turn the phantom's silhouette and its outlines on or off.
 
-        The two silhouette fills, the outline in each projected panel, and the
-        wire box in the 3D panel are hidden together, because they are one
-        drawing of one array.  The 3D panel's legend keeps its phantom entry
-        while the phantom is hidden: the legend names what the figure holds,
-        and the toggle beside it says whether that is drawn.
+        The two silhouette fills, the outline in each projected panel, the
+        outline in the 3D panel, and the projected outline on the detector face
+        are hidden together, because they are one drawing of one array.  The
+        two legends keep their phantom entry while the phantom is hidden: a
+        legend names what the figure holds, and the toggle beside it says
+        whether that is drawn.
 
         Args:
             flag (bool): whether to draw the phantom.
@@ -5061,7 +5080,9 @@ class GeometryFigure:
         The two data overlays are created after these, by
         :meth:`_install_sinogram` and :meth:`_install_recon`, because a caller
         may add or remove either one later.  The sinogram image joins the
-        moving artists and the two silhouette images are static.
+        moving artists, and so does the phantom's outline on the detector face,
+        which is the one part of the phantom that a view change moves.  The two
+        silhouette images and the phantom's other outlines are static.
         """
         view = self.scene.view(self._view_index)
         self._create_3d_artists(view)
@@ -5492,6 +5513,10 @@ class GeometryFigure:
         parameters, so they are static.  What moves with the view is the
         projected outline of the volume box and, when the scene has a region of
         reconstruction, the projected outline of that region.
+
+        A phantom's projected outline moves with the view as well, and it is
+        created by :meth:`_create_recon_detector_outline` instead of here,
+        because the figure may be given a phantom later or have one taken away.
         """
         axes = self.ax_detector
         num_rows = self.scene.num_det_rows
@@ -5541,6 +5566,27 @@ class GeometryFigure:
         axes.tick_params(labelsize=TICK_FONT_SIZE)
         self._title_detector = axes.set_title('', fontsize=TITLE_FONT_SIZE)
         self._moving.append((axes, self._title_detector))
+
+    def _create_recon_detector_outline(self):
+        """Create the phantom's projected outline on the detector face.
+
+        The line is the same outline the 3D panel draws, projected onto the
+        detector by the scene for the view drawn, so it moves with the view and
+        :meth:`_update_detector_panel` fills it in.  It is dashed and in the
+        volume's color, as the 3D outline is, so that the two read as one
+        drawing of one array.
+
+        The line is not split at the detector's edge, the way the volume box's
+        projected outline is.  The phantom lies inside the volume, so a
+        phantom's outline that leaves the grid leaves it inside the volume
+        box's outline, and that outline already carries the overshoot color.
+        """
+        self._recon_detector_line = self._moving_line(
+            self.ax_detector, COLORS['volume'],
+            linewidth=RECON_OUTLINE_DETECTOR_LINEWIDTH, linestyle='--',
+            label=PHANTOM_NAME)
+        self._recon_outlines.append((self.ax_detector,
+                                     self._recon_detector_line))
 
     # --- the angle-0 reference ---
 
@@ -5923,10 +5969,11 @@ class GeometryFigure:
 
         The legends are rebuilt when a comparison is added or removed, because
         the comparison adds an entry to each of them, and when a phantom is
-        added or removed, because its wire box adds an entry to the 3D panel's
-        legend.  That entry stays while the phantom's toggle hides the box: the
-        legend names what the figure holds, and the toggle says whether it is
-        drawn.
+        added or removed, because the phantom adds an entry to each of them
+        too.  The phantom's entries come from its outline in the 3D panel and
+        from its projected outline on the detector face.  An entry stays while
+        the phantom's toggle hides those outlines: a legend names what the
+        figure holds, and the toggle says whether it is drawn.
 
         The 3D panel's legend sits in the panel's upper left corner, where the
         drawing leaves room.  The detector face's legend sits outside its
@@ -6365,13 +6412,16 @@ class GeometryFigure:
         The silhouette is two images, one in the top view and one in the side
         view.  Each is the support projected along the one object coordinate
         its panel does not draw.  Each of those panels also gets the outline of
-        the support, and the 3D panel gets the support's bounding box as a wire
-        box.  All of these are static artists, because the object does not move
-        with the view.
+        the support, and the 3D panel gets the outline that follows the support
+        slice by slice.  All of these are static artists, because the object
+        does not move with the view.  The detector face gets that same 3D
+        outline projected onto it, which is a moving artist, because the view
+        is what the projection depends on.
 
-        The 3D panel's legend is built again at the end, because the wire box
-        carries the one legend entry the phantom has.  A call that removes the
-        phantom therefore takes that entry out of the legend.
+        Both legends are built again at the end, because the 3D outline carries
+        the phantom's entry in the 3D panel's legend and the projected outline
+        carries its entry in the detector face's legend.  A call that removes
+        the phantom therefore takes both entries out.
 
         Args:
             recon (array_like): the array, or None to remove the silhouette.
@@ -6382,8 +6432,15 @@ class GeometryFigure:
         """
         for _, artist in self._recon_images + self._recon_outlines:
             artist.remove()
+        # The projected outline is a moving artist, so it also leaves the list
+        # the partial redraw walks; an artist left there after its axes has
+        # dropped it would be drawn on the next view change.
+        self._moving = [pair for pair in self._moving
+                        if pair[1] is not self._recon_detector_line]
+        self._recon_detector_line = None
         self._recon_images = []
         self._recon_outlines = []
+        self._recon_outline_parts = []
         self._recon_support = None
         self._recon_threshold = None
         self._recon_threshold_given = None
@@ -6416,9 +6473,15 @@ class GeometryFigure:
         self._create_silhouette(self.ax_side,
                                 self._recon_support.any(axis=1).T,
                                 SIDE_PANEL_COLUMNS)
-        self._create_support_box()
+        self._recon_outline_parts = self._support_outline_parts()
+        if self._recon_outline_parts:
+            self._create_support_outline_3d()
+            self._create_recon_detector_outline()
         self._apply_recon_visibility()
         self._create_legends()
+        # The projected outline joined the moving artists, so it takes the
+        # animated flag the partial-redraw path gives them.
+        self._set_animated(self._animate_moving())
 
     def _create_silhouette(self, axes, support, columns):
         """Draw one panel's silhouette image and its outline, and keep them.
@@ -6470,42 +6533,89 @@ class GeometryFigure:
                           zorder=RECON_OUTLINE_ZORDER)
         self._recon_outlines.append((axes, line))
 
-    def _create_support_box(self):
-        """Draw the support's bounding box in the 3D panel, and keep it.
+    def _support_outline_parts(self):
+        """The phantom's outline in three dimensions, as six polylines.
+
+        The outline follows the support one slice at a time, because a phantom
+        need not be a box.  mbirtorch's cube phantom is a rectangle that steps
+        sideways from one slice to the next, so its bounding box is larger than
+        the phantom and the wrong shape.
+
+        The outline is built from the bounding rectangle of the support in each
+        slice that holds any support voxel.  That rectangle is a range of row
+        indices and a range of column indices, and its four corners sit at the
+        outer faces of those voxels, which is half an index outside the first
+        and the last of each range.  The six polylines are then the rectangle
+        of the first such slice at that slice's lower face, the rectangle of
+        the last such slice at its upper face, and one rail per corner.  A rail
+        runs through its corner's position in every slice that holds support,
+        taken at the slice's center, and it starts and ends at the two end
+        rectangles' corners.  A slice with no support voxel is skipped.
+
+        A support whose bounding rectangle is the same in every slice gives
+        four straight rails, and the outline is then the support's bounding
+        box.  A support that steps sideways gives rails that follow the steps.
+
+        Every position comes from the scene's own ``voxel_centers``, at
+        fractional voxel indices, so the viewer computes no position of its
+        own.
+
+        Returns:
+            list of ndarray: the two end rectangles and then the four rails,
+            each (N, 3) as (x, y, z).  The list is empty when the support has
+            no voxel in it.
+        """
+        support = self._recon_support
+        if support is None or not support.any():
+            return []
+        levels = np.flatnonzero(support.any(axis=(0, 1))).astype(np.float64)
+        # The four corners of each of those slices' bounding rectangles, as
+        # fractional (row, column) indices at the voxels' outer faces.  The
+        # corners are in order around the rectangle, so joining consecutive
+        # ones draws its four sides.
+        corners = []
+        for index in levels.astype(int):
+            rows = np.flatnonzero(support[:, :, index].any(axis=1))
+            cols = np.flatnonzero(support[:, :, index].any(axis=0))
+            low_row, high_row = float(rows[0]) - 0.5, float(rows[-1]) + 0.5
+            low_col, high_col = float(cols[0]) - 0.5, float(cols[-1]) + 0.5
+            corners.append([(low_row, low_col), (low_row, high_col),
+                            (high_row, high_col), (high_row, low_col)])
+        corners = np.asarray(corners, dtype=np.float64)
+
+        # The two faces the end rectangles sit on: half a slice below the first
+        # slice with support and half a slice above the last one.
+        first_face, last_face = levels[0] - 0.5, levels[-1] + 0.5
+        parts = []
+        for rectangle, face in ((corners[0], first_face),
+                                (corners[-1], last_face)):
+            # The first corner again at the end, so the rectangle closes.
+            loop = rectangle[[0, 1, 2, 3, 0]]
+            parts.append(self.scene.voxel_centers(
+                np.column_stack([loop, np.full(loop.shape[0], face)])))
+        rail_levels = np.concatenate([[first_face], levels, [last_face]])
+        for corner in range(corners.shape[1]):
+            rail = np.concatenate([corners[:1, corner], corners[:, corner],
+                                   corners[-1:, corner]])
+            parts.append(self.scene.voxel_centers(
+                np.column_stack([rail, rail_levels])))
+        return parts
+
+    def _create_support_outline_3d(self):
+        """Draw the phantom's outline in the 3D panel, and keep it.
 
         The 3D panel draws no silhouette, because a filled shape there would
-        hide the geometry behind it.  It draws this box instead, which says
-        where the phantom sits in all three directions.  The box is dashed, so
-        that it is not read as the volume box, which is the same color and
-        solid.  Its corners come from the scene's own ``voxel_centers``, half a
-        voxel outside the first and the last voxel of the support in each
-        direction, so that it encloses every voxel of the support.
-
-        A support with no voxel in it gets no box.
+        hide the geometry behind it.  It draws this outline instead, which says
+        where the phantom sits in all three directions.  The outline is dashed,
+        so that it is not read as the volume box, which is the same color and
+        solid.  Its six polylines, which :meth:`_support_outline_parts` builds,
+        are drawn as one line whose data carries a row of NaN between one
+        polyline and the next.
         """
-        if self._recon_support is None or not self._recon_support.any():
-            return
-        # The first and the last index of the support along each of the three
-        # voxel indices, which are the row, the column, and the slice.
-        first, last = [], []
-        for axis in range(3):
-            other = tuple(index for index in range(3) if index != axis)
-            used = np.flatnonzero(self._recon_support.any(axis=other))
-            first.append(float(used[0]) - 0.5)
-            last.append(float(used[-1]) + 0.5)
-        low, high = self.scene.voxel_centers([first, last])
-        # The corners in the order VOLUME_BOX_EDGES reads: the sign in x
-        # changes slowest and the sign in z fastest.  The voxel pitches are
-        # positive, so the low index corner is the low corner in x, y, and z.
-        corners = np.array([[x, y, z]
-                            for x in (low[0], high[0])
-                            for y in (low[1], high[1])
-                            for z in (low[2], high[2])], dtype=np.float64)
-        box = _joined([corners[[start, end]]
-                       for start, end in VOLUME_BOX_EDGES])
-        line, = self.ax_3d.plot(box[:, 0], box[:, 1], box[:, 2],
+        points = _joined(self._recon_outline_parts)
+        line, = self.ax_3d.plot(points[:, 0], points[:, 1], points[:, 2],
                                 color=COLORS['volume'],
-                                linewidth=RECON_BOX_LINEWIDTH,
+                                linewidth=RECON_OUTLINE_3D_LINEWIDTH,
                                 linestyle='--', label=PHANTOM_NAME,
                                 **AXLIM_CLIP)
         self._recon_outlines.append((self.ax_3d, line))
@@ -6513,9 +6623,9 @@ class GeometryFigure:
     def _apply_recon_visibility(self):
         """Show or hide the phantom's fills and outlines, following its toggle.
 
-        The two fills, the outline in each projected panel, and the wire box in
-        the 3D panel are one drawing of one array, so one flag governs them
-        all.
+        The two fills, the outline in each projected panel, the outline in the
+        3D panel, and the projected outline on the detector face are one
+        drawing of one array, so one flag governs them all.
         """
         for _, artist in self._recon_images + self._recon_outlines:
             artist.set_visible(self._show_recon)
@@ -6894,12 +7004,17 @@ class GeometryFigure:
         outline leaves the grid.  The region of reconstruction's two rims are
         drawn the same way, as two more polylines, when the scene reports them.
 
+        A phantom's outline is drawn here too, as one more polyline.  It is not
+        split at the detector's edge: the phantom lies inside the volume, whose
+        own outline is already split and already carries the overshoot color.
+
         A sinogram painted on this panel is updated here as well.  A view
         change replaces the image's data and nothing else: its extent, its
         colormap, and its color scale are the same for every view.
         """
         if self._sinogram_image is not None:
             self._sinogram_image.set_data(self._sinogram[self._view_index])
+        self._update_recon_detector_outline()
 
         outline = np.asarray(view.volume_outline_on_detector, dtype=np.float64)
         edges = np.stack([outline[[first, second]]
@@ -6922,6 +7037,26 @@ class GeometryFigure:
         inside, outside = self._split_edges(segments)
         self._ror_inside.set_data(inside[:, 1], inside[:, 0])
         self._ror_outside.set_data(outside[:, 1], outside[:, 0])
+
+    def _update_recon_detector_outline(self):
+        """Put the phantom's outline on the detector face for this view.
+
+        The six polylines of the 3D outline are projected in one call, because
+        the scene's ``project_points`` is the one route to the detector for
+        every drawn thing.  The projected points are then cut back into the six
+        polylines and joined by rows of NaN, so the line keeps the breaks the
+        3D outline has.  The panel's axes are (channel, row) and the scene
+        reports (row, channel).
+        """
+        if self._recon_detector_line is None:
+            return
+        parts = self._recon_outline_parts
+        rows, channels = self.scene.project_points(np.concatenate(parts),
+                                                   self._view_index)
+        pairs = np.stack([channels, rows], axis=1)
+        breaks = np.cumsum([part.shape[0] for part in parts])[:-1]
+        drawn = _joined(np.split(pairs, breaks), 2)
+        self._recon_detector_line.set_data(drawn[:, 0], drawn[:, 1])
 
     def _split_edges(self, edges):
         """The projected segments, split into the parts on and off the grid.

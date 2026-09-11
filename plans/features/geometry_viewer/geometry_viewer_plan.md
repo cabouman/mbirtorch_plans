@@ -201,12 +201,25 @@ with `set_sinogram` and `set_recon`; the gate passes on the rendered pixels, a
 forward-projected phantom lands inside the drawn rims, and a slider step with a
 sinogram takes 25 ms on the 1800-view model.  Later the same day (Greg's request):
 three toggles show and hide the sinogram, the phantom, and the comparison, and the
-phantom is also drawn as an outline in the top and side views and as a wire box in
-the 3D panel.  The record is `gv7_data_overlays_findings.md`.
+phantom is also drawn as an outline in the top and side views and, in the 3D panel,
+as a wire outline that follows the support slice by slice, a parallelepiped for the
+sheared cube phantom, which is projected onto the detector face as well.  The
+record is `gv7_data_overlays_findings.md`.
 
 **Increment 6.  The port.**  Move the scene and viewer into mbirtorch, add the entry
 point, a demo, a docs page, and the API specification row.  This increment runs in
 the mbirtorch repository and is planned separately.
+Decision (Greg, 2026-09-11): the port's first step is a single source of truth for
+the point projection.  `GeometryScene.detector_coordinates` holds a copy of the
+projector's per-geometry formulas, pinned by the corner-projection test, and every
+drawing on the detector face goes through it.  mbirtorch has no public method that
+maps object points to detector indices; its per-geometry mapping lives in private
+per-view helpers that take pixel indices.  The port adds `project_points` to
+`TomographyModel`, implemented in each model class from the same helpers the
+projector uses, and the ported scene calls it and drops its copy.  The web page
+cannot import torch and keeps the numpy copy, pinned by the same test, as
+`geometry_defaults.py` is kept honest today.  Until then the prototype draws from
+the tested copy and writes no new projection formula.
 
 ## The Python interface (Greg, 2026-09-10)
 

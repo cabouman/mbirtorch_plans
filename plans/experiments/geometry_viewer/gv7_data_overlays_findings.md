@@ -129,6 +129,41 @@ ends before the first toggle, so the six toggles are untouched by a partial redr
 which another test checks pixel by pixel.  The six toggles' labels clear one
 another by 26 pixels at the closest and clear the slider and the legend band.
 
+## The phantom's outline follows its shape (2026-09-11, later still)
+
+Greg saw that the 3D outline was wrong.  It was the axis-aligned bounding box of
+the support, and mbirtorch's cube phantom is a rectangle that steps sideways from
+one slice to the next, a parallelepiped in the continuum, so the box was larger
+than the phantom and the wrong shape.  The outline now follows the support slice
+by slice.  For every slice that holds a support voxel, its bounding rectangle is
+taken at the voxels' outer faces; the outline is the first such rectangle at its
+slice's lower face, the last at its slice's upper face, and four rails, one per
+corner, through that corner's position in every slice.  For a block the rails are
+straight and the outline is the bounding box.  For the cube phantom of the cone
+example the rails lean by 31 voxel pitches, which is the phantom's own formula,
+`int((slices - 1) * phantom_cols / slices)`, and no rail point leaves the straight
+line between its ends by more than 0.60 pitch, the size of one step.
+
+The same outline is projected onto the detector face, as Greg asked.  Its points
+go through the scene's `project_points` each view, the one route to the detector
+for everything drawn, and come back as a dashed line in the volume's color that
+moves with the slider.  A projector test forward-projects the cube phantom and
+compares the lit edges of the painted sinogram with the projected outline in every
+view of the flat cone configuration: the worst gap is 0.79 channel and 0.70 row,
+within the one-pixel tolerance that the voxels' outer faces and the footprint's
+spread allow.  The line is not split at the detector's edge, because the phantom
+lies inside the volume, whose projected box already carries the overshoot color.
+Both outlines belong to the phantom toggle and go with `set_recon(None)`.  A slider
+step on the 1800-view scan costs 1.5 ms more with the phantom installed.
+
+This raised the question of the projection's source of truth (Greg, 2026-09-11).
+The scene's `detector_coordinates` is a copy of the projector's per-geometry
+formulas, pinned by the corner-projection test, and mbirtorch has no public method
+that maps object points to detector indices.  The decision is recorded in the plan
+under Increment 6: the prototype draws from the tested copy and writes no new
+projection formula, and the port gives `TomographyModel` a `project_points` method
+built from the projector's own helpers, which the ported scene will call.
+
 ## Timing
 
 A slider step on the 1800-view helical scan of `gv4_timing.py`, with a sinogram
@@ -154,8 +189,9 @@ the panels a few volume widths across, and the silhouette is plain there.
 
 ## Tests
 
-The suite grew from 255 to 266 tests with the overlays, and to 289 with the
-toggles and the outline, and all pass with gradio 5.45.0.  The overlay tests cover
+The suite grew from 255 to 266 tests with the overlays, to 289 with the toggles
+and the outline, and to 292 with the corrected outline, and all pass with gradio
+5.45.0.  The overlay tests cover
 the two gates on the rendered pixels, the projector's shadow against the rims, the
 shape checks of both arrays, removal of each overlay, the animated rule, a
 comparison added and removed with overlays drawn, and the timing gate.  The
