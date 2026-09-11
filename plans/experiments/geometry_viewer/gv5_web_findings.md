@@ -312,3 +312,234 @@ wordmark runs across the lower part.  The wordmark is a copy of
 build cuts away the reflection below the letters and trims the transparent
 margin before placing it.  Without that file the build still writes the tile,
 without the wordmark, and prints a line saying so.
+
+Later the same day, the drawing's window was widened by the radius of the
+source marker (Greg's request).  The window had been sized to the drawn
+points, and the marker is a disk around its point, so the lower part of the
+disk was cut at the edge of the drawing, just above the wordmark.
+
+## The static Space did not start, and what fixed it (2026-09-10)
+
+The static Space failed before the app started, and the failure had four
+causes.  Three of them are in the way the Gradio-Lite runtime installs
+gradio's dependencies, and one is in the viewer's use of matplotlib.  Two more
+problems appeared while the fix was verified: one error message froze the
+page, and an invalid number showed a Python traceback.  All six are fixed, and
+the page now runs in a browser.  The figure appears, the view slider and the
+geometry dropdown redraw it, a render takes about 0.4 s inside Pyodide, and an
+invalid number is reported in the status line.  The sections below give each
+cause, the fix, and the evidence.
+
+### How the runtime starts, and why the page's own requirements come too late
+
+The Lite runtime runs its Python in a web worker, and the worker takes these
+steps in order:
+
+1. it loads Pyodide and micropip;
+2. it installs the gradio and gradio_client wheels that the runtime carries,
+   and micropip resolves their dependencies from PyPI at the newest versions
+   that satisfy the wheels' bounds;
+3. it replaces ``os.link`` with a two-argument lambda;
+4. it imports gradio;
+5. it replaces anyio's thread runner with one that calls the function
+   directly, because Pyodide has no threads;
+6. it writes the app's files, installs the page's ``<gradio-requirements>``,
+   and runs the app.
+
+Every failure below happened before step 6.  The
+``<gradio-requirements>`` element therefore cannot fix any of them, and the fix
+had to reach the worker's own steps.
+
+### The three dependency failures
+
+The first failure is a race in dependency resolution.  gradio 5.45 requires
+``huggingface-hub<1.0`` and gradio_client 1.13 requires it with no upper bound.
+micropip resolves the two wheels' requirements concurrently and has no
+resolver.  The first requirement to reach a package fixes its version.  Since
+huggingface_hub 1.0 was released, the unbounded requirement resolves to a 1.x
+release, and if it wins the race the bounded one fails with "already
+installed".  If the bounded one wins, resolution succeeds.  Three browsers
+gave three different results from this one race.  Greg's browser passed it.
+Playwright's Chromium failed with the "already installed" message.  The
+sandboxed browser of the coding tool failed with "Can't find a pure Python 3
+wheel".  micropip gives that message when a requirement fails inside another
+package's requirements, so the third result was most likely the same conflict
+met one level down.
+
+The second failure is in filelock, which huggingface_hub imports.  filelock
+3.30.0, released on 2026-07-16, probes ``os.link(source, target,
+follow_symlinks=False)`` when it is imported.  The runtime's lambda has no
+``follow_symlinks`` argument, so the probe raises ``TypeError``, which the
+probe does not catch, and ``import gradio`` dies inside filelock.  This is the
+traceback Greg saw.  Every Gradio-Lite page has been broken this way since
+mid-July 2026.
+
+The third failure is a double installation of typing-extensions.  Pyodide's
+own package set holds typing-extensions 4.11.0, and micropip takes a package
+from that set when its version satisfies the requirement.  The newest anyio,
+fastapi, and starlette require typing-extensions 4.12 or later, which micropip
+downloads from PyPI as well.  Both copies are installed and the older copy
+writes its files last, so anyio's ``from typing_extensions import sentinel``
+fails during the import of fastapi.  In September 2025 no dependency asked
+for more than 4.11.0, so this failure did not exist when the runtime was
+released.
+
+These three failures have one cause.  The runtime is frozen at its last
+release, from 2025-09-10, but it resolves its dependencies at load time, so
+every dependency release since then can break it.  The fix holds each
+dependency that comes from PyPI at its newest release before the runtime was
+published.
+
+### The fix: a shim that patches the worker as it loads
+
+``index.html`` now carries a short script before the runtime's own script.
+The runtime loads its worker through a one-line script that imports the real
+worker from the CDN, because a browser cannot load a worker from another
+origin directly.  The shim replaces the page's ``Worker`` constructor with one
+that reads that one-line script, fetches the worker's code, changes two pieces
+of its text, and runs the changed code from a blob.  The requests are
+synchronous, so the worker's message handler is in place before the runtime's
+first message arrives.  The two changes are these.
+
+The first change runs a few lines of Python before the worker installs the
+gradio wheels.  The Python narrows micropip's wheel search.  For each pinned
+name, the requirement's specifier is combined with ``==version`` inside
+micropip's ``find_wheel``.  micropip's own logic is untouched, and only the
+version a pinned name may take changes.  The versions come from
+``web/lite_pins.txt``, one ``name==version`` per line, fifteen packages.
+``gv5_lite_pins.py`` writes that file.  Its list of names is the set of
+packages that micropip reported with source ``pypi`` after a successful
+installation.  For each name it takes the newest release on PyPI with a pure
+Python wheel uploaded before 2025-09-10T17:06:22Z, which is the moment the
+gradio 5.45.0 wheel reached PyPI.  Packages that Pyodide ships
+are not pinned, because micropip takes them from Pyodide's fixed set.  With
+these pins the resolution is the same on every load: the race has one
+outcome, filelock is 3.19.1, and no package asks for a typing-extensions
+newer than 4.11.0.  A pre-installation of the pinned packages was tried first
+and rejected, because it installs Pyodide's typing-extensions for real before
+the wheels resolve, and requirements for a newer one then fail outright.
+
+The second change concerns gradio's queue.  ``gradio/queueing.py`` binds
+anyio's thread runner with ``from anyio.to_thread import run_sync`` when
+gradio is imported.  The runtime replaces ``anyio.to_thread.run_sync`` after
+that import, so the queue keeps the original.  The queue calls the runner
+when an event handler raises, after it has sent the error message to the
+page, and Pyodide cannot start a thread.  The call raises ``RuntimeError``,
+and the queue's slot for the function is never released.  The page then shows
+the error message and never draws again.  In this app every invalid number,
+such as a view count of zero, raises ``gr.Error`` on purpose, so one typing
+mistake froze the page.  The shim's second change appends two lines to the
+worker's own replacement step, so that ``gradio.queueing.run_sync`` is the
+thread-free runner as well.  With that change the queue survives an error.
+
+Both changes look for an exact piece of the worker's minified code.  The
+runtime is frozen, so the text will not change, and a worker that lacks a
+piece runs without that change and says so in the browser console.  Two other
+fixes were considered and set aside.  A copy of the runtime's files on the
+Space, with the worker edited, would work, but it is about twenty megabytes
+of files and a fork of the runtime.  A ``<gradio-requirements>`` pin cannot
+work, for the reason given above.
+
+### Two behaviors of the page under Lite, and the app changes for them
+
+The Lite runtime shows every exception a handler raises in a window with the
+Python traceback, in front of the page, and the window stays until it is
+closed.  The runtime sends the traceback to the page for ``gr.Error`` as well,
+which the app raises on purpose for an invalid number such as a view count of
+zero.  On a server the same ``gr.Error`` is a short message in the corner of
+the page.  Under Pyodide, ``render`` now catches the invalid set of values and
+returns the message in the status block, as "Nothing drawn.  The number of
+views must be at least one; got 0.  The figure above is the last one drawn.",
+and the figure keeps its last value.  The server behavior is unchanged, and a
+test covers the Pyodide branch by placing a ``pyodide`` module in
+``sys.modules``, which is how the app tells where it runs.
+
+The second behavior was an error of the app's own, present on the server too.
+A change of the view count moved the slider's maximum.  A slider value past
+the new maximum was then refused by Gradio's own bounds check before
+``render`` ran, with the message "Value 1 is greater than maximum value 0."
+On the server that was a short message.  Under Lite it was the traceback
+window.  Three changes remove it.  ``view_maximum`` now takes the slider's
+value as well and clamps it into the new range.  A count below one leaves the
+slider alone.  The four controls that set the count draw the figure through a
+chained event, after the slider update, so that the value the drawing reads is
+inside the new range.
+
+### The matplotlib failure, and the offline check that finds it
+
+With the dependencies resolved, the first render failed with
+``Line2D.set() got an unexpected keyword argument 'axlim_clip'``.  The viewer
+passed ``axlim_clip=True`` to every 3D drawing call, which asks matplotlib to
+hide the parts of a 3D line outside the axes box.  matplotlib added the
+argument in release 3.10, and Pyodide 0.27.3 carries matplotlib 3.8.4.
+``geometry_viewer.py`` now holds the argument in one dictionary,
+``AXLIM_CLIP``, which is empty under a matplotlib older than 3.10, and every
+3D drawing call spreads that dictionary into its keywords.  Under the older
+release the figure is drawn without the clipping and is otherwise the same.
+
+An isolated virtual environment with matplotlib 3.8.4 and numpy 1.26 is the
+offline check for Pyodide's matplotlib.  ``test_web_app.py`` needs neither
+torch nor mbirtorch, and it renders all six geometries, a comparison, and a
+hand-set reconstruction shape, so it exercises the drawing under the old
+release.  Before the fix ten of its tests failed there with the
+``axlim_clip`` error, and after the fix all twenty pass.  The three viewer
+test files import torch for the projector checks and were not run there.
+
+### Evidence that the page works
+
+The page was driven in a headless Chromium 151 through Playwright, served
+from a local directory with the same files the Space holds, on this Mac.
+The runtime comes from the same CDN addresses either way, so the local page
+and the Space differ only in the address they are served from.  The
+measurements of the final page:
+
+```
+page load to the first figure              10 to 14 s
+render, default cone, 180 views            350 to 420 ms, inside Pyodide
+one slider step to a new image             0.5 to 0.8 s
+geometry dropdown to the helical scan      0.8 to 1.3 s
+view count set to 0, then to 200           "Nothing drawn" in the status, then a new image in 0.8 s
+```
+
+The ranges are over the last five runs of the page.  The time to the first
+figure includes the download of Pyodide, the wheels, and matplotlib, and
+matplotlib's build of its font cache.  The render time is the one the app
+prints in its status line, so it is measured inside the worker.  These
+results indicate that the page is usable: a control change shows a new figure
+in well under a second once the page has loaded.  The evidence is from one
+machine and one browser.  The sandboxed browser pane of the coding tool could
+not be used for the final check, because it kept serving an earlier copy of
+the page.  Greg's own browser is the acceptance check that remains.
+
+The test suite passes: 228 tests, which are the 226 of the handoff and two
+new ones.  One checks the pin file, the shim, and the Python the shim runs;
+the other checks the status-line report under Pyodide.  The suite ran with
+gradio 5.45.0, the release the runtime carries, from a virtual environment on
+top of the ``mbirtorch`` conda environment, which lacks gradio and Playwright.
+
+### The Space files, and the acceptance list
+
+``web/lite/`` was rebuilt, and its three files are the Space's files.  The
+two that changed, ``index.html`` and ``README.md``, were copied into the Space
+checkout and committed there on 2026-09-10; the push to Hugging Face needs
+Greg's credentials, which this session did not hold, so the Space still
+serves the failing page until he pushes.  ``index.html`` carries the shim,
+the pinned versions, and the four Python modules with the ``AXLIM_CLIP``
+change.  The README no longer says that the
+page was not tested, and it describes the pins.  The acceptance list of the
+Thingy Repository stands as before: the README metadata has ``license:
+bsd-3-clause`` and a one-line ``short_description``, and ``icon.png`` is a
+400 by 400 pixel tile at the Space root.  The remaining item, that the Space
+runs when opened, is what the evidence above establishes for a browser on this
+machine.
+
+### If the page breaks again
+
+The browser console names the step that failed.  A failure during "Loading
+Gradio wheels" is a dependency that the pins do not cover.  The fix is a line
+in ``web/lite_pins.txt``; ``gv5_lite_pins.py`` regenerates the file once the
+new package name is added to its list.  A Python traceback after the app starts
+is a difference between matplotlib 3.8.4 and the release the viewer was
+developed with, and the isolated environment above reproduces it offline.  A
+line saying that an anchor was not found means the runtime's worker changed,
+which the pin to release 5.45.0 should prevent.

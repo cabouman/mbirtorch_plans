@@ -227,11 +227,11 @@ The primary packaging is a Gradio-Lite static page, `web/lite/index.html`, which
 runs the Python in the visitor's browser through Pyodide.  It is the route the guide
 gives for Python on a free account.  Gradio-Lite was last published on 2025-09-10 as
 version 5.45.0 and its source is gone from the Gradio repository, so the page pins that
-release, the app uses no Gradio 6 feature, and the page cannot be tested in this
-session, whose network policy blocks the CDN that serves the runtime.  The secondary
-packaging is a standard Gradio Space, `web/space/`, which runs the same app on a
-server, needs a paid Hugging Face plan, and is tested here end to end with a headless
-browser.
+release and the app uses no Gradio 6 feature.  The cloud session that built the page
+could not open it, because its network policy blocked the CDN that serves the runtime.
+The secondary packaging is a standard Gradio Space, `web/space/`, which runs the same
+app on a server, needs a paid Hugging Face plan, and was tested end to end with a
+headless browser.
 
 The guide's acceptance list adds three files or fields: a `license` field in the
 README metadata (bsd-3-clause, mbirtorch's license), a one-line `short_description`,
@@ -243,6 +243,16 @@ reconstruction geometry so that a scene can be built from scan parameters alone;
 test pins the copy to the real models.  The record is `gv5_web_findings.md`.
 Built 2026-09-10: 224 tests pass, the Gradio Space runs in a headless browser under
 Gradio 6.26 and under Gradio 5.45, and a render takes 0.7 to 1.2 s on the server.
+Deployed 2026-09-10: the static Space failed before the app started.  The runtime is
+frozen at its last release but resolves gradio's dependencies at load time, and three
+of them had moved on; the viewer also used a matplotlib 3.10 argument that Pyodide's
+matplotlib 3.8.4 rejects.  A shim in `index.html` now holds the runtime's dependencies
+at their releases of 2025-09-10 and gives gradio's queue a thread-free runner, the
+viewer guards the argument, and under Pyodide the app reports an invalid value in its
+status line instead of raising.  The page runs in a headless Chromium: the first figure
+appears 13 s after the page loads and a render takes about 0.4 s in the browser.  The
+record is the last section of `gv5_web_findings.md`.  Greg's browser is the acceptance
+check that remains, and the Space is re-uploaded from `web/lite/`.
 
 ## Open items from the Increment 4 review
 

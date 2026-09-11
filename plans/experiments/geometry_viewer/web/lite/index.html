@@ -4,6 +4,57 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>mbirtorch geometry viewer</title>
+    <script>
+      // Gradio-Lite 5.45.0 is the last release of the Lite runtime.  This
+      // script patches the runtime's worker as it loads, in two places.  The
+      // runtime resolves gradio's dependencies from PyPI at whatever versions
+      // are current when the page loads, and three of them had moved on by
+      // 2026-09-10, each stopping the page before the app started; the first
+      // patch holds the packages listed in web/lite_pins.txt at the releases
+      // that were current when the runtime was published.  gradio's queue
+      // keeps a thread runner that Pyodide cannot run, so one error in an
+      // event handler stopped the queue for good; the second patch gives the
+      // queue the runtime's own thread-free runner.  Nothing else changes.
+      (function () {
+        var patches = [["await i.add_mock_package(\"ffmpy\",\"0.3.0\"),await E(s,i,r)", "await i.add_mock_package(\"ffmpy\",\"0.3.0\"),await s.runPythonAsync(\"# Hold gradio's PyPI dependencies at the releases that were current when\\n# Gradio-Lite 5.45.0 was published, on 2025-09-10.  The resolver keeps its\\n# own logic; only the version each name may take is narrowed.\\nimport micropip.transaction as _transaction\\nfrom packaging.specifiers import SpecifierSet as _SpecifierSet\\n_PINS = {\\n    \\\"aiofiles\\\": \\\"==24.1.0\\\",\\n    \\\"annotated-doc\\\": \\\"==0.0.1\\\",\\n    \\\"anyio\\\": \\\"==4.10.0\\\",\\n    \\\"fastapi\\\": \\\"==0.116.1\\\",\\n    \\\"filelock\\\": \\\"==3.19.1\\\",\\n    \\\"groovy\\\": \\\"==0.1.2\\\",\\n    \\\"huggingface-hub\\\": \\\"==0.34.4\\\",\\n    \\\"pydub\\\": \\\"==0.25.1\\\",\\n    \\\"python-multipart\\\": \\\"==0.0.20\\\",\\n    \\\"safehttpx\\\": \\\"==0.1.6\\\",\\n    \\\"semantic-version\\\": \\\"==2.10.0\\\",\\n    \\\"starlette\\\": \\\"==0.47.3\\\",\\n    \\\"tomlkit\\\": \\\"==0.13.3\\\",\\n    \\\"typing-inspection\\\": \\\"==0.4.1\\\",\\n    \\\"websockets\\\": \\\"==15.0.1\\\"\\n}\\n_find_wheel = _transaction.find_wheel\\ndef _pinned_find_wheel(metadata, req):\\n    pin = _PINS.get(req.name)\\n    if pin:\\n        req.specifier &= _SpecifierSet(pin)\\n    return _find_wheel(metadata, req)\\n_transaction.find_wheel = _pinned_find_wheel\\n\"),await E(s,i,r)"], ["anyio.to_thread.run_sync = mocked_anyio_to_thread_run_sync", "anyio.to_thread.run_sync = mocked_anyio_to_thread_run_sync\nimport gradio.queueing\ngradio.queueing.run_sync = mocked_anyio_to_thread_run_sync"]];
+        var OriginalWorker = window.Worker;
+        function bootstrapSource(stubUrl) {
+          // This text runs inside the worker.  The runtime loads its worker
+          // through a one-line script that imports the real worker from the
+          // CDN, and this bootstrap reads that line, fetches the worker's
+          // code, patches it, and runs it.  The requests are synchronous so
+          // that the runtime's message handler is installed before its first
+          // message arrives.
+          return [
+            '(function () {',
+            '  function text(url) { var request = new XMLHttpRequest(); request.open("GET", url, false); request.send(); return request.responseText; }',
+            '  var stub = text(' + JSON.stringify(stubUrl) + ');',
+            '  var match = stub.match(/importScripts\\("([^"]+)"\\)/);',
+            '  if (!match) { console.warn("Lite runtime shim: the worker stub was not recognized, so the worker runs unpatched"); importScripts(' + JSON.stringify(stubUrl) + '); return; }',
+            '  var code = text(match[1]);',
+            '  var patches = ' + JSON.stringify(patches) + ';',
+            '  patches.forEach(function (pair) {',
+            '    var pieces = code.split(pair[0]);',
+            '    if (pieces.length === 2) { code = pieces.join(pair[1]); }',
+            '    else { console.warn("Lite runtime shim: an anchor was not found, so the worker runs without that patch: " + pair[0]); }',
+            '  });',
+            '  console.debug("Lite runtime shim: the worker holds 15 PyPI packages at their releases of 2025-09-10 and the queue has a thread-free runner");',
+            '  importScripts(URL.createObjectURL(new Blob([code], { type: "text/javascript" })));',
+            '})();'
+          ].join('\n');
+        }
+        window.Worker = class extends OriginalWorker {
+          constructor(url, options) {
+            if (String(url).indexOf('blob:') === 0) {
+              var blob = new Blob([bootstrapSource(String(url))], { type: 'text/javascript' });
+              super(URL.createObjectURL(blob), options);
+            } else {
+              super(url, options);
+            }
+          }
+        };
+      })();
+    </script>
     <script type="module" crossorigin src="https://cdn.jsdelivr.net/npm/@gradio/lite@5.45.0/dist/lite.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gradio/lite@5.45.0/dist/lite.css" />
   </head>
@@ -249,11 +300,15 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
 
     Every argument is a page control's value, in the order the page lists them.
     An invalid set of values raises ``gr.Error``, which the page shows as a
-    message instead of a figure.
+    message instead of a figure.  Under Pyodide the invalid set is reported in
+    the status block instead, and the figure keeps its last value, because
+    Gradio-Lite shows every exception a handler raises in a window with the
+    Python traceback in front of the page.
 
     Returns:
-        (Figure, str): the matplotlib figure the plot component shows, and the
-        markdown of the status block.
+        (Figure or dict, str): the matplotlib figure the plot component shows,
+        or ``gr.update()`` to keep the figure it has, and the markdown of the
+        status block.
     """
     started = time.perf_counter()
     try:
@@ -280,25 +335,37 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
                 zoom='volume' if zoom_to_volume else 'scan',
                 show_reference=bool(show_reference), compare=overrides,
                 figsize=WEB_FIGSIZE, widgets=False, blit=False)
-    except gr.Error:
+    except gr.Error as problem:
+        if running_in_pyodide():
+            return gr.update(), _refusal_markdown(problem.message)
         raise
     except (ValueError, TypeError, KeyError) as problem:
+        if running_in_pyodide():
+            return gr.update(), _refusal_markdown(str(problem))
         raise gr.Error(str(problem))
     elapsed_ms = 1000.0 * (time.perf_counter() - started)
     return figure.figure, _status_markdown(scene, elapsed_ms)
 
 
+def _refusal_markdown(message):
+    """The status block when the values cannot be drawn: the reason, and a
+    note that the figure shown is the last one drawn."""
+    return (f'**Nothing drawn.** {message}  The figure above is the last one '
+            'drawn.')
+
+
 def _status_markdown(scene, elapsed_ms):
-    """The status block: the render time and the two quantities the figure's
-    text panel does not print.
+    """The status block: the render time, where the figure was drawn, and the
+    two quantities the figure's text panel does not print.
 
     The figure's own text panel lists every derived quantity but two: the
     drawing distance, which is the distance used where a position is a drawing
     choice, and the sentence about the fan and cone angles.
     """
     quantities = scene.derived_quantities()
+    where = 'in this browser' if running_in_pyodide() else 'on the server'
     lines = [
-        f'**Rendered in {elapsed_ms:.0f} ms** on the server.  '
+        f'**Rendered in {elapsed_ms:.0f} ms** {where}.  '
         f'Every control change draws the figure again.',
         '',
         f'- drawing distance: {quantities["drawing_distance"]:.3g} ALU',
@@ -426,8 +493,16 @@ def _parse_overrides(text, kind):
 # ── the controls that other controls change ──────────────────────────────────
 
 def view_maximum(geometry, num_views, num_x_translations,
-                 num_z_translations):
-    """An update that puts the slider's maximum at the last view index."""
+                 num_z_translations, view_index):
+    """An update that puts the slider's maximum at the last view index and
+    keeps the slider's value inside the new range.
+
+    The value is clamped here and not only in :func:`render`, because Gradio
+    checks a slider's value against its maximum before any function runs, and
+    a value past the new maximum is refused there with an error.  A count that
+    is not a positive number leaves the slider as it is, and the render then
+    reports the count.
+    """
     kind = KIND_OF_CHOICE.get(geometry, 'cone')
     try:
         if kind == 'translation':
@@ -435,9 +510,15 @@ def view_maximum(geometry, num_views, num_x_translations,
         else:
             count = int(num_views)
     except (TypeError, ValueError):
-        count = 1
-    count = max(1, min(count, MAX_NUM_VIEWS))
-    return gr.update(maximum=count - 1)
+        return gr.update()
+    if count &lt; 1:
+        return gr.update()
+    count = min(count, MAX_NUM_VIEWS)
+    try:
+        index = int(round(float(view_index)))
+    except (TypeError, ValueError):
+        index = 0
+    return gr.update(maximum=count - 1, value=max(0, min(index, count - 1)))
 
 
 def group_visibility(geometry):
@@ -602,17 +683,21 @@ def build_page():
         outputs = [plot, status]
 
         # The geometry choice shows and hides the controls that belong to one
-        # geometry, and the view count sets the slider's maximum.  Both then
-        # draw the figure, as every other control does.
+        # geometry.  A control that sets the view count first updates the
+        # slider's range and value, and the figure is drawn after that update,
+        # so that the slider value the drawing reads is inside the new range.
+        # Every other control draws the figure directly.
         geometry.change(group_visibility, geometry,
                         [distance_group, elevation_group, helical_group,
                          translation_group, views_group])
         view_count_inputs = [geometry, num_views, num_x_translations,
                              num_z_translations]
         for control in view_count_inputs:
-            control.change(view_maximum, view_count_inputs, view_index)
+            control.change(view_maximum, view_count_inputs + [view_index],
+                           view_index).then(render, inputs, outputs)
         for control in inputs:
-            control.change(render, inputs, outputs)
+            if not any(control is counted for counted in view_count_inputs):
+                control.change(render, inputs, outputs)
 
         # Draw the default geometry when the page opens.
         page.load(render, inputs, outputs)
@@ -3079,6 +3164,15 @@ REFERENCE_ARROW_FRACTION = 0.06
 #: label on the ray; see :meth:`GeometryFigure._create_reference_artists`.
 REFERENCE_LABEL_CORNER = (0.015, 0.985)
 
+#: The keyword that asks matplotlib to hide the parts of a 3D artist that lie
+#: outside the axes box.  matplotlib added ``axlim_clip`` in release 3.10, and
+#: the release inside Pyodide, which the web page runs the viewer under, is
+#: 3.8.4 and rejects the keyword.  Every 3D drawing call spreads this
+#: dictionary into its keywords, so an older release draws the same figure
+#: without the clipping.
+AXLIM_CLIP = ({'axlim_clip': True}
+              if matplotlib.__version_info__ &gt;= (3, 10) else {})
+
 #: The 3D camera, in degrees.  The eye sits 25 degrees above the drawing's top,
 #: which is the -z side, and 40 degrees off the +x axis toward -y.  From there
 #: y runs to the left and x runs down the screen, as in the top view, and the
@@ -4108,7 +4202,7 @@ class GeometryFigure:
     def _moving_line_3d(self, axes, color, **kwargs):
         """One empty 3D line artist that a view change will fill in."""
         line, = axes.plot(np.zeros(0), np.zeros(0), np.zeros(0),
-                          color=color, axlim_clip=True, **kwargs)
+                          color=color, **AXLIM_CLIP, **kwargs)
         self._moving.append((axes, line))
         return line
 
@@ -4172,28 +4266,28 @@ class GeometryFigure:
         box = _joined([view.volume_corners[[first, second]]
                        for first, second in VOLUME_BOX_EDGES])
         axes.plot(box[:, 0], box[:, 1], box[:, 2], color=COLORS['volume'],
-                  linewidth=1.0, label='volume box', axlim_clip=True)
+                  linewidth=1.0, label='volume box', **AXLIM_CLIP)
         self._create_3d_ror(view)
         if view.rotation_axis is not None:
             segment = _sampled_segment(view.rotation_axis[0],
                                        view.rotation_axis[1])
             axes.plot(segment[:, 0], segment[:, 1], segment[:, 2],
                       color=COLORS['axis'], linewidth=1.2, linestyle='--',
-                      label='rotation axis', axlim_clip=True)
+                      label='rotation axis', **AXLIM_CLIP)
         if view.translation_path is not None:
             path = view.translation_path
             axes.plot(path[:, 0], path[:, 1], path[:, 2], color=COLORS['axis'],
                       linewidth=1.0, marker='o', markersize=2.5,
-                      label='translation path', axlim_clip=True)
+                      label='translation path', **AXLIM_CLIP)
         axes.plot([view.voxel0_center[0]], [view.voxel0_center[1]],
                   [view.voxel0_center[2]], marker='x', linestyle='none',
                   markersize=INDEX_MARKER_SIZE,
                   markeredgewidth=INDEX_MARKER_WIDTH, color=COLORS['voxel0'],
-                  label='voxel (0, 0, 0)', axlim_clip=True, zorder=6)
+                  label='voxel (0, 0, 0)', **AXLIM_CLIP, zorder=6)
         self._path_3d, = axes.plot(np.zeros(0), np.zeros(0), np.zeros(0),
                                    color=COLORS['trajectory'],
                                    linewidth=1.0, linestyle='-.',
-                                   label='source path', axlim_clip=True)
+                                   label='source path', **AXLIM_CLIP)
         self._path_3d.set_visible(self._show_trajectory)
 
         # Moving: the source, the detector, the rays, and the arc.
@@ -4211,7 +4305,7 @@ class GeometryFigure:
             # near side of the detector from the far side.
             self._face_3d = Poly3DCollection(
                 [view.detector_corners], facecolor=COLORS['detector'],
-                alpha=0.12, edgecolor='none', axlim_clip=True)
+                alpha=0.12, edgecolor='none', **AXLIM_CLIP)
             axes.add_collection3d(self._face_3d)
             self._moving.append((axes, self._face_3d))
         self._rays_3d = self._moving_line_3d(axes, COLORS['rays'],
@@ -4275,7 +4369,7 @@ class GeometryFigure:
         rings = _joined(parts)
         self.ax_3d.plot(rings[:, 0], rings[:, 1], rings[:, 2],
                         color=COLORS['ror'], linewidth=0.9,
-                        label='region of reconstruction', axlim_clip=True)
+                        label='region of reconstruction', **AXLIM_CLIP)
 
     # --- the two projected panels ---
 
@@ -4597,14 +4691,14 @@ class GeometryFigure:
 
         axes = self.ax_3d
         keep(axes, axes.plot([source[0]], [source[1]], [source[2]],
-                             label='angle-0 reference', axlim_clip=True,
+                             label='angle-0 reference', **AXLIM_CLIP,
                              **hollow_star)[0])
         keep(axes, axes.plot(outline[:, 0], outline[:, 1], outline[:, 2],
-                             color=COLORS['detector'], axlim_clip=True,
+                             color=COLORS['detector'], **AXLIM_CLIP,
                              **dotted)[0])
         central = _sampled_segment(source, origin)
         keep(axes, axes.plot(central[:, 0], central[:, 1], central[:, 2],
-                             color=COLORS['central_ray'], axlim_clip=True,
+                             color=COLORS['central_ray'], **AXLIM_CLIP,
                              **dotted)[0])
         direction = origin - head_start
         self._reference_arrow_3d = keep(axes, axes.quiver(
@@ -4990,7 +5084,7 @@ class GeometryFigure:
         def moving(axes, three_d=False, label=None, **kwargs):
             if three_d:
                 line, = axes.plot(np.zeros(0), np.zeros(0), np.zeros(0),
-                                  color=color, axlim_clip=True, label=label,
+                                  color=color, **AXLIM_CLIP, label=label,
                                   **kwargs)
             else:
                 line, = axes.plot([], [], color=color, label=label, **kwargs)
@@ -5047,7 +5141,7 @@ class GeometryFigure:
             box = _joined([compare_corners[[first, second]]
                            for first, second in VOLUME_BOX_EDGES])
             line, = self.ax_3d.plot(box[:, 0], box[:, 1], box[:, 2],
-                                    color=color, axlim_clip=True, **dashed)
+                                    color=color, **AXLIM_CLIP, **dashed)
             self._compare_static.append((self.ax_3d, line))
             for axes, walk, columns in (
                     (self.ax_top, _XY_FOOTPRINT_WALK, TOP_PANEL_COLUMNS),
@@ -5078,7 +5172,7 @@ class GeometryFigure:
             if axes is self.ax_3d:
                 line, = axes.plot(np.zeros(0), np.zeros(0), np.zeros(0),
                                   color=color, linewidth=1.0, linestyle='-.',
-                                  axlim_clip=True)
+                                  **AXLIM_CLIP)
             else:
                 line, = axes.plot([], [], color=color, linewidth=1.0,
                                   linestyle='-.')
@@ -5146,8 +5240,8 @@ class GeometryFigure:
         """Hide the 3D artists that lie outside the 3D panel's cube.
 
         Two kinds of 3D artist are not clipped by the axes limits, the way a
-        3D line drawn with ``axlim_clip`` is: a text artist and an arrowhead
-        built by ``quiver``.  In the volume zoom the source sits far outside
+        3D line drawn with ``AXLIM_CLIP`` is under matplotlib 3.10 and later:
+        a text artist and an arrowhead built by ``quiver``.  In the volume zoom the source sits far outside
         the cube, and its label would be drawn where that point projects,
         which is outside the panel and on top of the rest of the figure.  Each
         such artist is hidden when the point it is attached to is outside the

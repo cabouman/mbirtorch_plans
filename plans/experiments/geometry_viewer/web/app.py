@@ -236,11 +236,15 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
 
     Every argument is a page control's value, in the order the page lists them.
     An invalid set of values raises ``gr.Error``, which the page shows as a
-    message instead of a figure.
+    message instead of a figure.  Under Pyodide the invalid set is reported in
+    the status block instead, and the figure keeps its last value, because
+    Gradio-Lite shows every exception a handler raises in a window with the
+    Python traceback in front of the page.
 
     Returns:
-        (Figure, str): the matplotlib figure the plot component shows, and the
-        markdown of the status block.
+        (Figure or dict, str): the matplotlib figure the plot component shows,
+        or ``gr.update()`` to keep the figure it has, and the markdown of the
+        status block.
     """
     started = time.perf_counter()
     try:
@@ -267,25 +271,37 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
                 zoom='volume' if zoom_to_volume else 'scan',
                 show_reference=bool(show_reference), compare=overrides,
                 figsize=WEB_FIGSIZE, widgets=False, blit=False)
-    except gr.Error:
+    except gr.Error as problem:
+        if running_in_pyodide():
+            return gr.update(), _refusal_markdown(problem.message)
         raise
     except (ValueError, TypeError, KeyError) as problem:
+        if running_in_pyodide():
+            return gr.update(), _refusal_markdown(str(problem))
         raise gr.Error(str(problem))
     elapsed_ms = 1000.0 * (time.perf_counter() - started)
     return figure.figure, _status_markdown(scene, elapsed_ms)
 
 
+def _refusal_markdown(message):
+    """The status block when the values cannot be drawn: the reason, and a
+    note that the figure shown is the last one drawn."""
+    return (f'**Nothing drawn.** {message}  The figure above is the last one '
+            'drawn.')
+
+
 def _status_markdown(scene, elapsed_ms):
-    """The status block: the render time and the two quantities the figure's
-    text panel does not print.
+    """The status block: the render time, where the figure was drawn, and the
+    two quantities the figure's text panel does not print.
 
     The figure's own text panel lists every derived quantity but two: the
     drawing distance, which is the distance used where a position is a drawing
     choice, and the sentence about the fan and cone angles.
     """
     quantities = scene.derived_quantities()
+    where = 'in this browser' if running_in_pyodide() else 'on the server'
     lines = [
-        f'**Rendered in {elapsed_ms:.0f} ms** on the server.  '
+        f'**Rendered in {elapsed_ms:.0f} ms** {where}.  '
         f'Every control change draws the figure again.',
         '',
         f'- drawing distance: {quantities["drawing_distance"]:.3g} ALU',
@@ -413,8 +429,16 @@ def _parse_overrides(text, kind):
 # ── the controls that other controls change ──────────────────────────────────
 
 def view_maximum(geometry, num_views, num_x_translations,
-                 num_z_translations):
-    """An update that puts the slider's maximum at the last view index."""
+                 num_z_translations, view_index):
+    """An update that puts the slider's maximum at the last view index and
+    keeps the slider's value inside the new range.
+
+    The value is clamped here and not only in :func:`render`, because Gradio
+    checks a slider's value against its maximum before any function runs, and
+    a value past the new maximum is refused there with an error.  A count that
+    is not a positive number leaves the slider as it is, and the render then
+    reports the count.
+    """
     kind = KIND_OF_CHOICE.get(geometry, 'cone')
     try:
         if kind == 'translation':
@@ -422,9 +446,15 @@ def view_maximum(geometry, num_views, num_x_translations,
         else:
             count = int(num_views)
     except (TypeError, ValueError):
-        count = 1
-    count = max(1, min(count, MAX_NUM_VIEWS))
-    return gr.update(maximum=count - 1)
+        return gr.update()
+    if count < 1:
+        return gr.update()
+    count = min(count, MAX_NUM_VIEWS)
+    try:
+        index = int(round(float(view_index)))
+    except (TypeError, ValueError):
+        index = 0
+    return gr.update(maximum=count - 1, value=max(0, min(index, count - 1)))
 
 
 def group_visibility(geometry):
@@ -589,17 +619,21 @@ def build_page():
         outputs = [plot, status]
 
         # The geometry choice shows and hides the controls that belong to one
-        # geometry, and the view count sets the slider's maximum.  Both then
-        # draw the figure, as every other control does.
+        # geometry.  A control that sets the view count first updates the
+        # slider's range and value, and the figure is drawn after that update,
+        # so that the slider value the drawing reads is inside the new range.
+        # Every other control draws the figure directly.
         geometry.change(group_visibility, geometry,
                         [distance_group, elevation_group, helical_group,
                          translation_group, views_group])
         view_count_inputs = [geometry, num_views, num_x_translations,
                              num_z_translations]
         for control in view_count_inputs:
-            control.change(view_maximum, view_count_inputs, view_index)
+            control.change(view_maximum, view_count_inputs + [view_index],
+                           view_index).then(render, inputs, outputs)
         for control in inputs:
-            control.change(render, inputs, outputs)
+            if not any(control is counted for counted in view_count_inputs):
+                control.change(render, inputs, outputs)
 
         # Draw the default geometry when the page opens.
         page.load(render, inputs, outputs)

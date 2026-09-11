@@ -26,9 +26,11 @@ when either is missing, and it writes a full-page screenshot to
 
 import html.parser
 import os
+import re
 import socket
 import sys
 import time
+import types
 
 import numpy as np
 import pytest
@@ -159,6 +161,17 @@ def test_render_takes_a_recon_shape():
     plt.close(figure)
 
 
+def test_under_pyodide_a_bad_value_is_reported_in_the_status(monkeypatch):
+    """Under Pyodide a bad value keeps the figure and explains itself in the
+    status block, because Gradio-Lite shows a raised exception as a traceback
+    window in front of the page.  A ``pyodide`` module in ``sys.modules`` is
+    how the app tells that it runs there."""
+    monkeypatch.setitem(sys.modules, 'pyodide', types.ModuleType('pyodide'))
+    figure, status = app.render(*render_arguments(num_views=0))
+    assert isinstance(figure, dict) and figure.get('__type__') == 'update'
+    assert 'Nothing drawn' in status and 'at least one' in status
+
+
 def test_render_refuses_zero_views():
     """A view count of zero raises gr.Error with a plain sentence."""
     with pytest.raises(gr.Error) as raised:
@@ -209,15 +222,18 @@ def test_render_refuses_a_partial_recon_shape():
 
 
 def test_the_slider_maximum_follows_the_view_count():
-    """The view slider's maximum is the last view index of the scan.
+    """The view slider's maximum is the last view index of the scan, and its
+    value is kept inside the new range.
 
     The translation geometry counts its views from its grid, so its maximum
-    comes from the two counts and not from the view number.
+    comes from the two counts and not from the view number.  A count below one
+    leaves the slider alone, and the render reports the count.
     """
-    update = app.view_maximum('cone', 240, 5, 3)
-    assert update['maximum'] == 239
-    update = app.view_maximum('translation', 240, 5, 3)
-    assert update['maximum'] == 14
+    update = app.view_maximum('cone', 240, 5, 3, 7)
+    assert update['maximum'] == 239 and update['value'] == 7
+    update = app.view_maximum('translation', 240, 5, 3, 40)
+    assert update['maximum'] == 14 and update['value'] == 14
+    assert 'maximum' not in app.view_maximum('cone', 0, 5, 3, 7)
 
 
 def test_group_visibility_matches_the_geometry():
@@ -341,6 +357,32 @@ def test_both_packagings_hold_the_files_a_space_needs(built):
         description = [line for line in front_matter.splitlines()
                        if line.startswith('short_description:')][0]
         assert len(description.split(':', 1)[1].strip(' "')) < 80
+
+
+def test_the_static_page_holds_the_runtime_dependencies_at_fixed_versions(
+        built):
+    """The pin file names exact versions, the page's shim carries every one of
+    them, and the Python the shim runs in the worker compiles.
+
+    The runtime resolves gradio's dependencies from PyPI when the page loads,
+    and a moved dependency stopped the page three times before the pins were
+    added; ``gv5_web_findings.md`` records each one.
+    """
+    text, _ = built
+    pins = build_web.read_lite_pins()
+    for name in ('huggingface-hub', 'filelock', 'anyio'):
+        assert name in pins, f'{name} is not pinned'
+    for name, specifier in pins.items():
+        assert re.fullmatch(r'==\d+(\.\d+)*', specifier), (
+            f'{name} is not held at one version: {specifier}')
+    compile(build_web.lite_pin_patch(pins), 'lite_pin_patch', 'exec')
+    # The page carries the patches as JSON.  The names survive that
+    # unchanged, and the quotes of the two anchors are escaped once.
+    for name in pins:
+        assert name in text
+    for anchor in (build_web.LITE_WHEEL_INSTALL, build_web.LITE_RUN_SYNC_MOCK):
+        assert anchor.replace('"', '\\"') in text
+    assert 'Lite runtime shim' in text
 
 
 def test_the_icon_is_a_square_tile(built):

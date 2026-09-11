@@ -351,6 +351,15 @@ REFERENCE_ARROW_FRACTION = 0.06
 #: label on the ray; see :meth:`GeometryFigure._create_reference_artists`.
 REFERENCE_LABEL_CORNER = (0.015, 0.985)
 
+#: The keyword that asks matplotlib to hide the parts of a 3D artist that lie
+#: outside the axes box.  matplotlib added ``axlim_clip`` in release 3.10, and
+#: the release inside Pyodide, which the web page runs the viewer under, is
+#: 3.8.4 and rejects the keyword.  Every 3D drawing call spreads this
+#: dictionary into its keywords, so an older release draws the same figure
+#: without the clipping.
+AXLIM_CLIP = ({'axlim_clip': True}
+              if matplotlib.__version_info__ >= (3, 10) else {})
+
 #: The 3D camera, in degrees.  The eye sits 25 degrees above the drawing's top,
 #: which is the -z side, and 40 degrees off the +x axis toward -y.  From there
 #: y runs to the left and x runs down the screen, as in the top view, and the
@@ -1380,7 +1389,7 @@ class GeometryFigure:
     def _moving_line_3d(self, axes, color, **kwargs):
         """One empty 3D line artist that a view change will fill in."""
         line, = axes.plot(np.zeros(0), np.zeros(0), np.zeros(0),
-                          color=color, axlim_clip=True, **kwargs)
+                          color=color, **AXLIM_CLIP, **kwargs)
         self._moving.append((axes, line))
         return line
 
@@ -1444,28 +1453,28 @@ class GeometryFigure:
         box = _joined([view.volume_corners[[first, second]]
                        for first, second in VOLUME_BOX_EDGES])
         axes.plot(box[:, 0], box[:, 1], box[:, 2], color=COLORS['volume'],
-                  linewidth=1.0, label='volume box', axlim_clip=True)
+                  linewidth=1.0, label='volume box', **AXLIM_CLIP)
         self._create_3d_ror(view)
         if view.rotation_axis is not None:
             segment = _sampled_segment(view.rotation_axis[0],
                                        view.rotation_axis[1])
             axes.plot(segment[:, 0], segment[:, 1], segment[:, 2],
                       color=COLORS['axis'], linewidth=1.2, linestyle='--',
-                      label='rotation axis', axlim_clip=True)
+                      label='rotation axis', **AXLIM_CLIP)
         if view.translation_path is not None:
             path = view.translation_path
             axes.plot(path[:, 0], path[:, 1], path[:, 2], color=COLORS['axis'],
                       linewidth=1.0, marker='o', markersize=2.5,
-                      label='translation path', axlim_clip=True)
+                      label='translation path', **AXLIM_CLIP)
         axes.plot([view.voxel0_center[0]], [view.voxel0_center[1]],
                   [view.voxel0_center[2]], marker='x', linestyle='none',
                   markersize=INDEX_MARKER_SIZE,
                   markeredgewidth=INDEX_MARKER_WIDTH, color=COLORS['voxel0'],
-                  label='voxel (0, 0, 0)', axlim_clip=True, zorder=6)
+                  label='voxel (0, 0, 0)', **AXLIM_CLIP, zorder=6)
         self._path_3d, = axes.plot(np.zeros(0), np.zeros(0), np.zeros(0),
                                    color=COLORS['trajectory'],
                                    linewidth=1.0, linestyle='-.',
-                                   label='source path', axlim_clip=True)
+                                   label='source path', **AXLIM_CLIP)
         self._path_3d.set_visible(self._show_trajectory)
 
         # Moving: the source, the detector, the rays, and the arc.
@@ -1483,7 +1492,7 @@ class GeometryFigure:
             # near side of the detector from the far side.
             self._face_3d = Poly3DCollection(
                 [view.detector_corners], facecolor=COLORS['detector'],
-                alpha=0.12, edgecolor='none', axlim_clip=True)
+                alpha=0.12, edgecolor='none', **AXLIM_CLIP)
             axes.add_collection3d(self._face_3d)
             self._moving.append((axes, self._face_3d))
         self._rays_3d = self._moving_line_3d(axes, COLORS['rays'],
@@ -1547,7 +1556,7 @@ class GeometryFigure:
         rings = _joined(parts)
         self.ax_3d.plot(rings[:, 0], rings[:, 1], rings[:, 2],
                         color=COLORS['ror'], linewidth=0.9,
-                        label='region of reconstruction', axlim_clip=True)
+                        label='region of reconstruction', **AXLIM_CLIP)
 
     # --- the two projected panels ---
 
@@ -1869,14 +1878,14 @@ class GeometryFigure:
 
         axes = self.ax_3d
         keep(axes, axes.plot([source[0]], [source[1]], [source[2]],
-                             label='angle-0 reference', axlim_clip=True,
+                             label='angle-0 reference', **AXLIM_CLIP,
                              **hollow_star)[0])
         keep(axes, axes.plot(outline[:, 0], outline[:, 1], outline[:, 2],
-                             color=COLORS['detector'], axlim_clip=True,
+                             color=COLORS['detector'], **AXLIM_CLIP,
                              **dotted)[0])
         central = _sampled_segment(source, origin)
         keep(axes, axes.plot(central[:, 0], central[:, 1], central[:, 2],
-                             color=COLORS['central_ray'], axlim_clip=True,
+                             color=COLORS['central_ray'], **AXLIM_CLIP,
                              **dotted)[0])
         direction = origin - head_start
         self._reference_arrow_3d = keep(axes, axes.quiver(
@@ -2262,7 +2271,7 @@ class GeometryFigure:
         def moving(axes, three_d=False, label=None, **kwargs):
             if three_d:
                 line, = axes.plot(np.zeros(0), np.zeros(0), np.zeros(0),
-                                  color=color, axlim_clip=True, label=label,
+                                  color=color, **AXLIM_CLIP, label=label,
                                   **kwargs)
             else:
                 line, = axes.plot([], [], color=color, label=label, **kwargs)
@@ -2319,7 +2328,7 @@ class GeometryFigure:
             box = _joined([compare_corners[[first, second]]
                            for first, second in VOLUME_BOX_EDGES])
             line, = self.ax_3d.plot(box[:, 0], box[:, 1], box[:, 2],
-                                    color=color, axlim_clip=True, **dashed)
+                                    color=color, **AXLIM_CLIP, **dashed)
             self._compare_static.append((self.ax_3d, line))
             for axes, walk, columns in (
                     (self.ax_top, _XY_FOOTPRINT_WALK, TOP_PANEL_COLUMNS),
@@ -2350,7 +2359,7 @@ class GeometryFigure:
             if axes is self.ax_3d:
                 line, = axes.plot(np.zeros(0), np.zeros(0), np.zeros(0),
                                   color=color, linewidth=1.0, linestyle='-.',
-                                  axlim_clip=True)
+                                  **AXLIM_CLIP)
             else:
                 line, = axes.plot([], [], color=color, linewidth=1.0,
                                   linestyle='-.')
@@ -2418,8 +2427,8 @@ class GeometryFigure:
         """Hide the 3D artists that lie outside the 3D panel's cube.
 
         Two kinds of 3D artist are not clipped by the axes limits, the way a
-        3D line drawn with ``axlim_clip`` is: a text artist and an arrowhead
-        built by ``quiver``.  In the volume zoom the source sits far outside
+        3D line drawn with ``AXLIM_CLIP`` is under matplotlib 3.10 and later:
+        a text artist and an arrowhead built by ``quiver``.  In the volume zoom the source sits far outside
         the cube, and its label would be drawn where that point projects,
         which is outside the panel and on top of the rest of the figure.  Each
         such artist is hidden when the point it is attached to is outside the

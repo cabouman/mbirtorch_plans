@@ -34,12 +34,16 @@ reconstruction geometry that an mbirtorch model constructor would choose,
 ``plans/experiments/geometry_viewer``; that directory holds the sources and the
 tests.
 
-This packaging was not tested where it was built.  The build environment
-cannot reach a content delivery network, so the Gradio-Lite runtime could not
-be downloaded there and the page could not be opened.  The script and the
-stylesheet are pinned to @gradio/lite 5.45.0, the last release of that package,
-and the app uses no Gradio feature newer than that release.  A server-run
-version of the same app was tested, in a Space with the Gradio SDK.
+The page holds the runtime's dependencies at fixed versions.  The script and
+the stylesheet are pinned to @gradio/lite 5.45.0, the last release of that
+package, and the app uses no Gradio feature newer than that release.  The
+runtime itself installs gradio's dependencies from PyPI at whatever versions
+are current when the page loads, and by 2026-09-10 three of them had moved on,
+each stopping the page before the app started.  A short script in
+``index.html`` therefore patches the runtime's worker as it loads, so that
+gradio's dependencies are installed at their newest releases before 2025-09-10,
+the day the runtime was published.  ``lite_pins.txt`` in the ``web`` directory
+of the source repository lists them.
 
 The viewer and its geometry rules are part of mbirtorch, which carries the
 BSD 3-clause license.

@@ -1,0 +1,18 @@
+# The PyPI packages the Gradio-Lite page installs, each at its newest
+# release before 2025-09-10T17:06:22Z, when Gradio-Lite 5.45.0 was published.
+# Written by gv5_lite_pins.py; change that script, not this file.
+aiofiles==24.1.0
+annotated-doc==0.0.1
+anyio==4.10.0
+fastapi==0.116.1
+filelock==3.19.1
+groovy==0.1.2
+huggingface-hub==0.34.4
+pydub==0.25.1
+python-multipart==0.0.20
+safehttpx==0.1.6
+semantic-version==2.10.0
+starlette==0.47.3
+tomlkit==0.13.3
+typing-inspection==0.4.1
+websockets==15.0.1
