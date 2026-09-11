@@ -5,11 +5,12 @@ and the detector with a few numbers, and gets the geometry viewer's five-panel
 figure: a 3D view, a top view of the xy plane, a side view of the yz plane, the
 detector face in row and channel index, and a panel of derived numbers.  A
 slider steps through the views.  Three checkboxes turn the source's path, the
-3D zoom to the volume, and the angle-0 reference on and off.  A comparison
-section draws a second geometry over the first from a few parameter overrides,
-which is the calibration use: a vendor geometry against the same geometry with
-an estimated offset.  A comparison also fills a second plot under the status,
-which tables every difference between the two geometries.
+3D zoom to the volume, and the angle-0 reference on and off.  Two more turn on
+the two data overlays: a cube phantom and the sinogram of that phantom.  A
+comparison section draws a second geometry over the first from a few parameter
+overrides, which is the calibration use: a vendor geometry against the same
+geometry with an estimated offset.  A comparison also fills a second plot under
+the status, which tables every difference between the two geometries.
 
 Where the numbers come from.  ``geometry_defaults.default_parameters`` builds
 the complete parameter dictionary, including the reconstruction shape and the
@@ -17,6 +18,15 @@ voxel pitch that an mbirtorch model constructor would choose.  Nothing here
 imports mbirtorch or torch.  ``geometry_scene.GeometryScene`` turns the
 dictionary into drawable primitives and ``geometry_viewer.GeometryFigure``
 draws them.
+
+Where the two overlays come from.  ``geometry_defaults.cube_phantom`` builds
+the phantom here, for the reconstruction shape the current scan has.  The
+sinogram cannot be built here, because a sinogram comes from mbirtorch's
+projector and this app has no projector.  ``gv5_build_web.py`` runs the
+projector once per geometry while it builds the page and stores the six
+results in ``default_sinograms.b64``, at 8 bits.  Each stored sinogram belongs
+to one scan, so the app paints one only while the scan on the page equals the
+scan it was computed for.
 
 Why the figure carries no widgets.  On the web the figure is a static image, so
 the app builds it with ``widgets=False`` and puts every control in the page.
@@ -44,6 +54,9 @@ Gradio-Lite release the static page is pinned to, and in Gradio 6.
 """
 
 import ast
+import base64
+import io
+import json
 import os
 import sys
 import time
@@ -57,6 +70,7 @@ matplotlib.use('Agg')
 
 import gradio as gr  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 
 # The three modules this app draws with sit beside it in a Space and one
 # directory up in the plans repository, so both places are on the path.  In
@@ -71,7 +85,8 @@ for _directory in (_HERE, os.path.dirname(_HERE)):
         sys.path.insert(0, _directory)
 
 import geometry_defaults  # noqa: E402
-from geometry_scene import GeometryScene, required_parameter_names  # noqa: E402
+from geometry_scene import (GeometryScene,  # noqa: E402
+                            required_parameter_names, values_are_equal)
 from geometry_viewer import GeometryFigure  # noqa: E402
 # The viewer's default 3D camera, under names of their own: this module's
 # DEFAULT_ELEVATION_DEG below is the multiaxis scan's elevation, another
@@ -118,6 +133,19 @@ DEFAULT_NUM_DET_CHANNELS = 128
 DEFAULT_SOURCE_DETECTOR_DIST = 4.0 * DEFAULT_NUM_DET_CHANNELS
 DEFAULT_SOURCE_ISO_DIST = DEFAULT_SOURCE_DETECTOR_DIST / 2.0
 
+#: The default angular range in degrees, and the default detector pitches and
+#: offsets in ALU.  The four detector values are mbirtorch's own defaults, so a
+#: page that is left alone draws the geometry a model constructor would build.
+#: These names exist so that the controls below, the stored sinograms of
+#: :data:`DEFAULT_SINOGRAMS_FILE`, and anything else that needs the page's
+#: default scan all read one value.
+DEFAULT_ANGLE_START_DEG = 0.0
+DEFAULT_ANGLE_END_DEG = 360.0
+DEFAULT_DELTA_DET_CHANNEL = 1.0
+DEFAULT_DELTA_DET_ROW = 1.0
+DEFAULT_DET_CHANNEL_OFFSET = 0.0
+DEFAULT_DET_ROW_OFFSET = 0.0
+
 #: The defaults of the three geometries that take one number of their own: the
 #: helical travel in ALU, the multiaxis elevation in degrees, and the
 #: translation grid.
@@ -146,6 +174,157 @@ EXAMPLE_OVERRIDE_TEXT = 'det_channel_offset=13.0'
 #: control column, so a pair of boxes wrapped onto two lines and the column
 #: grew twice as tall as it needs to be.
 PAIR_MIN_WIDTH = 110
+
+
+# ── the sinograms the page was built with ────────────────────────────────────
+
+#: The file that carries the page's sinograms, beside this module.  The page
+#: cannot project anything: a sinogram comes from mbirtorch's projector, which
+#: needs torch, and neither is installed where this app runs.  The build script
+#: therefore runs the projector once per geometry while it builds the page, on
+#: the scan the page's default controls describe, and writes the results here.
+#: A build on a machine without mbirtorch writes no file, and the page then
+#: draws no sinogram and says so.
+DEFAULT_SINOGRAMS_FILE = 'default_sinograms.b64'
+
+#: The label of the check box that draws the stored sinogram, and the label of
+#: the check box that draws the phantom.  Both overlays cost render time, so
+#: both boxes start off.
+SINOGRAM_LABEL = 'sinogram of the cube phantom'
+PHANTOM_LABEL = 'cube phantom'
+
+#: The decoded file, read on first use, and one entry per geometry taken from
+#: it.  Reading the file costs a base64 decode of about two megabytes, so it
+#: happens once, and each geometry's arrays are unpacked the first time that
+#: geometry asks for them.
+_stored_archive = None
+_stored_archive_read = False
+_stored_by_geometry = {}
+
+
+def stored_sinogram_keys(geometry):
+    """The three names one geometry's entry has inside the stored file.
+
+    The names carry the geometry's own label, which has a space in it for three
+    of the six geometries.  The file holds arbitrary names, so the label is
+    used as it stands.
+
+    Args:
+        geometry (str): one of :data:`GEOMETRY_CHOICES`.
+
+    Returns:
+        (str, str, str): the name of the 8-bit values, of the scale that turns
+        them back into the projector's numbers, and of the JSON text of the
+        scan parameters the projection was computed from.
+    """
+    return (f'{geometry}/values', f'{geometry}/scale',
+            f'{geometry}/parameters')
+
+
+def stored_sinogram(geometry):
+    """The stored sinogram of one geometry, or None when there is none.
+
+    Returns:
+        tuple or None: the 8-bit values as a uint8 array, the scale as a float,
+        and the scan parameters as a dictionary.  None means the page carries
+        no sinograms at all, or none for this geometry.
+    """
+    if geometry not in _stored_by_geometry:
+        _stored_by_geometry[geometry] = _read_stored_sinogram(geometry)
+    return _stored_by_geometry[geometry]
+
+
+def _read_stored_sinogram(geometry):
+    """One geometry's entry, unpacked from the decoded file; see
+    :func:`stored_sinogram`."""
+    archive = _stored_sinograms()
+    if archive is None:
+        return None
+    values_key, scale_key, parameters_key = stored_sinogram_keys(geometry)
+    if values_key not in archive.files:
+        return None
+    return (archive[values_key], float(archive[scale_key]),
+            json.loads(archive[parameters_key].item()))
+
+
+def _stored_sinograms():
+    """The decoded file, read once, or None when the page carries no file.
+
+    The file is base64 text of the bytes ``np.savez_compressed`` writes, which
+    is how a binary array travels inside an HTML page.  Reading it back is the
+    same two steps in the other order.
+    """
+    global _stored_archive, _stored_archive_read
+    if _stored_archive_read:
+        return _stored_archive
+    _stored_archive_read = True
+    path = _stored_sinograms_path()
+    if path is not None:
+        with open(path, 'r', encoding='ascii') as handle:
+            text = handle.read()
+        _stored_archive = np.load(io.BytesIO(base64.b64decode(text)))
+    return _stored_archive
+
+
+def _stored_sinograms_path():
+    """Where the stored file sits, or None when it is not there.
+
+    The file sits beside this module in both packagings, and in the browser it
+    is written into the app's working directory, which is the same place.  The
+    directory above is searched as well, which is the second directory the
+    module search above adds, so a copy put there is found too.
+    """
+    for directory in (_HERE, os.path.dirname(_HERE)):
+        path = os.path.join(directory, DEFAULT_SINOGRAMS_FILE)
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def sinogram_for_scan(geometry, params):
+    """The stored sinogram to paint for this scan, and what to say about it.
+
+    The stored sinogram is the projector's forward projection of the cube
+    phantom, computed when the page was built, for the default controls of this
+    geometry.  It is the picture of that one scan and of no other, so it is
+    painted only while every parameter of the scan on the page equals the
+    parameter the projection used.  The parameters are compared one at a time,
+    and the ones that differ are named in the status block.
+
+    Args:
+        geometry (str): one of :data:`GEOMETRY_CHOICES`.
+        params (dict): the scan parameters the page built.
+
+    Returns:
+        (ndarray or None, str): the 8-bit sinogram, or None when none is
+        painted, and the sentence the status block adds.  The sentence is empty
+        when the sinogram is painted.
+    """
+    entry = stored_sinogram(geometry)
+    if entry is None:
+        return None, ('This page was built without sinograms, so none can be '
+                      'drawn.')
+    values, _scale, stored = entry
+    differing = _differing_parameter_names(params, stored)
+    if not differing:
+        return values, ''
+    count = len(differing)
+    plural = 'parameter' if count == 1 else 'parameters'
+    return None, (f'The sinogram is drawn for the default scan of each '
+                  f'geometry only.  This scan differs from that default in '
+                  f'{count} {plural}: {", ".join(differing)}.')
+
+
+def _differing_parameter_names(params, stored):
+    """The names whose value in the scan on the page differs from the value the
+    stored projection used, in alphabetical order.
+
+    A name that only one of the two holds counts as differing, because the two
+    then describe different geometries.
+    """
+    names = sorted(set(params) | set(stored))
+    return [name for name in names
+            if not values_are_equal(params.get(name), stored.get(name))]
 
 
 # ── building one figure ──────────────────────────────────────────────────────
@@ -238,6 +417,7 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
            num_x_translations, num_z_translations, x_spacing, z_spacing,
            view_index, show_trajectory, zoom_to_volume, show_reference,
            camera_elevation_deg, camera_azimuth_deg,
+           show_sinogram, show_phantom,
            compare_enabled, compare_text, recon_rows, recon_cols,
            recon_slices):
     """Draw one figure and return it with a short status.
@@ -248,6 +428,12 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
     the status block instead, and the figure keeps its last value, because
     Gradio-Lite shows every exception a handler raises in a window with the
     Python traceback in front of the page.
+
+    The two data overlays are the sinogram and the phantom.  The phantom is
+    built here, for whatever reconstruction shape the scan has.  The sinogram
+    is not: it comes from the page's stored file, which holds the projector's
+    own projection of that phantom for each geometry's default scan, so a scan
+    that differs from its default is drawn without one.
 
     The third value is the comparison table.  On the desktop the viewer puts
     that table in a second window; here it is a second plot, which the page
@@ -275,6 +461,21 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
                      if compare_enabled else None)
         scene = GeometryScene(params, kind)
         index = _checked_view_index(view_index, scene.num_views)
+
+        # The two data overlays.  The phantom follows the reconstruction shape,
+        # including a shape given by hand in the advanced section.  The stored
+        # sinogram is the projector's numbers at 8-bit precision, and the
+        # viewer scales the gray levels over the array it is given, so the
+        # stored values are painted as they are.
+        overlay_notes = []
+        phantom = (geometry_defaults.cube_phantom(scene.recon_shape)
+                   if show_phantom else None)
+        sinogram = None
+        if show_sinogram:
+            sinogram, note = sinogram_for_scan(geometry, params)
+            if note:
+                overlay_notes.append(note)
+
         # Close the figures of earlier calls: each render builds a new one, and
         # pyplot keeps every figure it makes until something closes it.
         plt.close('all')
@@ -288,6 +489,7 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
                                             CAMERA_ELEVATION_DEG),
                 azimuth_deg=_camera_angle(camera_azimuth_deg,
                                           CAMERA_AZIMUTH_DEG),
+                sinogram=sinogram, recon=phantom,
                 figsize=WEB_FIGSIZE, widgets=False, blit=False)
     except gr.Error as problem:
         if running_in_pyodide():
@@ -302,7 +504,10 @@ def render(geometry, num_views, num_det_rows, num_det_channels,
         comparison = gr.update(visible=False)
     else:
         comparison = gr.update(value=figure.compare_figure, visible=True)
-    return figure.figure, _status_markdown(scene, elapsed_ms), comparison
+    drawn = ([SINOGRAM_LABEL] if sinogram is not None else []) + (
+        [PHANTOM_LABEL] if phantom is not None else [])
+    status = _status_markdown(scene, elapsed_ms, drawn, overlay_notes)
+    return figure.figure, status, comparison
 
 
 def _refusal_markdown(message):
@@ -312,23 +517,34 @@ def _refusal_markdown(message):
             'drawn.')
 
 
-def _status_markdown(scene, elapsed_ms):
-    """The status block: the render time, where the figure was drawn, and the
-    two quantities the figure's text panel does not print.
+def _status_markdown(scene, elapsed_ms, drawn_overlays, overlay_notes):
+    """The status block: the render time, where the figure was drawn, the two
+    quantities the figure's text panel does not print, and the overlays.
 
     The figure's own text panel lists every derived quantity but two: the
     drawing distance, which is the distance used where a position is a drawing
     choice, and the sentence about the fan and cone angles.
+
+    Args:
+        scene (GeometryScene): the geometry drawn.
+        elapsed_ms (float): how long the render took, in milliseconds.
+        drawn_overlays (list of str): the overlays the figure holds, by the
+            label of the check box that asked for each one.
+        overlay_notes (list of str): one sentence per overlay that was asked
+            for and not drawn, saying why.
     """
     quantities = scene.derived_quantities()
     where = 'in this browser' if running_in_pyodide() else 'on the server'
+    overlays = ', '.join(drawn_overlays) if drawn_overlays else 'none'
     lines = [
         f'**Rendered in {elapsed_ms:.0f} ms** {where}.  '
         f'Every control change draws the figure again.',
         '',
         f'- drawing distance: {quantities["drawing_distance"]:.3g} ALU',
         f'- about the angles: {quantities["angle_note"]}',
+        f'- overlays drawn: {overlays}',
     ]
+    lines.extend(f'- {note}' for note in overlay_notes)
     return '\n'.join(lines)
 
 
@@ -541,10 +757,12 @@ def build_page():
                             label='number of views')
                         with gr.Row():
                             angle_start = gr.Number(
-                                value=0.0, label='first angle (deg)',
+                                value=DEFAULT_ANGLE_START_DEG,
+                                label='first angle (deg)',
                                 min_width=PAIR_MIN_WIDTH)
                             angle_end = gr.Number(
-                                value=360.0, label='last angle (deg)',
+                                value=DEFAULT_ANGLE_END_DEG,
+                                label='last angle (deg)',
                                 min_width=PAIR_MIN_WIDTH)
                     with gr.Column(visible=False) as elevation_group:
                         elevation_deg = gr.Number(
@@ -596,17 +814,21 @@ def build_page():
                             min_width=PAIR_MIN_WIDTH)
                     with gr.Row():
                         delta_det_channel = gr.Number(
-                            value=1.0, label='channel pitch (ALU)',
+                            value=DEFAULT_DELTA_DET_CHANNEL,
+                            label='channel pitch (ALU)',
                             min_width=PAIR_MIN_WIDTH)
                         delta_det_row = gr.Number(
-                            value=1.0, label='row pitch (ALU)',
+                            value=DEFAULT_DELTA_DET_ROW,
+                            label='row pitch (ALU)',
                             min_width=PAIR_MIN_WIDTH)
                     with gr.Row():
                         det_channel_offset = gr.Number(
-                            value=0.0, label='channel offset (ALU)',
+                            value=DEFAULT_DET_CHANNEL_OFFSET,
+                            label='channel offset (ALU)',
                             min_width=PAIR_MIN_WIDTH)
                         det_row_offset = gr.Number(
-                            value=0.0, label='row offset (ALU)',
+                            value=DEFAULT_DET_ROW_OFFSET,
+                            label='row offset (ALU)',
                             min_width=PAIR_MIN_WIDTH)
                 with gr.Accordion('compare with a second geometry',
                                   open=False):
@@ -640,6 +862,20 @@ def build_page():
                                                  label='3D zoom to volume')
                     show_reference = gr.Checkbox(value=True,
                                                  label='angle-0 reference')
+                # The two data overlays, in a row of their own.  Both start
+                # off, because each one costs render time: the phantom is a
+                # volume this page builds and projects onto two panels, and the
+                # sinogram is an image on the detector face.
+                with gr.Row():
+                    show_sinogram = gr.Checkbox(
+                        value=False, label=SINOGRAM_LABEL,
+                        info='The projector\'s own sinogram, computed when '
+                             'this page was built, for the default scan of '
+                             'each geometry.')
+                    show_phantom = gr.Checkbox(
+                        value=False, label=PHANTOM_LABEL,
+                        info='A block a quarter of the volume wide, which '
+                             'shifts sideways from slice to slice.')
                 # The 3D camera.  On the desktop the panel is rotated with the
                 # mouse; here the figure is an image, so the two camera angles
                 # are numbers.  A change costs one render, as every control
@@ -673,6 +909,7 @@ def build_page():
                   num_x_translations, num_z_translations, x_spacing, z_spacing,
                   view_index, show_trajectory, zoom_to_volume, show_reference,
                   camera_elevation_deg, camera_azimuth_deg,
+                  show_sinogram, show_phantom,
                   compare_enabled, compare_text, recon_rows, recon_cols,
                   recon_slices]
         outputs = [plot, status, compare_plot]

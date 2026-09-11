@@ -25,12 +25,20 @@ app's Python under Pyodide, so there is no server and no session state.  The
 first load takes a while, because the browser downloads Python, numpy, and
 matplotlib before the app starts.
 
+Two check boxes add data to the drawing.  One draws a cube phantom, which the
+page builds for the reconstruction shape of the current scan.  The other draws
+that phantom's sinogram on the detector face.  The sinogram is mbirtorch's own
+forward projection, computed when this page was built, stored at 8 bits, and
+kept for the default scan of each geometry; a scan whose controls have been
+changed is drawn without one, and the status block says so.
+
 The files.  ``index.html`` carries four Python modules inside it:
 ``app.py`` builds the page, ``geometry_defaults.py`` computes the automatic
 reconstruction geometry that an mbirtorch model constructor would choose,
 ``geometry_scene.py`` turns the parameters into drawable primitives, and
-``geometry_viewer.py`` draws them with matplotlib.  All four are copies made by
-``gv5_build_web.py`` in the ``mbirtorch_plans`` repository, under
+``geometry_viewer.py`` draws them with matplotlib.  It carries the six stored
+sinograms as well, in ``default_sinograms.b64``.  All of these are copies made
+by ``gv5_build_web.py`` in the ``mbirtorch_plans`` repository, under
 ``plans/experiments/geometry_viewer``; that directory holds the sources and the
 tests.
 

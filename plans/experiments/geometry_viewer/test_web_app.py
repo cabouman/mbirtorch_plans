@@ -1,19 +1,25 @@
 """Tests for the web packaging of the geometry viewer.
 
-The tests cover three things.  The first is the render function of ``web/app.py``:
-it must return a matplotlib figure for each of the six geometries the page
-offers, for a comparison, and for a reconstruction shape given by hand, and it
-must raise ``gr.Error`` with a plain sentence for a bad number and for an
-override line it cannot read.  Its third return value is the comparison table,
-which is shown only while a comparison is drawn.  The second is the build
-script: every Python file inside ``web/lite/index.html`` must decode back to
-its source byte for byte, and both Space directories must hold the files a
-Hugging Face Space needs.  The third is the whole page: the test launches the
+The tests cover four things.  The first is the render function of
+``web/app.py``: it must return a matplotlib figure for each of the six
+geometries the page offers, for a comparison, and for a reconstruction shape
+given by hand, and it must raise ``gr.Error`` with a plain sentence for a bad
+number and for an override line it cannot read.  Its third return value is the
+comparison table, which is shown only while a comparison is drawn.  The second
+is the two data overlays: the phantom must reach the 3D panel, and the stored
+sinogram must reach the detector face at the default scan of a geometry and
+nowhere else.
+The third is the build script: every Python file inside ``web/lite/index.html``
+must decode back to its source byte for byte, the page must carry one stored
+sinogram per geometry, and both Space directories must hold the files a
+Hugging Face Space needs.  The fourth is the whole page: the test launches the
 Gradio app, opens it in a headless Chromium through Playwright, waits for the
 plot, moves the view slider, and checks that the plot's image changed.
 
 Nothing here imports mbirtorch or torch, because the web app does not.  The
-test that pins ``geometry_defaults.py`` against the real models is
+build script imports both to run the projector, so a machine without them
+builds a page with whatever sinograms the last build left in place.  The test
+that pins ``geometry_defaults.py`` against the real models is
 ``test_geometry_defaults.py``.
 
 Run:
@@ -25,7 +31,9 @@ when either is missing, and it writes a full-page screenshot to
 ``figures/gv5_space_screenshot.png``.
 """
 
+import base64
 import html.parser
+import io
 import os
 import re
 import socket
@@ -86,6 +94,21 @@ def render_arguments(**changes):
     Returns:
         list: the positional arguments of :func:`app.render`.
     """
+    return list(render_values(**changes).values())
+
+
+def render_values(**changes):
+    """The page's default control values, by the name ``render`` uses.
+
+    This is :func:`render_arguments` before the names are dropped, which a
+    test that needs one control's default by name reads instead.
+
+    Args:
+        **changes: values to replace, by the name ``render`` uses.
+
+    Returns:
+        dict: every argument of :func:`app.render`, in the order it takes them.
+    """
     values = dict(
         geometry='cone',
         num_views=app.DEFAULT_NUM_VIEWS,
@@ -111,6 +134,8 @@ def render_arguments(**changes):
         show_reference=True,
         camera_elevation_deg=app.CAMERA_ELEVATION_DEG,
         camera_azimuth_deg=app.CAMERA_AZIMUTH_DEG,
+        show_sinogram=False,
+        show_phantom=False,
         compare_enabled=False,
         compare_text='',
         recon_rows=None,
@@ -120,7 +145,7 @@ def render_arguments(**changes):
     unknown = set(changes) - set(values)
     assert not unknown, f'render takes no argument named {sorted(unknown)}.'
     values.update(changes)
-    return list(values.values())
+    return values
 
 
 # ── the render function ──────────────────────────────────────────────────────
@@ -219,6 +244,131 @@ def test_the_camera_fields_turn_the_3d_panel():
     assert app.CAMERA_ELEVATION_DEG == geometry_viewer.DEFAULT_ELEVATION_DEG
     assert app.CAMERA_ELEVATION_DEG != app.DEFAULT_ELEVATION_DEG
     plt.close(figure)
+
+
+# ── the two data overlays ────────────────────────────────────────────────────
+
+#: The arguments of ``app.scene_parameters``, which are the control values a
+#: scan is built from.  ``render`` takes these and the drawing's own controls.
+SCAN_ARGUMENT_NAMES = (
+    'geometry', 'num_views', 'num_det_rows', 'num_det_channels',
+    'delta_det_channel', 'delta_det_row', 'det_channel_offset',
+    'det_row_offset', 'source_detector_dist', 'source_iso_dist',
+    'angle_start_deg', 'angle_end_deg', 'elevation_deg', 'helical_travel',
+    'num_x_translations', 'num_z_translations', 'x_spacing', 'z_spacing')
+
+
+def test_the_sinogram_is_painted_only_for_the_default_scan(built):
+    """The stored sinogram reaches the detector face at the default scan.  A
+    scan whose view count has been changed is drawn without it, and the status
+    block says why.
+
+    The detector face is the fourth of the figure's five panels, and the
+    sinogram is the only image that panel holds.  The phantom's silhouette
+    goes into the top view and the side view, so it cannot be mistaken for
+    this image.
+
+    The build runs first, through the ``built`` fixture, because the app reads
+    the stored file once and keeps what it read.  A test that read the file
+    before the build rewrote it would compare the page against an older scan.
+    """
+    figure, status, _ = app.render(*render_arguments(show_sinogram=True))
+    assert figure.axes[3].images, (
+        'the detector face should hold the stored sinogram')
+    assert app.SINOGRAM_LABEL in status
+    plt.close(figure)
+
+    figure, status, _ = app.render(*render_arguments(show_sinogram=True,
+                                                     num_views=200))
+    assert not figure.axes[3].images, (
+        'a scan of 200 views is not the default scan, so no sinogram is '
+        'painted')
+    assert 'default scan' in status and 'differs' in status
+    plt.close(figure)
+
+
+def test_the_phantom_is_drawn_in_the_3d_panel():
+    """The phantom's outline reaches the 3D panel under the viewer's name for
+    it.  The 3D panel is the first of the figure's five panels."""
+    import geometry_viewer
+    figure, status, _ = app.render(*render_arguments(show_phantom=True))
+    labels = [line.get_label() for line in figure.axes[0].lines]
+    assert geometry_viewer.PHANTOM_NAME in labels, (
+        f'the 3D panel should hold a line labeled '
+        f'{geometry_viewer.PHANTOM_NAME!r}; it holds {labels}')
+    assert app.PHANTOM_LABEL in status
+    plt.close(figure)
+
+
+def test_no_overlay_is_drawn_unless_it_is_asked_for():
+    """Both boxes start off, and the status then names no overlay."""
+    import geometry_viewer
+    figure, status, _ = app.render(*render_arguments())
+    assert not figure.axes[3].images
+    labels = [line.get_label() for line in figure.axes[0].lines]
+    assert geometry_viewer.PHANTOM_NAME not in labels
+    assert 'overlays drawn: none' in status
+    plt.close(figure)
+
+
+def test_the_phantom_follows_a_reconstruction_shape_given_by_hand(built):
+    """A shape set in the advanced section is the shape of the phantom.
+
+    The viewer refuses an array whose shape is not the scan's reconstruction
+    shape, so a render that returns a figure is the check.  That scan is not
+    the default scan, so no sinogram is painted, and the status names
+    ``recon_shape`` as one of the parameters that differ.
+    """
+    figure, status, _ = app.render(*render_arguments(
+        show_phantom=True, show_sinogram=True, recon_rows=40, recon_cols=44,
+        recon_slices=12))
+    assert isinstance(figure, plt.Figure)
+    assert not figure.axes[3].images
+    assert 'recon_shape' in status
+    plt.close(figure)
+
+
+def test_the_page_says_so_when_it_has_no_sinogram(monkeypatch):
+    """A page built without mbirtorch carries no sinograms, and the status
+    says that rather than leaving a user waiting for a picture.
+
+    The missing file is reached by replacing the lookup with one that finds
+    nothing, which is what the lookup returns when the file is not there.
+    """
+    monkeypatch.setattr(app, 'stored_sinogram', lambda geometry: None)
+    figure, status, _ = app.render(*render_arguments(show_sinogram=True))
+    assert not figure.axes[3].images
+    assert 'built without sinograms' in status
+    plt.close(figure)
+
+
+def test_the_stored_parameters_are_the_scan_the_page_builds_by_default(built):
+    """Each stored sinogram's parameters are the parameters the page builds at
+    its default controls.
+
+    Why this matters.  The sinograms are computed when the page is built.  A
+    later change to one of the page's defaults would leave the stored
+    parameters describing a scan the page no longer opens with, and the page
+    would paint no sinogram until someone ran the build again.  The defaults
+    are stated twice, once by :func:`render_values` here and once by the
+    build's own ``default_control_values``, so this test fails as soon as the
+    two disagree.
+    """
+    from geometry_scene import values_are_equal
+    values = render_values()
+    for geometry in app.GEOMETRY_CHOICES:
+        entry = app.stored_sinogram(geometry)
+        assert entry is not None, f'no stored sinogram for {geometry}'
+        _, _, stored = entry
+        arguments = {name: values[name] for name in SCAN_ARGUMENT_NAMES}
+        arguments['geometry'] = geometry
+        params, _ = app.scene_parameters(**arguments)
+        for name in sorted(set(params) | set(stored)):
+            assert values_are_equal(params.get(name), stored.get(name)), (
+                f'the stored sinogram of {geometry} was computed for another '
+                f'scan: {name} is {params.get(name)!r} on the page and '
+                f'{stored.get(name)!r} in the file.  Run gv5_build_web.py '
+                'again.')
 
 
 def test_render_refuses_zero_views():
@@ -361,7 +511,10 @@ def test_every_module_round_trips_through_the_static_page(built):
     which is the newline that separates the source from the opening tag.
     """
     _, reader = built
-    assert set(reader.files) == set(build_web.MODULE_FILES)
+    # The page carries the four modules and the stored sinograms, which are
+    # base64 text and not a module, so only the modules are compiled here.
+    assert set(reader.files) == set(build_web.MODULE_FILES) | {
+        build_web.DEFAULT_SINOGRAMS_NAME}
     for name in build_web.MODULE_FILES:
         source = build_web.read_source(name)
         assert reader.files[name] == '\n' + source, (
@@ -384,7 +537,8 @@ def test_the_static_page_is_pinned_and_asks_for_matplotlib(built):
 def test_both_packagings_hold_the_files_a_space_needs(built):
     """The two directories hold their files, and both READMEs carry the front
     matter the site reads."""
-    for name in build_web.MODULE_FILES + build_web.WEB_FILES + ('icon.png',):
+    for name in build_web.MODULE_FILES + build_web.WEB_FILES + (
+            'icon.png', build_web.DEFAULT_SINOGRAMS_NAME):
         path = os.path.join(build_web.SPACE, name)
         assert os.path.getsize(path) > 0, f'{path} is missing or empty'
     for name in ('index.html', 'README.md', 'icon.png'):
@@ -406,6 +560,43 @@ def test_both_packagings_hold_the_files_a_space_needs(built):
         description = [line for line in front_matter.splitlines()
                        if line.startswith('short_description:')][0]
         assert len(description.split(':', 1)[1].strip(' "')) < 80
+
+
+#: The largest the stored sinograms may be, as base64 text, in bytes.  Six
+#: sinograms at 8 bits measure about 1.8 MB, and every byte of them is
+#: downloaded before the page can draw, so a file much larger than that is a
+#: quantization or a default scan that has changed without anyone noticing.
+SINOGRAM_FILE_CEILING = 2_500_000
+
+
+def test_the_page_carries_one_sinogram_per_geometry(built):
+    """The stored file holds the six sinograms, and the page carries it.
+
+    What is checked.  The file is small enough to download, it decodes back
+    from base64 into the archive the build wrote, and it holds the three
+    entries of every geometry the page offers.  The page's copy of the file is
+    one more ``<gradio-file>`` element, which is how the browser gets it.
+    """
+    text, reader = built
+    size = os.path.getsize(build_web.DEFAULT_SINOGRAMS_FILE)
+    assert 0 < size < SINOGRAM_FILE_CEILING, (
+        f'the stored sinograms measure {size / 1e6:.2f} MB')
+
+    stored = build_web.read_default_sinograms()
+    archive = np.load(io.BytesIO(base64.b64decode(stored)))
+    for geometry in app.GEOMETRY_CHOICES:
+        values_key, scale_key, parameters_key = app.stored_sinogram_keys(
+            geometry)
+        assert values_key in archive.files, f'no sinogram for {geometry}'
+        values = archive[values_key]
+        assert values.dtype == np.uint8 and values.ndim == 3
+        assert float(archive[scale_key]) > 0.0
+        assert 'sinogram_shape' in archive[parameters_key].item()
+
+    # The element's text content is the file with one newline in front of it,
+    # which is the newline that separates it from the opening tag.
+    assert f'<gradio-file name="{build_web.DEFAULT_SINOGRAMS_NAME}"' in text
+    assert reader.files[build_web.DEFAULT_SINOGRAMS_NAME] == '\n' + stored
 
 
 def test_the_static_page_holds_the_runtime_dependencies_at_fixed_versions(

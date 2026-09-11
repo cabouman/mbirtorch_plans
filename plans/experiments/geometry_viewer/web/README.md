@@ -25,9 +25,13 @@ The figure has five panels: a 3D view, a top view of the xy plane, a side view
 of the yz plane, the detector face in row and channel index, and a panel of
 derived numbers.  A slider steps through the views.  Three checkboxes turn the
 source's path over all views, the 3D zoom to the volume, and the angle-0
-reference on and off.  A comparison section draws a second geometry over the
-first from a few parameter overrides, which is the calibration use: a vendor
-geometry against the same geometry with an estimated offset.
+reference on and off.  Two more draw a cube phantom, which the app builds for
+the current scan, and that phantom's sinogram, which is mbirtorch's own forward
+projection, computed when this app was built, stored at 8 bits, and kept for
+the default scan of each geometry only.  A comparison section draws a second
+geometry over the first from a few parameter overrides, which is the
+calibration use: a vendor geometry against the same geometry with an estimated
+offset.
 
 Where the files come from.  Every file in this directory is a copy, made by
 ``gv5_build_web.py`` in the ``mbirtorch_plans`` repository, under
@@ -36,6 +40,8 @@ the app: ``app.py``, ``requirements.txt``, and this README come from
 ``web/``, and ``geometry_defaults.py``, ``geometry_scene.py``, and
 ``geometry_viewer.py`` come from the plan directory that holds ``web/``.  Edit
 them there and run the build script again; an edit made here is overwritten.
+``default_sinograms.b64`` holds the six stored sinograms and is written by the
+same build script, which needs mbirtorch and torch to run the projector.
 
 What each module does.  ``geometry_defaults.py`` computes the reconstruction
 shape and voxel pitch that an mbirtorch model constructor would choose, so the

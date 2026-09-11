@@ -10,10 +10,11 @@ The web packaging of the viewer runs where mbirtorch and torch are not
 installed, so this module computes those same values in plain numpy.
 
 This file is a deliberate copy of mbirtorch's rules.  Every number below is
-taken from one of five places in the mbirtorch source: the defaults in
+taken from one of six places in the mbirtorch source: the defaults in
 ``_utils.py``, each model class's ``__init__``, each model class's
-``auto_set_recon_geometry``, ``utilities.calc_tct_recon_params``, and
-``utilities.gen_translation_vectors``.  A copy can drift from its original when
+``auto_set_recon_geometry``, ``utilities.calc_tct_recon_params``,
+``utilities.gen_translation_vectors``, and ``utilities.gen_cube_phantom``.  A
+copy can drift from its original when
 the original changes.  ``test_geometry_defaults.py`` is what keeps this copy
 honest: it builds the real mbirtorch model and asserts that every parameter a
 scene reads matches ``model.get_params(name)``, for the six probe
@@ -46,7 +47,7 @@ interface.  ``web/app.py`` and the tests are its callers.
 import numpy as np
 
 __all__ = ['default_parameters', 'view_angles', 'helical_z_shifts',
-           'azimuth_elevation_pairs', 'translation_vectors',
+           'azimuth_elevation_pairs', 'translation_vectors', 'cube_phantom',
            'GEOMETRY_KINDS', 'DETECTOR_PARAMETER_NAMES',
            'DEFAULT_DETECTOR', 'AXIAL_PAD_FRACTION']
 
@@ -195,6 +196,52 @@ def translation_vectors(num_x_translations, num_z_translations, x_spacing,
                               (row - z_center) * z_spacing]
             index += 1
     return vectors.astype(np.float32)
+
+
+# ── the cube phantom ─────────────────────────────────────────────────────────
+
+def cube_phantom(recon_shape):
+    """A block phantom in a volume of this shape.
+
+    This is the rule of ``mbirtorch.gen_cube_phantom``, copied.  The block is a
+    quarter of the volume in rows and a quarter of it in columns, it reaches
+    through every slice, and it shifts sideways from one slice to the next.
+    The block is neither centered nor symmetric, so a drawing of it shows which
+    way each axis runs.
+
+    mbirtorch returns a torch tensor and this function returns the numpy array
+    that tensor is built from, because the web packaging has no torch.  The
+    values are the same either way.
+
+    Args:
+        recon_shape (tuple of int): (num_recon_rows, num_recon_cols,
+            num_recon_slices).  Further entries are ignored, as mbirtorch
+            ignores them.
+
+    Returns:
+        ndarray: the phantom, of shape ``recon_shape``, float32.
+    """
+    num_recon_rows, num_recon_cols, num_recon_slices = (
+        int(count) for count in recon_shape[:3])
+    phantom_rows = num_recon_rows // 4
+    phantom_cols = num_recon_cols // 4
+
+    phantom = np.zeros((num_recon_rows, num_recon_cols, num_recon_slices),
+                       dtype=np.float32)
+    start_rows = (num_recon_rows - phantom_rows) // 2
+    stop_rows = (num_recon_rows + phantom_rows) // 2
+    start_cols = (num_recon_cols - phantom_cols) // 2
+    stop_cols = (num_recon_cols + phantom_cols) // 2
+    # One value fills the whole block.  A volume under four rows and under four
+    # columns gives a block of no width, and the division below then raises, as
+    # it does in mbirtorch.
+    value = 1.0 / max(phantom_rows, phantom_cols)
+    for slice_index in range(num_recon_slices):
+        shift_cols = int(slice_index * phantom_cols / num_recon_slices)
+        phantom[start_rows:stop_rows,
+                shift_cols + start_cols:shift_cols + stop_cols,
+                slice_index] = value
+    return phantom
 
 
 # ── the complete parameter dictionary ────────────────────────────────────────

@@ -22,6 +22,10 @@ arguments and detector parameters.  The second is a randomized set for each of
 the four geometry kinds: ten or more parameter sets per kind, from a seeded
 generator, so that a rule that happens to agree at one size does not pass.
 
+Two copied helpers are checked on their own, because no model reports them.
+``translation_vectors`` is compared with ``gen_translation_vectors`` and
+``cube_phantom`` with ``gen_cube_phantom``.
+
 Run:
     cd plans/experiments/geometry_viewer
     PYTHONPATH=<mbirtorch clone> python -m pytest -q test_geometry_defaults.py
@@ -347,6 +351,35 @@ def test_translation_vectors_match_mbirtorch():
     theirs = mbirtorch.gen_translation_vectors(5, 3, 20.0, 12.0)
     assert mine.shape == theirs.shape
     assert np.allclose(mine, theirs, rtol=FLOAT_TOLERANCE, atol=0.0)
+
+
+#: The reconstruction shapes the cube phantom is checked at.  The first four
+#: are the shapes the web page's six geometries choose at their default
+#: controls, which are the shapes the page builds a phantom for; three of the
+#: six geometries share (128, 128, 96).  The rest are awkward on purpose: a
+#: shape not divisible by four, many more slices than rows, one slice, a volume
+#: too narrow in one direction to hold a block, and the smallest volume the
+#: rule gives a block at all.
+CUBE_PHANTOM_SHAPES = (
+    (128, 128, 96), (128, 128, 196), (128, 128, 110), (6, 160, 48),
+    (13, 7, 5), (9, 9, 40), (32, 32, 1), (3, 20, 6), (4, 4, 4),
+)
+
+
+@pytest.mark.parametrize('shape', CUBE_PHANTOM_SHAPES)
+def test_cube_phantom_matches_mbirtorch(shape):
+    """The cube phantom is the one ``gen_cube_phantom`` builds, exactly.
+
+    Exact equality is the right test here, not a tolerance.  Every index in the
+    rule is integer arithmetic, and the one value the phantom carries is a
+    single division that both sides compute the same way, so the two arrays
+    agree bit for bit or the rule has been copied wrongly.
+    """
+    mine = geometry_defaults.cube_phantom(shape)
+    theirs = np.asarray(mbirtorch.gen_cube_phantom(shape).cpu())
+    assert mine.dtype == np.float32
+    assert mine.shape == theirs.shape
+    assert np.array_equal(mine, theirs)
 
 
 # ── the errors a bad call raises ─────────────────────────────────────────────

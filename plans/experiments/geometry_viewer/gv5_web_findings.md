@@ -544,3 +544,51 @@ is a difference between matplotlib 3.8.4 and the release the viewer was
 developed with, and the isolated environment above reproduces it offline.  A
 line saying that an anchor was not found means the runtime's worker changed,
 which the pin to release 5.45.0 should prevent.
+
+## The data overlays on the web page (2026-09-11)
+
+Greg asked for the sinogram and the phantom, with their toggles, on the web page
+too.  The page has no data of its own and cannot run the projector, because
+Pyodide has no torch, so the two overlays reach it differently.
+
+The phantom is generated in the browser.  `geometry_defaults.cube_phantom` is a
+numpy copy of mbirtorch's `gen_cube_phantom`, built for whatever reconstruction
+shape the current scan has, and a test compares it with mbirtorch's own at nine
+shapes.  With the "cube phantom" box on, the page draws the phantom as the
+desktop does: the filled silhouette and outline in the top and side views, the
+wire outline in the 3D panel, and that outline projected onto the detector face.
+
+The sinogram is the projector's own, computed when the page is built.  The
+build script forward-projects the cube phantom with mbirtorch for each of the
+six geometry choices at the page's default controls, quantizes each sinogram to
+8 bits with its scale, and stores the six with the exact scan parameters they
+came from as base64 text inside the page, `default_sinograms.b64`.  Eight bits
+are for size.  The six sinograms compress to 10 MB at float32 and to 1.3 MB at
+8 bits, because the projector's footprint weights give a float32 sinogram more
+than 600,000 distinct values; as text the file is 1.85 MB, and the page grew from
+0.37 MB to 2.23 MB.  The picture is the same to the eye.  With the "sinogram of
+the cube phantom" box on, the page paints the stored sinogram while the current
+scan's parameters equal the stored ones, compared name by name with
+`values_are_equal`; when a control differs, it paints nothing and the status
+block names the parameters that differ and says that the sinogram is for the
+default scan of each geometry only.  A build on a machine without mbirtorch
+keeps the file an earlier build left.
+
+The projector is not reproducible to the last bit on this machine.  Three
+projections of one phantom differ by one float32 step, and 20 of the 2.2 million
+8-bit values then differ, so a new projection changes the whole file.  The build
+therefore keeps the file while its stored parameters match the page's defaults,
+and projects again only when the defaults change, the file is missing, or a
+constant asks for it.  A test checks the stored parameters of the cone geometry
+against the page's defaults, so a changed default breaks the build's data
+visibly.
+
+The build takes 5.5 s, of which the six projections take 5.1 s including the
+imports.  On the server a render with both overlays costs 85 to 110 ms on top of
+the 315 ms of the default cone scan.  In headless Chromium the page shows its
+first figure 10 s after load, the phantom box redraws the figure in 0.8 s, and
+leaving the default scan with the sinogram box on redraws without the sinogram
+and names the differing parameters.  At the default cone scan the sinogram box
+paints the phantom's shadow in 0.8 s, inside the projected outlines and under
+the phantom's own projected outline.  The suite grew to 309 tests, and the web
+tests pass under matplotlib 3.8.4.
