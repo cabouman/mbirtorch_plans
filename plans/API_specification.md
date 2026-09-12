@@ -61,7 +61,7 @@ mbirtorch API
 │   ├── Weights .................... gen_weights
 │   ├── Synthetic data ............. generate_demo_data
 │   ├── File input/output .......... save_recon_hdf5, export_recon_hdf5
-│   ├── Viewing .................... slice_viewer
+│   ├── Viewing .................... slice_viewer, geometry_viewer
 │   └── General .................... median_filter3d, stitch_arrays
 ├── 5. Differentiable projectors ... forward_project_differentiable
 └── 6. Application packages ........ hsnt, vcls
@@ -72,8 +72,10 @@ Each category has one input/output rule:
 1. **Reconstruction**: numpy / tensor / divided GPU form in; numpy out by default;
    divided form on request (`output_sharded=True`).  The specialized reconstructions
    always return numpy, because they exist to keep the full volume off the GPUs.
-2. **Model management**: these functions take and return parameters -- scalars,
-   tuples, and strings -- not data arrays.  Construction touches no GPU.
+2. **Model management**: these functions take and return parameters (scalars,
+   tuples, strings, dicts, and models), not data arrays.  The one exception is
+   `project_points`, which takes a few object-frame points and returns their
+   detector indices as small numpy arrays.  Construction touches no GPU.
 3. **Preprocessing**: numpy in, numpy out; GPU use is internal.
 4. **Utilities**: array utilities return the form they were given; file functions
    read and write host numpy.
@@ -160,8 +162,9 @@ function in its subcategory.
 
 ## 2. Model management
 
-No data arrays cross this surface; inputs and outputs are scalars, tuples,
-strings, dicts, and models.
+Only one method here takes an array: `project_points`, which takes and returns
+small numpy arrays of coordinates.  Everything else on this surface is scalars,
+tuples, strings, dicts, and models.
 
 | Function | Input | Output |
 |---|---|---|
@@ -172,6 +175,7 @@ strings, dicts, and models.
 | `set_params` | keyword parameters | — |
 | `get_params` / `print_params` | parameter name(s) | values / printed text |
 | `get_all_params` | — | three dicts (constructor, optional, regularization) |
+| `project_points` | object points (N, 3) + view index or indices | fractional (row, channel) detector indices, numpy float64 |
 | `auto_set_recon_geometry` | — | — (sets recon parameters) |
 | `scale_recon_shape` | scale factors | pixels added per axis |
 | `configure_devices` | device count or list | — (fixes the model's layout) |
@@ -261,7 +265,8 @@ host numpy.
 
 | Function | Input | Output |
 |---|---|---|
-| `slice_viewer` | numpy / tensor volumes | interactive display; returns nothing |
+| `slice_viewer` | numpy / tensor volumes | interactive display; returns the viewer object |
+| `geometry_viewer` | model (+ optional sinogram / recon, numpy or tensor) | interactive display; returns the figure object |
 
 ### General
 

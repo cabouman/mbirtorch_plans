@@ -11,8 +11,11 @@ against the conventions record with no disagreement.  Increment 4 is done
 (2026-09-09): the view slider, the source-path toggle, the 3D zoom, and the comparison
 overlay are built, 152 tests pass, and a slider step on an 1800-view model takes 41 ms
 against the 100 ms gate (`gv4_interaction_findings.md`, `gv4_timing.md`).  Increment 5
-was done on 2026-09-11, after the open items of the Increment 4 review; Increment 6,
-the port, is next.  Greg's first use (2026-09-09
+was done on 2026-09-11, after the open items of the Increment 4 review.  Increment 6,
+the port, was done on 2026-09-11 and is staged in the mbirtorch repository for review;
+`gv8_port_findings.md` is its record.  Increment 7, the two overlays at scale, was
+done on 2026-09-12 and is staged there as well; `gv9_overlay_findings.md` is its
+record.  Greg's first use (2026-09-09
 and 2026-09-10) produced four changes: a display fix for backends outside the blit
 path, labels on the source and detector, an angle-0 reference, and the display
 convention that negative z is the top of every drawing, recorded in
@@ -220,6 +223,27 @@ projector uses, and the ported scene calls it and drops its copy.  The web page
 cannot import torch and keeps the numpy copy, pinned by the same test, as
 `geometry_defaults.py` is kept honest today.  Until then the prototype draws from
 the tested copy and writes no new projection formula.
+Done 2026-09-11: `TomographyModel.project_points` is implemented in each model class
+from the projector's own helpers, with the projector's arithmetic bitwise unchanged;
+the scene and the figure live in `mbirtorch/geometry_scene.py` and
+`mbirtorch/geometry_figure.py`, and `mbirtorch.geometry_viewer` is exported beside
+`mbirtorch.slice_viewer`; the tests, a demo, a docs page, and the API rows are in
+place, and the two docstrings are corrected.  Decision (Greg, 2026-09-11): the web
+page keeps a separate numpy scene, so the prototype's files in the experiment
+directory stay as the page's sources and the page was not touched.  The record is
+`gv8_port_findings.md`.
+
+**Increment 7.  The overlays at scale.**  Decisions (Greg, 2026-09-11 and
+2026-09-12): a sinogram larger than about 128 pixels across is subsampled for
+display, on the device that holds it, and `vmin` and `vmax` fix its gray scale; the
+phantom's outline in the 3D panel follows the phantom's shape rather than its
+bounding rectangles, because the old outline reached outside the region of
+reconstruction for demo 3's round phantom; the phantom is read a chunk at a time
+with no full-size temporaries; and two candidate outlines, sections in single
+planes and slab silhouettes, were built and compared before one was chosen.
+Done 2026-09-12: sections across the support's thinnest direction, at most nine,
+with the legend naming the count and a point budget that coarsens long outlines;
+the slab kind stays behind a constant.  The record is `gv9_overlay_findings.md`.
 
 ## The Python interface (Greg, 2026-09-10)
 
