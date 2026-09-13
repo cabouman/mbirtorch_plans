@@ -67,7 +67,7 @@ FIG_MAP = {
 if __name__ == '__main__':
     here = os.path.dirname(os.path.abspath(__file__))
     fig_dir = os.path.join(here, 'figures')
-    report_dir = os.path.normpath(os.path.join(here, '..', '..', 'flash_remediation'))
+    report_dir = os.path.normpath(os.path.join(here, '../..', '..', 'flash_remediation'))
 
     for report_name, alt_to_png in FIG_MAP.items():
         report_path = os.path.join(report_dir, report_name)
