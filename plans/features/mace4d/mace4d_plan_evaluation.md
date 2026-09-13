@@ -1,6 +1,8 @@
 # Evaluation of the MACE4D migration plan, and a design that fits torch
 
-Status: DRAFT for review, written 2026-09-13.  This page evaluates the plan
+Status: written 2026-09-13 and reviewed the same day.  Section 7 records
+the decisions taken, and `mace4d_migration_plan_v2.md` beside this page is
+the plan of record that follows from them.  This page evaluates the plan
 in `mbirtorch/plans/mace4d_migration_plan.md` (revised 2026-09-11) and
 proposes changes where the plan copies a jax mechanism that torch does not
 need.  The sources read for this evaluation are the plan, the mbirjax module
@@ -57,10 +59,10 @@ would need no batching, no permutations, and would reuse the existing
 sharded denoiser.  The hyperplane form is kept for the port because it is
 the form the neural-network prior program needs.
 
-Seven decisions are open for Greg.  They are listed in Section 7.  The
-largest is whether the port must reproduce mbirjax's trajectories, or only
-its method.  The retire_jax plan says mbirjax compatibility is no longer
-required, and this evaluation assumes that.
+Section 7 records the decisions taken at review, and Section 8 the
+discussion items the review raised.  The largest decision is that the port
+reproduces mbirjax's method, not its trajectories, which the retire_jax
+plan also implies.
 
 ## 1. What the plan gets right
 
@@ -77,10 +79,12 @@ per-volume stopping test.  It also correctly insists on a per-volume
 reference (its Option C) as the thing every batched form is checked
 against.
 
-The plan's risk table is right to name host memory.  The loop holds eleven
+The plan's risk table is right to name host memory.  The loop holds twelve
 arrays of the full 4D volume in host memory: eight agent states, one
-scratch array, the consensus average, and the previous consensus average.  At thirty frames of a 512-cubed volume each array is
-16 GB, so the loop needs about 180 GB of host memory.  A gautschi node
+scratch array, the consensus point `z`, the consensus average, and the
+previous consensus average.  One more full-size temporary appears during
+the change test.  At thirty frames of a 512-cubed volume each array is
+16 GB, so the loop needs about 210 GB of host memory.  A gautschi node
 provides about 126 GB of host memory per GPU requested, so a production run
 at that size needs at least two GPUs for its host memory alone.  This is
 the same in mbirjax and is not a port problem, but the demo and the
@@ -450,37 +454,204 @@ faster than the filter as written.
 
 ## 6. Revised stages
 
-The stages keep the plan's numbering where the content is unchanged.
+The stages keep the plan's numbering where the content is unchanged.  The
+version 2 plan beside this page restates them in their final form.
 
 | Stage | Content | Change from the plan |
 |---|---|---|
 | 0 | Batched gradient and Hessian in `qggmrf.py`, batched subset update and `denoise_stack` in `denoising.py`, with the equality test against the per-volume loop | Replaces the extraction of `_denoise_single_device` |
 | 1 | Done: the measurements in Section 5 | Replaces the option measurement |
 | 2 | Frame construction and device-pool helpers | Unchanged |
-| 3 | The module, the consensus loop on host tensors, and the data-fit agents with the nn_priors conventions | Torch tensors; agent conventions |
-| 4 | The three prior agents as permute, `denoise_stack`, unpermute, with the filter applied per batch on the device | Public method instead of internals; no thread-local cache; ledger batch size |
+| 2b | The shared MACE module of Section 8.3: agent protocol, loop with the folding update, `ForwardProxAgent`, hyperplane-stack agent, filter matrix builder, with the nn_priors gate as a test | New |
+| 3 | `MACE4DModel` as a composition of the frame models, the agents, and the shared loop on host tensors | Built on Stage 2b |
+| 4 | The three prior agents as hyperplane-stack agents over `denoise_stack`, with the filter applied per batch on the device and one task per batch | Public method instead of internals; no thread-local cache; ledger batch size |
 | 5 | The filter matrix and its test | Matrix instead of scipy passes |
-| 6 | Task parallelism and logging | Unchanged, minus the budget item |
+| 6 | Fixed prox tasks, queued denoise batches (Section 8.1), and logging | Hybrid assignment; the budget item is dropped |
 | 7 | Tests with the three substitutions of Section 3.6 | No mbirjax reference |
 | 8 | Documentation and registration | Unchanged |
 | 9 | `save_volume_as_gif` and the demo | Unchanged |
 
-## 7. Open decisions
+## 7. Decisions
 
-1. Method, not trajectory.  The port follows the nn_priors agent conventions
-   and does not reproduce mbirjax's iteration-by-iteration values.  This
-   evaluation assumes yes.
-2. `denoise_stack` as a public method of `QGGMRFDenoiser`, documented in the
-   denoising page.  Recommended yes.
-3. Per-volume stopping by freezing converged volumes, which reproduces the
-   jax semantics and makes the equality test exact.  Recommended yes.  The
-   frozen-volume arithmetic is bounded by the spread of convergence
-   iterations, which Section 5 reports.
-4. The filter as a matrix.  Recommended yes.
-5. The one-frame equality gate as the whole-loop correctness test.
-   Recommended yes.
-6. Whether to run the 4D-agent comparison after the port.  Recommended as a
-   small follow-up experiment, not part of the port.
-7. The first cluster measurement: the size and frame count for a timing run
-   of `denoise_stack` on an H100, to replace the mbirjax cost constant used
-   by the task assignment.
+Greg ruled on these at the review on 2026-09-13.
+
+1. Method, not trajectory.  DECIDED: the trajectory may change; the fixed
+   point is what matters.
+2. `denoise_stack` as a public method of `QGGMRFDenoiser`.  DECIDED: yes.
+3. Per-volume stopping by freezing converged volumes.  A frozen volume is
+   one whose own stopping test has passed.  Its step size is set to zero
+   from then on, so its values no longer change while the other volumes in
+   the batch keep iterating.  This is what jax's vmapped `while_loop` does.
+   The alternatives are to shrink the batch as volumes converge, which
+   changes the tensor shapes and costs a recompile per new size, or to use
+   one shared stopping test for the whole batch, which costs the same
+   arithmetic as freezing and gives a result that is not exactly the
+   per-volume one.  DECIDED: freeze.
+4. The filter as a matrix.  DECIDED: yes, provided the results match,
+   including the behavior at the two ends of the frame axis.  The matrix
+   is built by applying the scipy filter to a unit impulse at every frame,
+   so it reproduces the filter's end behavior by construction.  The test
+   will check impulses at the first and last frames explicitly, in
+   addition to random inputs.
+5. The one-frame equality gate.  DECIDED: yes.
+6. The 4D-agent comparison.  DECIDED: yes, as a follow-up.  Greg added
+   that the agents may later include bilateral-filter and total-variation
+   priors and denoisers, in 3D and in 4D.  Section 8.3 carries this into
+   the shared agent design.
+7. The first cluster measurement.  DECIDED, as recommended: after Stage 0
+   lands, one job on one H100 with synthetic data at two sizes, twelve frames of a
+   256-cubed volume and twenty-four frames of a 512-cubed volume.  The job
+   sweeps the batch size of `denoise_stack` over 4, 16, 64, and the largest
+   size that fits, and records the time per volume, the peak device memory,
+   and the per-volume loop time at the same sizes.  It also times one
+   `prox_map` per frame at each size.  The batch-size knee sets the default and calibrates the ledger's
+   batch sizing.  The cost is about one GPU-hour.  With the per-batch tasks
+   of Section 8.1 the mbirjax cost constant is not needed.
+
+## 8. Discussion items from the review
+
+### 8.1 Fixed versus dynamic task assignment
+
+The mbirjax code assigns tasks to devices once per run, by a least-loaded
+rule over estimated costs, and each device runs its tasks on one thread.
+The assignment has three benefits.  A frame stays on one device, so its
+sinogram and weights are uploaded once and its model keeps its cached prox
+initialization; re-pinning a model to another device drops that cache and
+rebuilds its projectors.  The run is reproducible, because the same device
+runs the same task every iteration.  And there is no scheduler to reason
+about.
+
+The cost of the fixed assignment is its dependence on the cost estimate.
+The three denoise tasks are large, and their cost relative to a prox task
+is a constant measured on one GPU at one size.  When the constant is wrong
+for the GPU or the size at hand, one device finishes late and the
+iteration waits for it.
+
+A dynamic assignment, where an idle device pulls the next task from a
+shared queue, balances itself without an estimate.  For the prox tasks it
+is not attractive, because a moving frame pays the re-pinning cost above.
+For the denoise work it is natural.  `denoise_stack` already processes an
+orientation in batches, each batch carries its own data to the device,
+and the denoiser constants are small.  So the recommendation is a hybrid:
+the prox tasks stay fixed to their devices, and each orientation's denoise
+becomes one task per batch, pulled from a shared queue by whichever device
+worker is idle.  The balance is then at the granularity of one batch.
+Each device holds one configured denoiser per orientation, and compiles
+all three orientation shapes on the first iteration rather than one, which
+is a one-time cost.  A fallback, if the queue is unwanted, is to re-balance
+the fixed assignment after the first iteration from the measured task
+times that the task log already records.
+
+DECIDED at review: the hybrid assignment.
+
+### 8.2 Host memory
+
+The mbirjax loop holds twelve full-size arrays and one full-size temporary
+at its peak: four `W`, four `X`, the scratch array, the consensus point
+`z`, the consensus average `xbar`, its previous value, and the temporary
+that the change test forms.  A folding update reduces this to eight.  The
+two forms below compute the same `W` and `xbar`.  The step numbers match
+across them, so the forms can be read line against line.
+
+```
+# Form A, the mbirjax update.  Every named array has the full 4D size.
+
+X[k] = agent_k(W[k])  for k in 0..3            # 1. four outputs, all kept until step 3
+z = zeros()                                     # 2. the consensus point
+for k in 0..3:
+    scratch = 2 * X[k] - W[k]                   #    one scratch array, reused
+    z += beta[k] * scratch
+for k in 0..3:                                  # 3. the Mann step
+    W[k] += 2 * rho * (z - X[k])                #    through the scratch array
+xbar_prev = xbar                                # 4. the consensus average
+xbar = sum_k beta[k] * X[k]                     #    a new array
+change = norm(xbar - xbar_prev) / norm(xbar_prev)     # 5. one full-size temporary
+
+# Peak: W x4, X x4, scratch, z, xbar, xbar_prev, and the temporary of step 5.
+```
+
+```
+# Form B, the folding update.  Full-size arrays: W x4, z, xbar_new, xbar_prev.
+# Each agent's output arrives one region at a time (one frame, or one slab of
+# hyperplanes), as a tensor of that region's size only.
+
+z.zero_(); xbar_new.zero_()
+for each completed task of agent k, with region r and output x:    # 1. per region
+    with the lock:
+        z[r] += beta[k] * (2 * x - W[k][r])     # 2. W[k][r] still holds the agent's input
+        xbar_new[r] += beta[k] * x              # 4. the consensus average, accumulated
+        W[k][r] -= 2 * rho * x                  # 3a. the part of the Mann step that needs x
+    # x is released here
+for k in 0..3:                                  # 3b. after every task has arrived
+    W[k] += 2 * rho * z                         #     W[k] now equals W_old + 2 rho (z - X[k])
+change = chunked_norm(xbar_new - xbar_prev) / chunked_norm(xbar_prev)   # 5. no full temporary
+xbar_new, xbar_prev = xbar_prev, xbar_new       # swap the two buffers
+
+# Peak: W x4, z, xbar_new, xbar_prev, plus one region-sized tensor per task in flight.
+# With the temporal filter on, the data-fit agent also keeps the stack of prox
+# outputs until every frame has arrived, because the filter acts along the frame
+# axis: one more full-size array, eight in total.
+```
+
+Step 3 is the same arithmetic in both forms, because `W - 2 rho X + 2 rho z`
+equals `W + 2 rho (z - X)`.  Steps 2 and 4 form the same sums in a
+different order, so the two forms agree to float32 rounding, which decision
+1 allows.  Form B needs the lock because the regions of different agents
+overlap: one frame of the data-fit agent and one slab of hyperplanes share
+voxels.  Each fold is a region-sized in-place operation, so the lock is held
+briefly.
+
+Three further levers exist.  Memory-mapped state arrays give capacity at
+a large speed cost and are a fallback only.  On gautschi, host memory
+grows with the number of GPUs requested, at about 126 GB per GPU.
+Half-precision state is not recommended without a study: the stopping
+threshold is 0.2 percent and float16 carries about three significant
+digits.
+
+DECIDED at review: the folding update, with this section as its record.
+
+### 8.3 Shared code with the nn_priors work
+
+The loop and the agents in `experiments/drunet/` are the same objects
+MACE4D needs, so they should move into a package module, for example
+`mbirtorch/mace.py`, and MACE4D should be built on it.  The module holds
+five things.  The agent protocol: a callable from an array to an array of
+the same shape, bound to one device.  `ForwardProxAgent`, with a device
+argument and the sinogram and weights placed once.  A hyperplane-stack
+agent that permutes a 4D array, applies the filter matrix, calls a stack
+denoiser in batches on its device, and permutes back; the stack denoiser
+is a parameter, so qGGMRF, total-variation, bilateral, and network
+denoisers plug in.  A whole-volume agent form for 3D and 4D denoisers,
+which is where a 4D qGGMRF, TV, or bilateral prior would go.  And one
+MACE loop that takes the states wherever they live: device tensors for the
+nn_priors case, host tensors with per-device workers for MACE4D, with the
+folding update of Section 8.2 in both cases.  The filter matrix builder
+goes beside them.  `MACE4DModel` is then a composition of the frame
+models, the agents, the loop, the logging, and the initialization cache,
+and the nn_priors scripts import from the package.  This adds one stage
+before the module is written.
+
+DECIDED at review: agreed.
+
+### 8.4 A batch dimension in the reconstruction loop
+
+The question is whether a leading axis over independent reconstructions,
+sharing a recon shape but each with its own sinogram and view geometry,
+would make `_vcd_recon` more efficient, as it does for the denoiser.
+MACE4D's frames are such a set.  The projector bodies and the Triton
+kernels take one problem's voxel cylinders and view geometry per call, so
+a problem axis would be new through the bodies, the kernels, the error
+sinogram, the Hessian, the line search, and the memory ledger, which would
+price every resident array once per problem.  The step size would become
+one value per problem, as in the batched denoiser.  Subsets cannot be
+batched, because each subset update reads the error sinogram the previous
+one wrote.
+
+The batch pays where one problem underfills the GPU: small frames,
+downsampled runs, demo sizes, and parameter sweeps.  It pays nothing where
+one problem already saturates a device, and multi-GPU sharding already
+supplies the capacity dimension.  The decisive measurement would be the GPU utilization during one
+frame's `prox_map` at the sizes MACE4D runs.
+
+DECIDED at review: dropped.  It is complicated, and it has little or no
+benefit at the sizes that matter.
