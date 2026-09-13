@@ -433,15 +433,18 @@ are.
 
 Tests, in `tests/test_denoiser.py`:
 
-- The batched gradient and Hessian equal the single-image function exactly
-  (`torch.equal`) on each volume of a stack, for subset 0 of a seeded
-  partition, with compilation off.
+- The batched gradient and Hessian equal the single-image function on
+  each volume of a stack, for subset 0 of a seeded partition, with
+  compilation off, within a relative maximum difference of 1e-7.  The
+  prototype measured exact equality; the test prints the difference it
+  sees.
 - `denoise_stack` on six volumes of shape `(8, 10, 12)` equals a loop of
   `denoise` calls on the same volumes with the same pinned parameters and
   the same seeded partition.  The noise amplitude differs per volume, so
-  the volumes converge at different iterations.  The match is bit for bit
-  on the CPU and within a relative maximum difference of 1e-6 on every
-  other device.  The per-volume iteration counts are equal, and at least
+  the volumes converge at different iterations.  The match is within a
+  relative maximum difference of 1e-6 on every device, and the test
+  prints the difference it sees.  The prototype measured zero on the CPU
+  and 1.1e-7 on mps.  The per-volume iteration counts are equal, and at least
   two distinct counts occur.
 - A numpy input returns numpy and a tensor input returns a tensor on the
   input's device.
@@ -624,7 +627,7 @@ extreme values, on which the line search computes zero over zero.
 |---|---|---|
 | The folding update's lock serializes the folds | Low | Each fold is region-sized and in place; the task log shows the wait if it grows. |
 | A worker exceeds the recompile budget with three orientation shapes per device | Medium | Stage 4 reads torch's recompile counters after the two-worker run; the floor of 64 covers eight shapes on eight devices. |
-| Compiled reductions differ across devices at about 1e-7 | Low | The batched-versus-loop test gates at 1e-6 off the CPU and bit for bit on it. |
+| Compiled reductions differ across devices at about 1e-7 | Low | The batched-versus-loop test gates at 1e-6 on every device; exact equality is never the gate for a computed value. |
 | The batch-size rule misprices the sweep on CUDA | Medium | Stage 8 checks `auto_batch_size` against the measured peak; the ledger's headroom applies. |
 | Small hyperplane volumes make the line search compute zero over zero | Low | The subset floor of Section 3.2. |
 | The one-frame gate fails at 1 percent | Medium | The nn_priors gates passed at 0.65 and 0.23 percent; a failure is diagnosed one agent at a time, with the qGGMRF single-volume agent in place of the three hyperplane agents first. |
