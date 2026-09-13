@@ -47,6 +47,19 @@ Three checkouts sit side by side.
    in `mbirtorch_plans`.  Its two batched functions equal the package
    formulas bit for bit, and Stage 0 starts from them.
 
+**IMPORTANT — workflow protocol:** stage only (`git add` by explicit file
+name), never `git commit` unless the user directs it (the user commits from
+PyCharm).  Shared checkouts — never `git add -A`; verify staged-file
+lists at report time.  Cluster jobs are pre-authorized during the agreed
+investigation.  Durable records and summary status reports in Alley style — reread
+`.claude/writing_style.md` before drafting; plan entries and chat
+summaries stay short and plain, with run detail in script comments or a
+companion `.md` beside the script.  Have opus carry out well-defined
+plans, then review.
+
+Read for orientation (code and measured results over recollection or .md files):
+1. `.claude/claude_prompt.md`, `.claude/cluster_use.md`.
+
 ## How the work is organized
 
 The plan has eight stages.  Do them one at a time, in the order Section 7

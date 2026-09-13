@@ -10,7 +10,7 @@ provides one possible approach.  However, I'd like to explore if there are appro
 more suited to torch rather than trying to mimic jax directly.  
 
 **IMPORTANT — workflow protocol:** stage only (`git add` by explicit file
-name), never `git commit` unless Greg directs it (he commits from
+name), never `git commit` unless the user directs it (the user commits from
 PyCharm).  Shared checkouts — never `git add -A`; verify staged-file
 lists at report time.  No plan notation in
 code or tests.  Cluster jobs are pre-authorized during the agreed
