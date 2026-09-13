@@ -1,0 +1,73 @@
+m4d3_dejitter_matrix
+torch 2.13.0   numpy 2.4.6   scipy 1.17.1
+torch.get_num_threads() = 10   mps available = True
+N_LIST=(3, 12, 30)  PERIOD=6  HARMONICS=True  BAND_WIDTH=1
+check array spatial shape = (16, 16, 8)
+
+----------------------------------------------------------------------
+N = 3  period = 6  harmonics = True  band_width = 1
+----------------------------------------------------------------------
+max |x|                        = 4.138789e+00
+max abs difference matrix vs filter = 0.000000e+00
+max |M - M^T|                  = 0.000000e+00
+max |M M - M|                  = 0.000000e+00
+rank(M), numpy default tol     = 0   N = 3
+rank(M), float32 tol 0.000e+00 = 0
+singular values: [0. 0. 0.]
+M for N = 3:
+[[0. 0. 0.]
+ [0. 0. 0.]
+ [0. 0. 0.]]
+
+----------------------------------------------------------------------
+N = 12  period = 6  harmonics = True  band_width = 1
+----------------------------------------------------------------------
+max |x|                        = 3.988657e+00
+max abs difference matrix vs filter = 7.152557e-07
+max |M - M^T|                  = 4.470348e-08
+max |M M - M|                  = 2.233025e-08
+rank(M), numpy default tol     = 12   N = 12
+rank(M), float32 tol 1.431e-06 = 4
+singular values: [1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 5.1849e-08 4.2939e-08 2.4001e-08 1.5755e-08 1.3340e-08
+ 9.7497e-09 5.5798e-09 5.6716e-10]
+
+----------------------------------------------------------------------
+N = 30  period = 6  harmonics = True  band_width = 1
+----------------------------------------------------------------------
+max |x|                        = 4.663319e+00
+max abs difference matrix vs filter = 1.192093e-06
+max |M - M^T|                  = 5.960464e-08
+max |M M - M|                  = 1.487817e-07
+rank(M), numpy default tol     = 30   N = 30
+rank(M), float32 tol 3.576e-06 = 22
+singular values: [1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00
+ 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00
+ 1.0000e+00 1.0000e+00 1.0000e+00 1.0000e+00 4.0192e-08 3.5501e-08 2.8270e-08 1.7439e-08 1.4116e-08
+ 1.1136e-08 8.8116e-09 1.7014e-09]
+
+======================================================================
+TIMING on x of shape (30, 256, 256, 64) float32 (0.503 GB)
+======================================================================
+scipy filter, chunk_size=None     : 1.526 s
+scipy filter, workers=-1          : 0.210 s
+torch CPU matrix form             : 0.044 s
+max abs difference scipy vs torch CPU matrix = 2.145767e-06
+torch mps matrix form (matmul only): 0.025 s
+
+======================================================================
+SUMMARY: matrix properties
+======================================================================
+   N    matrix-filter     max|M-M^T|      max|MM-M| rank default   rank f32
+   3     0.000000e+00   0.000000e+00   0.000000e+00            0          0
+  12     7.152557e-07   4.470348e-08   2.233025e-08           12          4
+  30     1.192093e-06   5.960464e-08   1.487817e-07           30         22
+
+======================================================================
+SUMMARY: timing on (30, 256, 256, 64)
+======================================================================
+form                                      seconds
+scipy filter, chunk_size=None               1.526
+scipy filter, workers=-1                    0.210
+torch CPU matrix form                       0.044
+torch mps matrix form                       0.025
+max abs difference scipy vs torch CPU matrix = 2.145767e-06

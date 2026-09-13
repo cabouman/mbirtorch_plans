@@ -1,0 +1,162 @@
+m4d1_batched_denoiser_options
+torch 2.13.0   numpy 2.4.6
+mbirtorch at /Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch/mbirtorch/__init__.py
+devices: ['cpu', 'mps']
+torch.get_num_threads() = 10
+MAX_ITERS=15  STOP_PCT=0.2  SIGMA=0.05  SEED=0  TIMING_REPEATS=2
+
+==============================================================================
+CORRECTNESS CASE on cpu: P=8 T=6 D1=24 D2=24
+==============================================================================
+sigma_y            = 0.05
+sigma_x            = 0.021969125
+fm_constant        = 400
+num_subsets        = 2
+partition shape    = (2, 72)
+compile_enabled    = True
+stop_thresh        = 0.002
+
+-- check 1: Option D against the reference loop --
+D vs ref rel_max   = 0.000000e+00
+D vs ref max abs   = 0.000000e+00
+
+-- check 2: iteration counts lane by lane --
+iters_ref          = [4, 4, 4, 5, 5, 5, 5, 5]
+iters_batch        = [4, 4, 4, 5, 5, 5, 5, 5]
+iteration counts equal = True
+
+-- check 3: batched gradient and Hessian against the package, eager --
+gradient exactly equal per lane = [True, True, True, True, True, True, True, True]
+hessian  exactly equal per lane = [True, True, True, True, True, True, True, True]
+gradient rel_max max over lanes = 0.000000e+00
+hessian  rel_max max over lanes = 0.000000e+00
+
+-- check 4: a single-lane batch against the reference for that lane --
+compiled: bitwise equal = True
+eager:    bitwise equal = True
+
+-- Option A: stacked on the row axis, production sweep unchanged --
+A1 vs ref rel_max  = 2.673708e-02   global iterations = 5
+A2 vs ref rel_max  = 2.669324e-02   global iterations = 5   num_subsets = 16
+A3 vs ref rel_max  = 2.792681e-02   global iterations = 5
+A1 interior frames (t=1..T-2) rel_max = 6.244551e-03
+A1 edge frames (t=0 and t=T-1) rel_max = 2.673708e-02
+
+==============================================================================
+CORRECTNESS CASE on mps: P=8 T=6 D1=24 D2=24
+==============================================================================
+sigma_y            = 0.05
+sigma_x            = 0.021969125
+fm_constant        = 400
+num_subsets        = 2
+partition shape    = (2, 72)
+compile_enabled    = True
+stop_thresh        = 0.002
+
+-- check 1: Option D against the reference loop --
+D vs ref rel_max   = 1.071438e-07
+D vs ref max abs   = 1.192093e-07
+
+-- check 2: iteration counts lane by lane --
+iters_ref          = [4, 4, 4, 5, 5, 5, 5, 5]
+iters_batch        = [4, 4, 4, 5, 5, 5, 5, 5]
+iteration counts equal = True
+
+-- check 3: batched gradient and Hessian against the package, eager --
+gradient exactly equal per lane = [True, True, True, True, True, True, True, True]
+hessian  exactly equal per lane = [True, True, True, True, True, True, True, True]
+gradient rel_max max over lanes = 0.000000e+00
+hessian  rel_max max over lanes = 0.000000e+00
+
+-- check 4: a single-lane batch against the reference for that lane --
+compiled: bitwise equal = False
+compiled: rel_max       = 5.952200e-08
+eager:    bitwise equal = True
+
+-- Option A: stacked on the row axis, production sweep unchanged --
+A1 vs ref rel_max  = 2.673708e-02   global iterations = 5
+A2 vs ref rel_max  = 2.669324e-02   global iterations = 5   num_subsets = 16
+A3 vs ref rel_max  = 2.792681e-02   global iterations = 5
+A1 interior frames (t=1..T-2) rel_max = 6.244535e-03
+A1 edge frames (t=0 and t=T-1) rel_max = 2.673708e-02
+
+==============================================================================
+TIMING CASE on cpu
+==============================================================================
+P=64 T=8 D1=64 D2=64   num_subsets=8
+warm-up reference loop : 3.122 s
+one timed reference run: 0.717 s   estimated block total 4.3 s
+warm-up Option D       : 3.400 s
+warm-up Option A1      : 2.697 s
+
+mean of 2 timed runs, seconds:
+  reference loop : 0.719
+  Option D       : 0.141
+  Option A1      : 0.119
+Option D per-volume iterations: min=4 max=6 mean=5.25
+Option A1 global iterations   : 6
+
+==============================================================================
+TIMING CASE on mps
+==============================================================================
+P=64 T=8 D1=64 D2=64   num_subsets=8
+warm-up reference loop : 2.482 s
+one timed reference run: 0.718 s   estimated block total 4.3 s
+warm-up Option D       : 2.503 s
+warm-up Option A1      : 0.442 s
+
+mean of 2 timed runs, seconds:
+  reference loop : 0.716
+  Option D       : 0.032
+  Option A1      : 0.342
+Option D per-volume iterations: min=4 max=6 mean=5.25
+Option A1 global iterations   : 6
+
+==============================================================================
+COMPILE ERRORS
+==============================================================================
+(none: no compiled body fell back to eager)
+
+==============================================================================
+SUMMARY for cpu
+==============================================================================
+quantity                                      value
+D vs ref rel_max                       0.000000e+00
+A1 vs ref rel_max                      2.673708e-02
+A1 interior frames rel_max             6.244551e-03
+A1 edge frames rel_max                 2.673708e-02
+A2 vs ref rel_max                      2.669324e-02
+A3 vs ref rel_max                      2.792681e-02
+D iteration counts match ref                   True
+batched gradient exact                         True
+batched hessian exact                          True
+P=1 bitwise, compiled                          True
+P=1 bitwise, eager                             True
+timing P                                         64
+time reference loop (s)                       0.719
+time Option D (s)                             0.141
+time Option A1 (s)                            0.119
+D iterations min/max                            4/6
+D iterations mean                              5.25
+
+==============================================================================
+SUMMARY for mps
+==============================================================================
+quantity                                      value
+D vs ref rel_max                       1.071438e-07
+A1 vs ref rel_max                      2.673708e-02
+A1 interior frames rel_max             6.244535e-03
+A1 edge frames rel_max                 2.673708e-02
+A2 vs ref rel_max                      2.669324e-02
+A3 vs ref rel_max                      2.792681e-02
+D iteration counts match ref                   True
+batched gradient exact                         True
+batched hessian exact                          True
+P=1 bitwise, compiled                         False
+P=1 bitwise, eager                             True
+timing P                                         64
+time reference loop (s)                       0.716
+time Option D (s)                             0.032
+time Option A1 (s)                            0.342
+D iterations min/max                            4/6
+D iterations mean                              5.25

@@ -2,13 +2,12 @@ We're continuing work on the `mbirtorch` repo. `mbirtorch_plans` is parallel to
 `mbirtorch` and contains plans related to mbirtorch.  `mbirtorch_metrics` is the nightly
 regression engine and dashboard and is also parallel to both.   
 
-The task for this session is to create a plan and possible implementation for an 
-interactive geometry viewer to give a graphical display of the geometry
-associated with a TomographyModel.  Deciding exactly what to show and how to show 
-it is part of the task, to be done iteratively with feedback and possibly with 
-inspiration from other similar projects.  Plans will go in 
-`mbirtorch_plans/plans/features/geometry_viewer`, experiment code in 
-`mbirtorch_plans/plans/experiments/geometry_viewer`.  
+The task for this session is to evaluate and refine a plan and implementation for 
+mace4d in mbirtorch.  An existing version is in mbirjax, parallel to mbirtorch.  
+
+The initial plan in /Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch/plans/mace4d_migration_plan.md
+provides one possible approach.  However, I'd like to explore if there are approaches
+more suited to torch rather than trying to mimic jax directly.  
 
 **IMPORTANT — workflow protocol:** stage only (`git add` by explicit file
 name), never `git commit` unless Greg directs it (he commits from

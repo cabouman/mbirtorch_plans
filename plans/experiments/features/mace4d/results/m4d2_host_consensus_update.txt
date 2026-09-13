@@ -1,0 +1,43 @@
+m4d2_host_consensus_update
+torch 2.13.0   numpy 2.4.6
+torch.get_num_threads() = 10
+SHAPE=(8, 192, 192, 192)  REPEATS=3  RHO=0.5
+BETA=[0.5, 0.16666666666666666, 0.16666666666666666, 0.16666666666666666]
+one array = 56623104 elements = 0.226 GB float32
+
+-- (a) numpy in-place --
+total 0.816 s over 3 updates -> 0.272 s per update
+change percent per update: ['57.736198', '0', '0']
+peak resident memory after (a): 3.151 GB (ru_maxrss=3150643200)
+
+-- (b) torch CPU, one scratch tensor --
+total 0.471 s over 3 updates -> 0.157 s per update
+change percent per update: ['57.735575', '0', '0']
+max abs difference on W vs (a)    = 0.000000e+00
+max abs difference on xbar vs (a) = 0.000000e+00
+W within 1e-5    = True
+xbar within 1e-5 = True
+peak resident memory after (b): 5.871 GB (ru_maxrss=5871091712)
+
+-- (c) torch CPU in-place, no scratch --
+total 0.325 s over 3 updates -> 0.108 s per update
+change percent per update: ['57.735575', '0', '0']
+max abs difference on W vs (a)    = 2.861023e-06
+max abs difference on xbar vs (a) = 4.768372e-07
+W within 1e-5    = True
+xbar within 1e-5 = True
+peak resident memory after (c): 5.871 GB (ru_maxrss=5871091712)
+
+-- change statistic agreement --
+update 1: (a)=57.736198  rel diff (b)=1.080e-05  rel diff (c)=1.080e-05
+update 2: (a)=0  (b)=0  (c)=0  (relative test not defined at zero)
+update 3: (a)=0  (b)=0  (c)=0  (relative test not defined at zero)
+
+======================================================================
+SUMMARY
+======================================================================
+implementation                     s/update   max abs W diff max abs xbar diff
+(a) numpy in-place                    0.272        reference        reference
+(b) torch, one scratch                0.157        0.000e+00        0.000e+00
+(c) torch, no scratch                 0.108        2.861e-06        4.768e-07
+peak resident memory for the whole run: 5.871 GB (ru_maxrss=5871091712)
