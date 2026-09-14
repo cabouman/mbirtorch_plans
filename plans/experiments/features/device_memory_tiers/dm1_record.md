@@ -127,3 +127,37 @@ sinogram-sized shards in both of its parts, the dot products and the error
 formation, so forming the error in place lowers the peak of an unweighted
 run and leaves the peak of a weighted run at the dot products until those
 change as well.
+
+## Verification after the changes (job 16416780)
+
+The job ran on h001 on 2026-09-14 with the committed changes (mbirtorch
+23c4a43), the same four-card pinned setup, and the same three steps: the
+phase attribution, the 15-iteration run at the allocator default, and the
+same run with expandable segments.  The log is
+`results/dm2_verify_16416780.log` and the results files are
+`results/mbirtorch_site5_*_results.json`.
+
+| quantity | before the changes | after, default allocator | after, with the setting |
+|---|---|---|---|
+| 15 iterations | 567.6 s | 567.9 s | 568.2 s |
+| peak allocated, largest card | 29.03 GiB | 24.89 GiB | 24.89 GiB |
+| peak reserved, largest card | 38.45 GiB | 31.56 GiB | 28.56 GiB |
+| NVML peak, four cards combined | 156.32 GiB | 124.65 GiB | 116.68 GiB |
+
+The changes removed 4.1 GiB from the peak of arrays in use at no time
+cost, and with the allocator setting the reported figure per card fell
+from 39.7 GiB to about 30.  The attribution confirms where the peak went.
+
+| phase | before, GiB per card | after, GiB per card |
+|---|---|---|
+| initial error state | 29.03 | 20.62 |
+| subset step, back projection | 24.89 | 24.89 |
+| subset step, delta forward projection | 24.16 | 24.16 |
+| direct reconstruction | 15.15 | 15.15 |
+
+The peak now sits at the subset back projection, the phase the ledger
+ranked next once the setup temporaries were gone.  Every measured phase
+sits at or below its modeled value with the torch bodies' batch terms
+removed, the back projection by 1.1 GiB, so the ledger remains a safe
+preflight.  The reconstruction results moved only within the golden
+tests' relative gates, as the scale decision accepted.
