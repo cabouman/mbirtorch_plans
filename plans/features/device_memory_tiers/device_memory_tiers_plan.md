@@ -507,26 +507,63 @@ cost comparison picks the cheaper mode on two constructed cases.
 
 ## 9. Decisions for Greg
 
-1. The explicit override is a model parameter `memory_mode` on `set_params`,
-   with the pin `MBIRTORCH_MEMORY_MODE`, rather than an argument of
-   `configure_devices`.
-2. The automatic choice may take the split, which changes the result
-   slightly, with the mode recorded and the pin available.  The alternative
-   is a refusal whose message names the one-line remedy.  Recommended: the
-   automatic choice.
-3. The allocator setting is offered as documentation plus a log line, with
-   the private run-time function as an opt-in, rather than set at import.
-   Recommended as stated.
-4. The fused weighted error is dropped from Tier 0, for the reason in
-   Section 2.1.
-5. The parts of a split run at the device count the parent priced.
-6. The host-resident plan's six decisions stand, except that its first
-   decision's trigger now follows the split candidates.
-7. Site 5's second step, which drops the weighted projection by rewriting
-   the reduction as `sum(w * f * f)`, changes the initial scaling in its
-   last digits.  Recommended: take only the first step, chunking the two
-   reductions, unless Increment 1's attribution shows the dot products
-   holding the peak by more than one shard.
+Each decision is a question, with the context needed to answer it and a
+recommendation.
+
+1. When a reconstruction does not fit on the devices at any device count,
+   may the library switch to the split reconstruction on its own?  Today it
+   refuses, and the error message tells the user to call `recon_split_sino`
+   by hand.  An automatic switch does what that message asks.  Two things
+   weigh against it.  The split's result differs slightly from the standard
+   one at the stitched seam.  And the choice reads free device memory at
+   call time, so the same script could take different paths on different
+   days, for example on a shared card.  Recommendation: switch
+   automatically, name the mode in the log and in the returned dictionary,
+   and provide the pin `MBIRTORCH_MEMORY_MODE` so tests and nightlies can
+   fix the mode.  The alternative is to keep refusing with a clearer
+   message.
+
+2. Where does the manual override live?  `configure_devices` is the
+   existing switch for device choices, but its device count defaults to
+   one, so adding the mode there would make an explicit mode silently pin
+   the run to one device.  Recommendation: a model parameter,
+   `set_params(memory_mode=...)`, together with the pin above.
+
+3. How is the allocator setting delivered to users?  The setting
+   `expandable_segments` removed 4.6 GiB of reserve per card on the ORNL
+   scan at no time cost.  Setting it inside the package at import would
+   change the allocator for every torch user in the process, and it does
+   nothing when torch has already touched a device.  Recommendation:
+   document the setting, print one hint line before a reconstruction when
+   it is unset, and provide an explicit opt-in call.  The alternative is to
+   set it at import when it is unset.
+
+4. How far should the initial-scale computation change?  For a weighted
+   scan, the computation of the scale applied to the initial reconstruction
+   holds five sinogram-sized arrays at once, and after the committed
+   changes it is what sets the run's peak.  Its two reductions can be
+   computed in chunks, which removes one of the five arrays and changes
+   only the order in which numbers are added.  A further rewrite removes a
+   second array but changes the scale in its last digits, and with it every
+   later iterate slightly.  Recommendation: chunk the reductions and stop
+   there, unless the next measurement shows the peak still at this
+   computation by more than one array's size.
+
+5. Do the parts of a split run at the device count the parent priced?  If
+   each part chooses its own count when it runs, the parent's memory check
+   was only advisory.  Recommendation: yes, carry the count to the parts as
+   an explicit device list.
+
+6. Do the host-resident layout plan's six decisions stand?  They were made
+   when that layout was the only alternative to a refusal, and the one
+   change here is that the split is tried first.  Recommendation: yes, with
+   that one change.
+
+7. Is the fused weighted error dropped for good?  The measurement closed
+   the question: the product it would remove is freed before the peak, and
+   removing it would save at most two percent of an iteration.
+   Recommendation: yes.  Section 2.1 records the cheaper alternative if the
+   peak ever moves to the back projection.
 
 ## 10. Files
 
