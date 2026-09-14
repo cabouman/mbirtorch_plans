@@ -1,0 +1,147 @@
+== dense cone beam, 512-class, 1.5 N views, prox=False
+   recon shape (512, 512, 512), sinogram shape (768, 512, 512)
+   pixels covered by the partitions: 205012 of 262144 (0.7821 of the grid)
+   dominant phase of the run: subset delta forward projection (granularity 4): 31.49 GB
+   widest subset step: subset delta forward projection (granularity 4): 31.49 GB
+     partitions (lead device)                     0.02 GB
+     library workspace                            0.06 GB
+     error sinogram                               0.75 GB
+     weights                                      0.75 GB
+     flat recon                                   0.50 GB
+     hessian diagonal                             0.50 GB
+     update direction                             0.10 GB
+     delta sinogram                               0.75 GB
+     forward block                                0.06 GB
+     forward batch                               28.00 GB
+   persistent set: 2.58 GB
+   recon-shaped residents: 1.00 GB
+   recon-shaped share of the persistent set: 38.7 percent
+   recon-shaped share of the widest subset step: 3.2 percent
+     subset prior (granularity 4)                           3.46 GB
+     subset back projection (granularity 4)                31.19 GB
+     subset update direction (granularity 4)                3.27 GB
+     subset delta forward projection (granularity 4)       31.49 GB
+     subset state application (granularity 4)               3.53 GB
+== dense cone beam, 512-class, 1.5 N views, prox=True
+   recon shape (512, 512, 512), sinogram shape (768, 512, 512)
+   pixels covered by the partitions: 205012 of 262144 (0.7821 of the grid)
+   dominant phase of the run: subset delta forward projection (granularity 4): 31.99 GB
+   widest subset step: subset delta forward projection (granularity 4): 31.99 GB
+     partitions (lead device)                     0.02 GB
+     library workspace                            0.06 GB
+     error sinogram                               0.75 GB
+     weights                                      0.75 GB
+     flat recon                                   0.50 GB
+     hessian diagonal                             0.50 GB
+     prox input                                   0.50 GB
+     update direction                             0.10 GB
+     delta sinogram                               0.75 GB
+     forward block                                0.06 GB
+     forward batch                               28.00 GB
+   persistent set: 3.08 GB
+   recon-shaped residents: 1.50 GB
+   recon-shaped share of the persistent set: 48.7 percent
+   recon-shaped share of the widest subset step: 4.7 percent
+     subset prior (granularity 4)                           3.47 GB
+     subset back projection (granularity 4)                31.69 GB
+     subset update direction (granularity 4)                3.77 GB
+     subset delta forward projection (granularity 4)       31.99 GB
+     subset state application (granularity 4)               4.03 GB
+== dense cone beam, 2048-class, 1.5 N views, prox=False
+   recon shape (2048, 2048, 2048), sinogram shape (3072, 2048, 2048)
+   pixels covered by the partitions: 3290904 of 4194304 (0.7846 of the grid)
+   dominant phase of the run: direct recon (back loop): 571.19 GB
+   widest subset step: subset back projection (granularity 4): 327.62 GB
+     partitions (lead device)                     0.29 GB
+     library workspace                            0.06 GB
+     error sinogram                              48.00 GB
+     weights                                     48.00 GB
+     flat recon                                  32.00 GB
+     hessian diagonal                            32.00 GB
+     prior gradient and hessian                  12.55 GB
+     weighted error sinogram                     48.00 GB
+     back output                                 18.83 GB
+     back batch                                  87.88 GB
+   persistent set: 160.36 GB
+   recon-shaped residents: 64.00 GB
+   recon-shaped share of the persistent set: 39.9 percent
+   recon-shaped share of the widest subset step: 19.5 percent
+     subset prior (granularity 4)                         216.85 GB
+     subset back projection (granularity 4)               327.62 GB
+     subset update direction (granularity 4)              204.30 GB
+     subset delta forward projection (granularity 4)      242.89 GB
+     subset state application (granularity 4)             220.92 GB
+== dense cone beam, 2048-class, 1.5 N views, prox=True
+   recon shape (2048, 2048, 2048), sinogram shape (3072, 2048, 2048)
+   pixels covered by the partitions: 3290904 of 4194304 (0.7846 of the grid)
+   dominant phase of the run: direct recon (back loop): 571.19 GB
+   widest subset step: subset back projection (granularity 4): 359.62 GB
+     partitions (lead device)                     0.29 GB
+     library workspace                            0.06 GB
+     error sinogram                              48.00 GB
+     weights                                     48.00 GB
+     flat recon                                  32.00 GB
+     hessian diagonal                            32.00 GB
+     prox input                                  32.00 GB
+     prior gradient and hessian                  12.55 GB
+     weighted error sinogram                     48.00 GB
+     back output                                 18.83 GB
+     back batch                                  87.88 GB
+   persistent set: 192.36 GB
+   recon-shaped residents: 96.00 GB
+   recon-shaped share of the persistent set: 49.9 percent
+   recon-shaped share of the widest subset step: 26.7 percent
+     subset prior (granularity 4)                         217.47 GB
+     subset back projection (granularity 4)               359.62 GB
+     subset update direction (granularity 4)              236.30 GB
+     subset delta forward projection (granularity 4)      274.89 GB
+     subset state application (granularity 4)             252.92 GB
+== sparse cone beam, 2048-class, 0.25 N views, prox=False
+   recon shape (2048, 2048, 2048), sinogram shape (512, 2048, 2048)
+   pixels covered by the partitions: 3290904 of 4194304 (0.7846 of the grid)
+   dominant phase of the run: hessian diagonal: 475.19 GB
+   widest subset step: subset back projection (granularity 4): 207.62 GB
+     partitions (lead device)                     0.29 GB
+     library workspace                            0.06 GB
+     error sinogram                               8.00 GB
+     weights                                      8.00 GB
+     flat recon                                  32.00 GB
+     hessian diagonal                            32.00 GB
+     prior gradient and hessian                  12.55 GB
+     weighted error sinogram                      8.00 GB
+     back output                                 18.83 GB
+     back batch                                  87.88 GB
+   persistent set: 80.36 GB
+   recon-shaped residents: 64.00 GB
+   recon-shaped share of the persistent set: 79.6 percent
+   recon-shaped share of the widest subset step: 30.8 percent
+     subset prior (granularity 4)                         136.85 GB
+     subset back projection (granularity 4)               207.62 GB
+     subset update direction (granularity 4)              124.30 GB
+     subset delta forward projection (granularity 4)      122.89 GB
+     subset state application (granularity 4)             100.92 GB
+== sparse cone beam, 2048-class, 0.25 N views, prox=True
+   recon shape (2048, 2048, 2048), sinogram shape (512, 2048, 2048)
+   pixels covered by the partitions: 3290904 of 4194304 (0.7846 of the grid)
+   dominant phase of the run: hessian diagonal: 475.19 GB
+   widest subset step: subset back projection (granularity 4): 239.62 GB
+     partitions (lead device)                     0.29 GB
+     library workspace                            0.06 GB
+     error sinogram                               8.00 GB
+     weights                                      8.00 GB
+     flat recon                                  32.00 GB
+     hessian diagonal                            32.00 GB
+     prox input                                  32.00 GB
+     prior gradient and hessian                  12.55 GB
+     weighted error sinogram                      8.00 GB
+     back output                                 18.83 GB
+     back batch                                  87.88 GB
+   persistent set: 112.36 GB
+   recon-shaped residents: 96.00 GB
+   recon-shaped share of the persistent set: 85.4 percent
+   recon-shaped share of the widest subset step: 40.1 percent
+     subset prior (granularity 4)                         137.47 GB
+     subset back projection (granularity 4)               239.62 GB
+     subset update direction (granularity 4)              156.30 GB
+     subset delta forward projection (granularity 4)      154.89 GB
+     subset state application (granularity 4)             132.92 GB
