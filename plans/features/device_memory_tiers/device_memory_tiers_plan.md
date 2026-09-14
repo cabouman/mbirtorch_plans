@@ -1,7 +1,8 @@
 # Device memory in the VCD loop, in tiers: plan
 
 Status: DRAFT, written 2026-09-14 and revised the same day after a
-three-reviewer panel (accuracy, reasoning, style).  This plan supersedes
+three-reviewer panel (accuracy, reasoning, style).  Greg took decisions 1,
+2, 4, 5, 6, and 7 on 2026-09-14, and decision 3 is open.  This plan supersedes
 the host-resident plan at
 `plans/features/device_memory_tiers/host_resident_layout_plan.md` as the
 plan of record.  That plan's design becomes Tier 2 here, and its measured
@@ -58,16 +59,15 @@ The policy prices each candidate with the memory ledger and takes the
 cheapest one that fits.  At first the candidates are tried in a fixed
 order.  Later a measured cost comparison chooses among them.  `recon` stays
 one method.  What changes is the device plan the policy hands it, and the
-explicit override is a model parameter.  Section 9 lists the decisions,
-two of which change what a user sees: whether the automatic choice may take
-a mode that changes the result, and how the allocator setting is applied.
+explicit override is a model parameter.  Section 9 records the decisions.  Greg took six of them on 2026-09-14.
+The one still open is how the package delivers the allocator setting.
 
 ## Status by increment
 
 | Increment | Tier | Delivers | Status |
 |---|---|---|---|
 | 1 | 0 | Measurements on the ORNL scan: the peak attributed to the loop's phases, the allocator setting on and off with the device count pinned, and a steady-state time per iteration | Measured 2026-09-14 (jobs 16406732 and 16409250); record in `dm1_record.md` |
-| 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | Sites 1 to 4 committed 2026-09-14 (mbirtorch a225319), suite green; the peak-setting fifth site and the cluster measurement remain |
+| 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | Sites 1 to 4 committed 2026-09-14 (mbirtorch a225319), suite green; site 5 in progress under decision 4; the cluster measurement follows |
 | 3 | 0 | The allocator setting, offered as Increment 1 and Decision 3 decide | Not started |
 | 4 | 1 | The device plan, the `recon` dispatch, the split mode priced by the ledger, and the explicit override | Not started |
 | 5 | 2 | The host-resident mode: the host-resident plan's increments, starting with its H100 measurement | Not started |
@@ -199,10 +199,11 @@ H100, and Increment 2 changes those, in the order of their modeled size.
    and the projection.  That is five sinogram-sized shards, the same count
    as the error formation held, so a weighted run's peak does not fall
    until this site changes too.  Chunking the two reductions removes the
-   product temporary and changes only the order of a summation.  Dropping
-   the weighted projection as well needs the reduction rewritten as
-   `sum(w * f * f)`, which changes the scaling in its last digits and with
-   it the whole trajectory, and is Decision 7.
+   product temporary and changes only the order of a summation.  Dropping the weighted projection as well needs the reduction rewritten
+   as `sum(w * f * f)`.  That form changes the scale in its last digits,
+   and with it every later iterate slightly.  Decision 4 chose both steps,
+   provided the time per iteration does not grow, because the
+   reconstruction does not depend on the initial scale at convergence.
 
 What the implementation of sites 1 to 4 found: the multi-device forward
 projection already accumulates into its destination, so site 2 had no copy
@@ -267,8 +268,16 @@ variable at import would change the allocator for every torch user in the
 process.  It would also do nothing when the package is imported after CUDA
 has initialized, so behavior would depend on import order.  The plan's
 recommendation is a documented setting plus one log line at the preflight
-when it is unset, with the private run-time function as an opt-in that
-Increment 3 measures.
+when it is unset, with the private run-time function as an opt-in that Increment 3
+measures.
+
+Two more facts bear on the decision.  torch's notes for the setting have
+carried corner-case restrictions, the long-standing one being the sharing
+of device tensors between processes, and none of them touches mbirtorch's
+own workload.  LEAP neither uses nor needs the setting.  Its library
+allocates device memory directly with `cudaMalloc` inside each call and
+frees it at the end, so it holds no cache and shows no reserve, and it
+pays a fresh allocation on every call instead.
 
 Releasing cached memory at phase boundaries is not part of this plan.  It
 returns free blocks to the driver and changes what NVML reports and what a
@@ -373,7 +382,7 @@ in the split mode, with a log line that says so.  The result of a split
 reconstruction differs slightly from the standard result, because the parts
 are stitched across an overlap.  The device budget is read from free memory
 at call time, so on a shared card the same script could take different
-modes on different days.  Decision 2 chooses between two answers.  The
+modes on different days.  Decision 1 chooses between two answers.  The
 first is that the automatic choice takes the split, records the mode in the
 returned dictionary and the log, and offers the pin for reproducibility.
 The second is that a refusal stays a refusal, with a message that names
@@ -498,7 +507,7 @@ cost comparison picks the cheaper mode on two constructed cases.
 | The attribution finds the peak elsewhere than the ledger says | Increment 2 follows the measured attribution, not the model, and the ledger is corrected where the two differ |
 | `expandable_segments` interacts with the Triton kernels or with multi-device streams | Increment 1 runs the real loop with the setting on, twice, and checks values and time |
 | Applying an allocator setting from a library surprises a host program | Documented setting and a log line by default; the run-time function only as an opt-in |
-| The split mode changes results relative to the standard mode | Decision 2; the mode is recorded in the dictionary and the log, and a pin fixes it |
+| The split mode changes results relative to the standard mode | Decision 1; the mode is recorded in the dictionary and the log, and a pin fixes it |
 | The mode depends on free memory at call time | The same decision; the pin gives test suites and nightlies a fixed mode |
 | The parts of a split choose layouts the parent did not price | The parent's device count is carried to the parts as an explicit list |
 | `both` mode holds two overlapping host-resident parts | Its host check counts both parts' arrays, and each part keeps its own staging buffers |
@@ -520,14 +529,15 @@ recommendation.
    days, for example on a shared card.  Recommendation: switch
    automatically, name the mode in the log and in the returned dictionary,
    and provide the pin `MBIRTORCH_MEMORY_MODE` so tests and nightlies can
-   fix the mode.  The alternative is to keep refusing with a clearer
-   message.
+   fix the mode.  The alternative is to keep refusing with a clearer message.
+   Decision (Greg, 2026-09-14): switch automatically, as recommended.
 
 2. Where does the manual override live?  `configure_devices` is the
    existing switch for device choices, but its device count defaults to
    one, so adding the mode there would make an explicit mode silently pin
    the run to one device.  Recommendation: a model parameter,
    `set_params(memory_mode=...)`, together with the pin above.
+   Decision (Greg, 2026-09-14): agreed, `set_params`.
 
 3. How is the allocator setting delivered to users?  The setting
    `expandable_segments` removed 4.6 GiB of reserve per card on the ORNL
@@ -537,6 +547,8 @@ recommendation.
    document the setting, print one hint line before a reconstruction when
    it is unset, and provide an explicit opt-in call.  The alternative is to
    set it at import when it is unset.
+   Open: Greg asked for the downsides of setting it at import before
+   deciding, and Section 2.2 records them.
 
 4. How far should the initial-scale computation change?  For a weighted
    scan, the computation of the scale applied to the initial reconstruction
@@ -546,24 +558,31 @@ recommendation.
    only the order in which numbers are added.  A further rewrite removes a
    second array but changes the scale in its last digits, and with it every
    later iterate slightly.  Recommendation: chunk the reductions and stop
-   there, unless the next measurement shows the peak still at this
-   computation by more than one array's size.
+   there, unless the next
+   measurement shows the peak still at this computation by more than one
+   array's size.
+   Decision (Greg, 2026-09-14): take both steps, provided the time does
+   not grow, because the result does not depend on the initial scale at
+   convergence.
 
-5. Do the parts of a split run at the device count the parent priced?  If
-   each part chooses its own count when it runs, the parent's memory check
-   was only advisory.  Recommendation: yes, carry the count to the parts as
-   an explicit device list.
+5. Do the parts of a split reconstruction use the device count the parent
+   chose when pricing them?  If each part chooses its own count when it
+   runs, the parent's memory check was only advisory.  Recommendation: yes, carry the count to the parts as an explicit device
+   list.
+   Decision (Greg, 2026-09-14): yes.
 
 6. Do the host-resident layout plan's six decisions stand?  They were made
    when that layout was the only alternative to a refusal, and the one
    change here is that the split is tried first.  Recommendation: yes, with
    that one change.
+   Decision (Greg, 2026-09-14): yes.
 
 7. Is the fused weighted error dropped for good?  The measurement closed
    the question: the product it would remove is freed before the peak, and
    removing it would save at most two percent of an iteration.
-   Recommendation: yes.  Section 2.1 records the cheaper alternative if the
-   peak ever moves to the back projection.
+   Recommendation: yes.  Section 2.1 records the
+   cheaper alternative if the peak ever moves to the back projection.
+   Decision (Greg, 2026-09-14): yes, dropped.
 
 ## 10. Files
 
