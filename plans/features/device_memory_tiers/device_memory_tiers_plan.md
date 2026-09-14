@@ -34,11 +34,11 @@ assembling a copy.  The update subtracts with a scaled operand instead of
 a temporary.  The error statistics reduce in chunks.  Each change keeps
 the arithmetic.  The first increment measures which phases hold the peak
 on the H100 before any of them is made.  Tier 0
-also settles the allocator's reserve.  The setting that stops the reserve
-from growing was measured earlier with no time cost, and this plan decides
-how the package offers it.  Together these changes are expected to bring
-the peak of arrays in use from 29 GiB per card to about 24 GiB, and the
-reported figure from 40 GiB to about 26 GiB.
+also settles the allocator's reserve.  The setting that stops the reserve from growing was measured on this
+scan: it halved the reserve at no time cost, and this plan decides how the
+package offers it.  Together these changes are expected to bring the peak of arrays in use
+from 29 GiB per card to about 24 GiB, and the reported figure from 40 GiB
+to about 29 GiB.
 
 Tier 1 applies when the device-resident layout does not fit at any device
 count.  Today that case ends in a preflight failure whose message tells the
@@ -66,7 +66,7 @@ a mode that changes the result, and how the allocator setting is applied.
 
 | Increment | Tier | Delivers | Status |
 |---|---|---|---|
-| 1 | 0 | Measurements on the ORNL scan: the peak attributed to the loop's phases, the allocator setting on and off with the device count pinned, and a steady-state time per iteration | Job submitted 2026-09-14 |
+| 1 | 0 | Measurements on the ORNL scan: the peak attributed to the loop's phases, the allocator setting on and off with the device count pinned, and a steady-state time per iteration | Allocator arms and timing measured 2026-09-14 (job 16406732); the phase attribution is queued (job 16409250) |
 | 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | Sites 1 to 4 implemented and staged 2026-09-14, suite green; the cluster measurement and the fifth site remain |
 | 3 | 0 | The allocator setting, offered as Increment 1 and Decision 3 decide | Not started |
 | 4 | 1 | The device plan, the `recon` dispatch, the split mode priced by the ledger, and the explicit override | Not started |
@@ -246,13 +246,19 @@ through the environment variable `PYTORCH_ALLOC_CONF`, or the older
 function that changes the settings at run time.  The project measured the
 setting on an H100 at the 1024-class in
 `plans/experiments/archive/torch_port/mg53_host_cost_split.md`: it moved no
-wall time.  What it does to the reserved peak on this scan is not yet
-measured, and Increment 1 measures it.
+wall time.  Increment 1 measured it on this scan, with the device count pinned to
+four and the setting on in two runs.  The reserved peak on the busiest
+card fell from 38.45 GiB to 33.87 GiB, so the reserve fell from 9.4 GiB
+to 4.8 GiB, and the NVML peak fell from 39.66 GiB to 35.08 GiB.  The peak
+of arrays in use was unchanged at 29.03 GiB.  The 15 iterations took
+567.6 s at the default and 565.3 and 566.6 s with the setting, so the
+setting cost no time.  The record is `dm1_record.md` in
+`plans/experiments/features/device_memory_tiers/`.
 
-The setting does not empty the reserve.  The allocator still caches freed
-blocks by design, so the setting removes the growth from fragmentation, not
-the cache.  A defensible expectation is a reported figure a few GiB above
-the peak of arrays in use, not equal to it.
+The setting does not empty the reserve.  The allocator still caches
+freed blocks by design, so the setting removes the growth from
+fragmentation, not the cache.  The measurement bears this out: 4.8 GiB of
+reserve remained with the setting on.
 
 How the package offers the setting is Decision 3.  Setting the environment
 variable at import would change the allocator for every torch user in the
@@ -430,10 +436,11 @@ chose.
   time of the whole-shard multiply and of the sparse back projection at the
   finest granularity.  This sizes the per-view-batch alternative of Section
   2.1 should it ever be needed.
-- A steady-state time per iteration.  The log lines carry no timestamps, so
-  the per-iteration figure is the difference between a 30-iteration run and
-  a 15-iteration run divided by 15, both at the default allocator.  This is
-  the reference for every later time gate.
+- A steady-state time per iteration.  The log lines carry no timestamps,
+  so the per-iteration figure is the difference between a 30-iteration run
+  and a 15-iteration run divided by 15, both at the default allocator.
+  Measured: 1104.5 s and 567.6 s, so 35.8 s per iteration, with about 31 s
+  of one-time cost.  This is the reference for every later time gate.
 
 The record is a companion file beside the scripts in
 `plans/experiments/features/device_memory_tiers/`.  The job takes about four

@@ -46,5 +46,53 @@ reconstruction.
 
 ## Results
 
-Job 16406732, submitted 2026-09-14.  To be filled from the log
-`results/dm1_allocator_and_product_16406732.log` and the results files.
+Job 16406732 ran on h016 on 2026-09-14, four H100 cards, device count
+pinned to four.  The phase-attribution step of that job failed at its
+first line, because torch's allocator counters exist only once a device has
+been used, and the script now touches every card first.  The attribution
+was resubmitted alone as job 16409250 with the corrected script.  The
+results files are `results/mbirtorch_alloc_*_results.json`.
+
+### The allocator setting
+
+| run | 15 iterations | peak allocated, busiest card | peak reserved, busiest card | NVML peak, busiest card | NVML peak, four cards | host peak |
+|---|---|---|---|---|---|---|
+| default | 567.6 s | 29.03 GiB | 38.45 GiB | 39.66 GiB | 156.32 GiB | 64.6 GiB |
+| expandable segments, run 1 | 565.3 s | 29.03 GiB | 33.87 GiB | 35.08 GiB | 137.98 GiB | 64.6 GiB |
+| expandable segments, run 2 | 566.6 s | 29.03 GiB | 33.87 GiB | 35.08 GiB | 137.98 GiB | 64.7 GiB |
+
+The setting changed nothing about the arrays in use and removed 4.6 GiB of
+reserve per card, from 9.4 GiB to 4.8 GiB, at no time cost.  The two runs
+with the setting agree to the byte on every memory figure and to 0.2
+percent in time.  The direct reconstruction's NVML peak over four cards
+fell as well, from 83.4 GiB to 78.8 GiB.
+
+### The steady-state time per iteration
+
+The 30-iteration run at the default allocator took 1104.5 s and the
+15-iteration run 567.6 s, so one iteration costs 35.8 s in the steady
+state and the one-time costs of a run, the compilation, the error sinogram,
+and the Hessian diagonal, are about 31 s.  The pinned 15-iteration run was
+also 51 s faster than the unpinned full reproduction's 619 s, which chose
+four devices by its own search.
+
+### The weighted product's cost
+
+On one card, for one four-device shard of 533 views (5.32 GiB per array)
+and a subset of 14450 pixels, which is the finest partition's subset size:
+
+| operation | time |
+|---|---|
+| `weights * error`, the whole shard | 0.006 s |
+| sparse back projection of the product at one subset | 0.071 s |
+| sparse back projection of the error alone at one subset | 0.071 s |
+
+The product runs at the card's memory bandwidth.  At the finest partition
+of 128 subsets it costs about 0.8 s of a 35.8 s iteration, and the back
+projection reads the product and the error alike, so fusing the product
+into the back projection could save at most that 2 percent of an
+iteration.  The peak of arrays in use during this step was 21.3 GiB.
+
+### The peak attributed to phases
+
+To be filled from job 16409250.
