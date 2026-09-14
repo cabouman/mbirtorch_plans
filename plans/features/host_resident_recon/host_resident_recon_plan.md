@@ -1,6 +1,11 @@
 # Host-resident reconstruction arrays in the VCD loop: plan
 
-Status: DRAFT, written 2026-09-13 and revised the same day after a
+Status: FOLDED IN on 2026-09-14.  The plan of record is now
+`plans/features/device_memory_tiers/device_memory_tiers_plan.md`, which
+carries this design as its Tier 2 and cites the numbers below.  The text
+below is unchanged from the revision of 2026-09-13.
+
+Original status: DRAFT, written 2026-09-13 and revised the same day after a
 three-reviewer panel (accuracy, reasoning, style).  Greg asked the question
 it answers on 2026-09-13.  Can every reconstruction-shaped array in
 `_vcd_recon` stay in host memory, with its rows moved to the device as the

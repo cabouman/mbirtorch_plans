@@ -1,0 +1,66 @@
+MBIRTorch Version = 0.0.2
+Reconstruction devices: 4 x CUDA (sharded)
+Initializing error sinogram
+Computing Hessian diagonal
+Starting VCD iterations
+
+After iteration 0 of a max of 15: Pct change=12.3098, Forward loss=0.0176
+Relative step size (alpha)=0.01, Error sino RMSE=0.0839
+Number subsets = 4
+
+After iteration 1 of a max of 15: Pct change=8.3602, Forward loss=0.0168
+Relative step size (alpha)=0.03, Error sino RMSE=0.0874
+Number subsets = 16
+
+After iteration 2 of a max of 15: Pct change=7.3965, Forward loss=0.0166
+Relative step size (alpha)=0.17, Error sino RMSE=0.0901
+Number subsets = 64
+
+After iteration 3 of a max of 15: Pct change=5.1131, Forward loss=0.0165
+Relative step size (alpha)=0.27, Error sino RMSE=0.0900
+Number subsets = 128
+
+After iteration 4 of a max of 15: Pct change=3.3487, Forward loss=0.0165
+Relative step size (alpha)=0.27, Error sino RMSE=0.0900
+Number subsets = 128
+
+After iteration 5 of a max of 15: Pct change=2.5867, Forward loss=0.0165
+Relative step size (alpha)=0.27, Error sino RMSE=0.0899
+Number subsets = 128
+
+After iteration 6 of a max of 15: Pct change=2.1127, Forward loss=0.0165
+Relative step size (alpha)=0.27, Error sino RMSE=0.0899
+Number subsets = 128
+
+After iteration 7 of a max of 15: Pct change=1.8764, Forward loss=0.0165
+Relative step size (alpha)=0.29, Error sino RMSE=0.0899
+Number subsets = 128
+
+After iteration 8 of a max of 15: Pct change=1.5367, Forward loss=0.0165
+Relative step size (alpha)=0.28, Error sino RMSE=0.0899
+Number subsets = 128
+
+After iteration 9 of a max of 15: Pct change=1.4128, Forward loss=0.0165
+Relative step size (alpha)=0.30, Error sino RMSE=0.0899
+Number subsets = 128
+
+After iteration 10 of a max of 15: Pct change=1.2248, Forward loss=0.0165
+Relative step size (alpha)=0.29, Error sino RMSE=0.0899
+Number subsets = 128
+
+After iteration 11 of a max of 15: Pct change=1.1123, Forward loss=0.0165
+Relative step size (alpha)=0.29, Error sino RMSE=0.0899
+Number subsets = 128
+
+After iteration 12 of a max of 15: Pct change=1.0154, Forward loss=0.0165
+Relative step size (alpha)=0.29, Error sino RMSE=0.0899
+Number subsets = 128
+
+After iteration 13 of a max of 15: Pct change=0.9204, Forward loss=0.0165
+Relative step size (alpha)=0.30, Error sino RMSE=0.0899
+Number subsets = 128
+
+After iteration 14 of a max of 15: Pct change=0.8375, Forward loss=0.0165
+Relative step size (alpha)=0.29, Error sino RMSE=0.0899
+Number subsets = 128
+Logs written to /home/buzzard/.mbirtorch/logs/recon.log
