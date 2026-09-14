@@ -66,17 +66,17 @@ a mode that changes the result, and how the allocator setting is applied.
 
 | Increment | Tier | Delivers | Status |
 |---|---|---|---|
-| 1 | 0 | Measurements on the ORNL scan: the peak attributed to the loop's phases, the allocator setting on and off with the device count pinned, and a steady-state time per iteration | Allocator arms and timing measured 2026-09-14 (job 16406732); the phase attribution is queued (job 16409250) |
-| 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | Sites 1 to 4 implemented and staged 2026-09-14, suite green; the cluster measurement and the fifth site remain |
+| 1 | 0 | Measurements on the ORNL scan: the peak attributed to the loop's phases, the allocator setting on and off with the device count pinned, and a steady-state time per iteration | Measured 2026-09-14 (jobs 16406732 and 16409250); record in `dm1_record.md` |
+| 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | Sites 1 to 4 committed 2026-09-14 (mbirtorch a225319), suite green; the peak-setting fifth site and the cluster measurement remain |
 | 3 | 0 | The allocator setting, offered as Increment 1 and Decision 3 decide | Not started |
 | 4 | 1 | The device plan, the `recon` dispatch, the split mode priced by the ledger, and the explicit override | Not started |
 | 5 | 2 | The host-resident mode: the host-resident plan's increments, starting with its H100 measurement | Not started |
 | 6 | 1 and 2 | Both modes together, and the cost comparison that chooses between them | Not started |
 | 7 | all | The user guide section on memory modes and the developer notes | Not started |
 
-Each increment ends with a review before the next starts.  Increment 2
-waits for Increment 1's attribution, because the attribution decides which
-sites it changes.
+Each increment ends with a review before the next starts.  Increment 1's attribution, in `dm1_record.md`, confirmed the ledger: the
+initial error state is the run's peak by 4.1 GiB over the next phase, and
+the subset back projection is below it.
 
 ## Rule for the code
 
@@ -217,7 +217,9 @@ subset step.
 
 After sites 1 to 4, the ledger prices the error formation at 18.3 GiB
 and the error statistics at 15.2 GiB per card on four devices, but the dot
-products stay at 28.9 GiB until site 5 changes.  After site 5, the modeled
+products stay at 28.9 GiB until site 5 changes, and the measured
+attribution agrees: a weighted run's peak stays at the initial error state
+until then.  After site 5, the modeled
 peak of arrays in use on four devices falls to at most the initial forward
 projection's 26.66 GiB.
 Whether it falls further depends on what that phase holds beyond the

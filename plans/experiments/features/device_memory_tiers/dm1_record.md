@@ -95,4 +95,35 @@ iteration.  The peak of arrays in use during this step was 21.3 GiB.
 
 ### The peak attributed to phases
 
-To be filled from job 16409250.
+Job 16409250 ran on h010 on 2026-09-14 with the corrected script, on the
+library as it was before the co-live shard change, four cards pinned,
+four iterations, default allocator.  The log is
+`results/dm1_phase_peaks_16409250.log`.
+
+| phase | sampled peak of allocated memory, GiB per card |
+|---|---|
+| direct reconstruction | 15.15, 15.12, 15.12, 15.12 |
+| initial error state: the dot products and the error formation | 29.03, 28.83, 28.83, 28.83 |
+| subset step, back projection | 24.89, 24.12, 24.12, 23.38 |
+| subset step, delta forward projection | 24.16, 23.97, 23.97, 23.97 |
+| subset step, other parts | 21.74, 21.55, 21.55, 21.55 |
+| outside the labeled phases | 20.62, 20.43, 25.75, 20.43 |
+
+torch's own peak counter gave 29.03, 28.83, 28.83, 28.83 GiB, the same as
+the sampled peak of the initial error state, so the sampler missed nothing
+at the peak.  The initial error state is the run's peak by 4.1 GiB over the
+next phase.  Two cautions on reading the table.  The labels nest, so the
+Hessian diagonal's back projection, which runs through the same method as
+a subset step's, is counted under the back projection label.  And one
+stretch outside the labeled phases reached 25.75 GiB on one card only, most
+likely the placement of an array or the Hessian's assembly, which the
+wrappers did not cover.  A finer set of labels is needed before that
+stretch can be named.
+
+What this decides.  The subset back projection, which holds the weighted
+error product, is 4.1 GiB below the peak, so fusing that product into the
+kernel would not lower the peak.  The initial error state holds five
+sinogram-sized shards in both of its parts, the dot products and the error
+formation, so forming the error in place lowers the peak of an unweighted
+run and leaves the peak of a weighted run at the dot products until those
+change as well.
