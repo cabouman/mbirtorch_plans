@@ -3,7 +3,7 @@
 Status: DRAFT, written 2026-09-14 and revised the same day after a
 three-reviewer panel (accuracy, reasoning, style).  This plan supersedes
 the host-resident plan at
-`plans/features/host_resident_recon/host_resident_recon_plan.md` as the
+`plans/features/device_memory_tiers/host_resident_layout_plan.md` as the
 plan of record.  That plan's design becomes Tier 2 here, and its measured
 numbers are cited from that file rather than repeated.  The new numbers come
 from the reproduction of the ORNL comparison at
@@ -529,7 +529,7 @@ cost comparison picks the cheaper mode on two constructed cases.
 ## 10. Files
 
 - This plan.
-- The host-resident plan: `plans/features/host_resident_recon/host_resident_recon_plan.md`.
+- The host-resident plan: `plans/features/device_memory_tiers/host_resident_layout_plan.md`.
 - The ORNL reproduction: `plans/features/leap_comparison/ornl_reproduction.md`
   and the harness under `plans/experiments/features/leap_comparison/ornl/`.
 - The Increment 1 scripts and their record under

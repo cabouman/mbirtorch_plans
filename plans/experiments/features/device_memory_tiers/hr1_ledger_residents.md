@@ -16,7 +16,7 @@ array is allocated; the ledger prices from the shapes.
 ```
 cd "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch" && \
 /Users/gbuzzard/miniforge3/envs/mbirtorch/bin/python \
-  "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/experiments/features/host_resident_recon/hr1_ledger_residents.py" \
+  "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/experiments/features/device_memory_tiers/hr1_ledger_residents.py" \
   2>&1 | grep -v Warning | tee ".../results/hr1_ledger_residents.txt"
 ```
 

@@ -11,7 +11,7 @@ it answers on 2026-09-13.  Can every reconstruction-shaped array in
 `_vcd_recon` stay in host memory, with its rows moved to the device as the
 projections need them, while the sinogram-shaped arrays stay on the device?
 And what would that save?  The numbers come from the memory ledger, recorded
-in `plans/experiments/features/host_resident_recon/hr1_ledger_residents.md`,
+in `plans/experiments/features/device_memory_tiers/hr1_ledger_residents.md`,
 and from the LEAP comparison record in
 `plans/experiments/features/leap_comparison/results/leap_benchmark_results.md`.
 File paths are given from the root of the mbirtorch repository.
@@ -403,7 +403,7 @@ share grows with the count.
 ### Increment 0: the measurements
 
 Files: scripts and sbatch files under
-`plans/experiments/features/host_resident_recon/`, with companion `.md`
+`plans/experiments/features/device_memory_tiers/`, with companion `.md`
 records.
 
 One job on an H100 node, about two GPU-hours, with four parts.

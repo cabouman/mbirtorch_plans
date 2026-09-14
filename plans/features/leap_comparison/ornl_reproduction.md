@@ -2,7 +2,8 @@
 
 Date: 2026-09-14.  Status: MEASURED.  Every number below is read from the
 results files in `plans/experiments/features/leap_comparison/ornl/results/`
-or from the two ORNL PDFs in this directory.
+or from the two ORNL PDFs, which are Greg's files and are kept outside
+this repository.
 
 ## Summary
 
@@ -325,7 +326,7 @@ time cost, for example through `PYTORCH_CUDA_ALLOC_CONF`, is a measurement
 this page does not make.
 
 The host-resident reconstruction plan in
-`plans/features/host_resident_recon/host_resident_recon_plan.md` keeps the
+`plans/features/device_memory_tiers/host_resident_layout_plan.md` keeps the
 reconstruction-shaped arrays in host memory and moves rows per subset.  For
 this scan those arrays are 4.5 GiB of the 15.3 GiB persistent set per card
 on four devices, because the sinogram is 2.4 times the volume.  The larger
@@ -340,7 +341,9 @@ host memory to run at all.
 
 ## 6. Files
 
-- Slides and the one-page note from ORNL: the two PDFs in this directory.
+- Slides and the one-page note from ORNL: `MBIRtorch_v_LEAP_ORNL_09Sep2026.pdf`
+  and `LEAP_vs_MBIR_Torch_Practical_Comparison_20260910.pdf`, kept outside
+  this repository.
   The one-page note is a separate micro-benchmark on volumes of at most 96
   voxels per side with mbirtorch's compiler and Triton disabled.  It is not
   the measurement reproduced here.
