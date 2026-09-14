@@ -36,9 +36,10 @@ the arithmetic.  The first increment measures which phases hold the peak
 on the H100 before any of them is made.  Tier 0
 also settles the allocator's reserve.  The setting that stops the reserve from growing was measured on this
 scan: it halved the reserve at no time cost, and this plan decides how the
-package offers it.  Together these changes are expected to bring the peak of arrays in use
-from 29 GiB per card to about 24 GiB, and the reported figure from 40 GiB
-to about 29 GiB.
+package offers it.  Measured after the changes: the peak of arrays in use fell from 29.0 to
+24.9 GiB per card at no time cost, and with the setting the reported
+figure fell from 39.7 GiB to about 30, since about 3.7 GiB of cache and
+the CUDA context remain above the arrays in use.
 
 Tier 1 applies when the device-resident layout does not fit at any device
 count.  Today that case ends in a preflight failure whose message tells the
@@ -65,7 +66,7 @@ explicit override is a model parameter.  Section 9 records the decisions.  Greg 
 | Increment | Tier | Delivers | Status |
 |---|---|---|---|
 | 1 | 0 | Measurements on the ORNL scan: the peak attributed to the loop's phases, the allocator setting on and off with the device count pinned, and a steady-state time per iteration | Measured 2026-09-14 (jobs 16406732 and 16409250); record in `dm1_record.md` |
-| 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | All five sites committed 2026-09-14 (mbirtorch a225319 and 3101e93), suite and goldens green; the H100 verification of the new peak and time is running (job 16416780) |
+| 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | Complete 2026-09-14: all five sites committed (mbirtorch a225319 and 3101e93) and verified on four H100s (job 16416780); the peak of arrays in use fell 29.0 to 24.9 GiB per card at no time cost; record in `dm1_record.md` |
 | 3 | 0 | The allocator setting as documentation, a hint line, and the opt-in call, plus a run-log line separating memory in use from the allocator's cache | `get_memory_stats` now reports the pool's peak and its unused part (mbirtorch 23c4a43); the rest not started |
 | 4 | 1 | The device plan, the `recon` dispatch, the split mode priced by the ledger, and the explicit override | Not started |
 | 5 | 2 | The host-resident mode: the host-resident plan's increments, starting with its H100 measurement | Not started |
