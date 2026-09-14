@@ -65,8 +65,8 @@ explicit override is a model parameter.  Section 9 records the decisions.  Greg 
 | Increment | Tier | Delivers | Status |
 |---|---|---|---|
 | 1 | 0 | Measurements on the ORNL scan: the peak attributed to the loop's phases, the allocator setting on and off with the device count pinned, and a steady-state time per iteration | Measured 2026-09-14 (jobs 16406732 and 16409250); record in `dm1_record.md` |
-| 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | Sites 1 to 4 committed 2026-09-14 (mbirtorch a225319), suite green; site 5 in progress under decision 4; the cluster measurement follows |
-| 3 | 0 | The allocator setting as documentation, a hint line, and the opt-in call, plus a run-log line separating memory in use from the allocator's cache | Not started |
+| 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | All five sites committed 2026-09-14 (mbirtorch a225319 and 3101e93), suite and goldens green; the H100 verification of the new peak and time is running (job 16416780) |
+| 3 | 0 | The allocator setting as documentation, a hint line, and the opt-in call, plus a run-log line separating memory in use from the allocator's cache | `get_memory_stats` now reports the pool's peak and its unused part (mbirtorch 23c4a43); the rest not started |
 | 4 | 1 | The device plan, the `recon` dispatch, the split mode priced by the ledger, and the explicit override | Not started |
 | 5 | 2 | The host-resident mode: the host-resident plan's increments, starting with its H100 measurement | Not started |
 | 6 | 1 and 2 | Both modes together, and the cost comparison that chooses between them | Not started |
