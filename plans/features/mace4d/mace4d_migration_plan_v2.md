@@ -26,13 +26,14 @@ dimension, per-volume step sizes, and a per-volume stopping test that
 freezes a converged volume.  It reproduces per-volume denoising exactly, and
 it is the mbirtorch form of what jax's `vmap` computed.
 
-`mbirtorch/mace.py` holds the MACE loop, the agent protocol, and the
+`mbirtorch/mace.py` holds the `MACE` class, the agent protocol, and the
 agents: the data-fit proximal agent, the single-volume qGGMRF agent, and the
 hyperplane-stack agent that permutes a 4D array, filters it along the frame
-axis, denoises the stack in batches, and permutes back.  The loop folds each
+axis, denoises the stack in batches, and permutes back.  The class folds each
 agent's output into the consensus as it arrives, so it holds eight full-size
 arrays instead of twelve, and it schedules the data-fit tasks on fixed
-devices and the denoise batches through a shared queue.  The same loop and
+devices and the denoise batches through a shared queue.  It steps one
+iteration at a time and can be checkpointed and resumed.  The same loop and
 agents serve the neural-network prior work, which moves its loop into the
 package.
 
@@ -46,7 +47,8 @@ agent follows the fixed-operator conventions of the nn_priors work and the
 consensus update is folded.  The fixed point is what the tests check, and
 every test is reference-free: the batched denoiser against a loop of single
 volumes, the filter matrix against the scipy filter, and the whole loop
-against `recon` through two equality gates.
+against `recon` through two equality gates.  Three one-off checks against
+mbirjax, recorded outside the repository, back them.  Section 5 lists them.
 
 The work is seven stages plus one cluster measurement, in the order of
 Section 4.  The estimated size is about 2,000 lines including tests, of
@@ -191,17 +193,33 @@ golden tests stay as they are.
 
 ### 2.2 The shared module: `mbirtorch/mace.py`
 
-The module holds the agent protocol, the loop, three agents, and the
-filter matrix builder.
+The module holds the agent protocol, the `MACE` class, three agents, and
+the filter matrix builder.  The agents are independent classes on the
+protocol, the loop is one small class that owns the state and the update,
+and the filter matrix builder is a function.
 
-An agent is a callable from a tensor to a tensor of the same shape, bound
-to one device.  It moves its input to its device, computes, and returns
-its output on the input's device.  Two conventions, carried from the
-nn_priors work, make the equilibrium well defined: an agent may follow a
-schedule early but must be a fixed operator in the tail, and an agent that
-runs an inner solve warm-starts it from its own previous output.  For the
-loop's scheduling, an agent may also provide `tasks(w)`, a list of tasks
-that together produce its output.  A task has three parts.  Its `device` is a fixed device, or `None` for
+An agent is a callable `agent(w, iteration)` from a tensor to a tensor of
+the same shape, bound to one device.  It moves its input to its device,
+computes, and returns its output on the input's device.  `iteration` is
+the loop's iteration index, starting at 0, and the loop is its only
+source, including after a resume from a checkpoint.  An agent that has no
+use for it ignores it.  An agent with a schedule reads it.  Every agent
+may use iteration 0 as its setup point, which is where the data-fit agent
+initializes `prox_map`.  Two conventions, carried from the nn_priors work,
+make the equilibrium well defined: an agent may follow a schedule early
+but must be a fixed operator in the tail, and an agent that runs an inner
+solve may warm-start it from its own previous output.  The optional
+constructor argument `use_warm_start` controls the second.  When it is on,
+an agent with an inner solve keeps its previous output and starts from it.
+When it is off, the agent starts from its input.  An agent without an
+inner solve, such as a network or a filter applied once, ignores it.  The
+loop never reads the flag.  Its one interaction with the loop is the
+checkpoint: the stored output is part of the agent's `state_dict` when the
+flag is on.  Anything keyed to convergence rather than to the iteration
+index, such as `rho`, the weights, or a denoiser strength, is the driver's
+job between calls to `step`.  For the loop's scheduling, an agent may also
+provide `tasks(w, iteration)`, a list of tasks that together produce its
+output.  A task has three parts.  Its `device` is a fixed device, or `None` for
 any device in the pool.  Its `region` is a tuple of slices into the array,
 or `None` for the whole array.  Its `run(device)` method returns the
 output for its region on the input's device.  An agent that
@@ -212,13 +230,53 @@ then kept by the agent until all its tasks are done, after which
 when the temporal filter is on, because the filter acts along the frame
 axis.  Every other output is folded as its task completes.
 
-The loop is
+The loop is one small class.
 
 ```python
-mace(agents, x0, mu=None, rho=0.5, max_iterations=30,
-     stop_threshold_change_pct=0.0, devices=None, callback=None)
-    -> (x_bar, info)
+MACE(agents, x0, mu=None, rho=0.5, devices=None)
+    .step() -> change_pct
+    .run(max_iterations=30, stop_threshold_change_pct=0.0, callback=None) -> (x_bar, info)
+    .x_bar, .W, .info, .mu, .rho
+    .state_dict() / .load_state_dict(state)
+    .close()   # also a context manager
 ```
+
+`MACE` owns the state and the update.  It is constructed from the agent
+list, the weights, `rho`, the initial volume, and optionally a device pool.
+`step` runs one iteration: it evaluates the agents, folds their outputs,
+completes the Mann step, and computes the change and the spread.  `run`
+loops over `step` until the change falls below the threshold or the
+iteration count is reached, calls `callback(iteration, x_bar)` after each
+iteration when given, and returns the consensus and the traces.  `x_bar`
+and the `W` list are readable between steps.  `mu` and `rho` are plain
+attributes read at each step, so a schedule can change them.
+`state_dict` returns the `W` list, the two average buffers, the iteration
+count, the traces, and the state of every agent that provides its own
+`state_dict`.  A stored warm start is agent state.  Nothing else is, since
+the loop supplies the iteration index.  `load_state_dict` restores all of it, so a long run can be
+checkpointed and resumed after a job is killed.  A `MACE` with a device
+pool starts its worker threads on the first step and stops them in
+`close`, which the context manager calls.  `run` does not close, so a run
+can be inspected and continued.
+
+Agents know nothing about the loop.  A new prior, such as a
+total-variation agent or a 4D qGGMRF agent, is a new agent class and
+nothing else.  There is no hierarchy of MACE forms.  The forms differ in
+their agents and in where the state lives, not in the update, and the
+update is what makes every form solve the same equilibrium, so it exists
+once and is not overridable.  The public models compose these pieces:
+`MACE4DModel` builds the frame models and the agents, constructs a `MACE`,
+drives it, and adds what a user sees.  Multi-slice fusion in the nn_priors
+work is the same class with a different agent list and no wrapper.  A
+one-line function `mace(agents, x0, ...)` that constructs a `MACE` and
+calls `run` is kept for the drunet scripts.
+
+One variation inside the loop is plausible, and it is reserved as a
+constructor argument rather than a subclass: the consensus operator, the
+weighted average `G`.  In consensus-equilibrium terms the iteration is a
+Mann average of `(2 G - I)(2 F - I)`, with `F` the stacked agents.  A form
+that needs a different `G`, per-voxel weights say, would pass a callable
+in place of the weight list.  Nothing in this plan builds that.
 
 The states `W_k` are tensors on the device of `x0`: the host for MACE4D,
 a device for the nn_priors case.  `devices=None` runs every task inline,
@@ -245,35 +303,46 @@ evaluation shows this form beside the mbirjax form and gives the algebra.
 `info` holds, per iteration, the change in percent, the spread per agent,
 the wall time, and one row per task with the agent index, the task index,
 the device index, and the start and end times relative to the iteration
-start.  `callback(iteration, x_bar)` is called after each iteration when
-given.  The loop stops when the change falls below the threshold or at
-`max_iterations`.
+start.
 
 ### 2.3 The agents
 
 `ForwardProxAgent(model, sinogram, weights=None, sigma_prox=None,
-inner_iterations=3, init_recon=None, device=None)` is the class in
-`experiments/drunet/agents.py` with a device argument.  When `device` is
-given, the agent pins the model to it with `configure_devices` and places
-the sinogram and weights on it once through `prepare_sino_for_devices`.
-Each call runs `prox_map` with `do_initialization` true on the first call
-only, the cumulative iteration count as `first_iteration`,
-`max_iterations` equal to that count plus `inner_iterations`, a stop
-threshold of zero, and the agent's previous output as `init_recon`.  The
-partition sequence therefore walks coarse to fine once and then stays on
-its last entry.
+inner_iterations=3, init_recon=None, device=None, partition_advance=1.0,
+use_warm_start=True)` is the class in `experiments/drunet/agents.py` with
+three additions.  When `device` is given, the agent pins the model to it
+with `configure_devices` and places the sinogram and weights on it once
+through `prepare_sino_for_devices`.  A call at MACE iteration `i` runs
+`prox_map` with `do_initialization` true at iteration 0 only, a stop
+threshold of zero, `first_iteration` equal to
+`p = floor(i * partition_advance)`, and `max_iterations` equal to
+`p + inner_iterations`, so the call runs the entries `p` through
+`p + inner_iterations - 1` of the model's partition sequence.
+`partition_advance` is the number of sequence entries the agent moves
+forward per MACE iteration.  It is a float and may be below one: 0.25
+advances one entry every fourth iteration.  With the default sequence and
+the defaults of 1.0 and 3, iteration 0 runs 4, 16, and 64 subsets, which
+is what mbirjax ran on every call.  Iteration 1 runs 16, 64, and 128,
+iteration 2 runs 64, 128, and 128, and every later iteration runs 128
+throughout, so the subset count is fixed from iteration 3 on.  An advance
+equal to `inner_iterations` reproduces the nn_priors walk.  With
+`use_warm_start` on, `init_recon` is the agent's previous output.  With it
+off, `init_recon` is the input, which converges to the output plus the
+dual offset, so the inner solve then moves that offset on every call.  The
+flag is therefore a memory choice that costs inner-solve accuracy.
 
 `QGGMRFDenoiserAgent(image_shape, sigma_noise, pinned_params=None,
-inner_iterations=8, like_model=None, use_ror_mask=False, device=None)` is
-the single-volume agent of the same file, with the device rule above.
+inner_iterations=8, like_model=None, use_ror_mask=False, device=None,
+use_warm_start=True)` is the single-volume agent of the same file, with
+the device rule above.  Its warm start costs one volume on its device.
 
 `HyperplaneAgent(axis, make_stack_denoiser, batch_size=None,
-filter_matrix=None)` is new.  `axis` is the spatial axis that is fixed to
+filter_matrix=None, use_warm_start=False)` is new.  `axis` is the spatial axis that is fixed to
 cut the hyperplanes: 3 for XY-t, 1 for YZ-t, 2 for XZ-t, in the
 `(t, x, y, z)` order of the 4D array.  `make_stack_denoiser(device)` returns
 a callable from a stack tensor on that device to its denoised stack.  The
 agent calls it once per device in the pool, from the worker that first
-needs it, and keeps the result.  `tasks(w)` returns one task per batch,
+needs it, and keeps the result.  `tasks(w, iteration)` returns one task per batch,
 with `device=None` and `region` the slab of hyperplanes along `axis`.  A
 task copies its slab to the device and permutes it so that the hyperplane
 index comes first and the frame index second.  It applies the filter
@@ -283,13 +352,25 @@ stack denoiser for its automatic size on the first device that runs one.
 The agent is generic in its denoiser, so a total-variation, bilateral, or
 network stack denoiser plugs in the same way as the qGGMRF one.
 
+With `use_warm_start` on, the agent owns one host array of the input's
+shape, allocated on first use, holding its previous output.  Each task
+then also copies the matching slab of that array to the device, permutes
+it the same way, passes it as `init_stack`, and writes its output slab
+back into it.  The default is off, because the array costs one full-size
+volume per orientation.  The per-volume iteration counts that
+`denoise_stack` returns go into the timing log, so a run shows what the
+choice costs and the record decides whether to turn it on.
+
 The data-fit agent of MACE4D is private to `mace4d.py`.  It holds one
 `ForwardProxAgent` per frame, each pinned to the frame's device, and its
-`tasks(W_0)` returns one task per frame with a fixed device and the frame's
-region.  With `dejitter` off, each frame folds as it completes.  With
-`dejitter` on, the agent sets `fold_after_all`, writes each frame into its
-own stack buffer, and `pieces()` applies the filter matrix to that stack
-one slab at a time and yields the slabs.
+`tasks(W_0, iteration)` returns one task per frame with a fixed device and
+the frame's region, passing `iteration` through.  The frame agents share
+one host array, the stack of unfiltered prox outputs, which serves as
+their warm start.  With `dejitter` off, each frame folds as it completes.
+With `dejitter` on, the agent sets `fold_after_all`, and `pieces()` applies
+the filter matrix to the stack one slab at a time and yields the filtered
+slabs, leaving the stack itself unfiltered for the next warm start.  With
+`dejitter` off and `use_warm_start` off, the stack is not allocated.
 
 ### 2.4 The temporal filter
 
@@ -331,12 +412,21 @@ needed for it.  Stage 4 checks that no thread exceeds the budget.
 
 ### 2.6 Memory
 
-The host holds eight full-size float32 arrays: four `W_k`, `z`, the two
-average buffers, and the prox stack when the filter is on.  At thirty
-frames of a 512-cubed volume each array is 16 GB, so a run of that size
-needs about 130 GB of host memory.  On gautschi, host memory comes at about
-126 GB per GPU requested, so such a run requests at least two GPUs.  The
-demo and the documentation state the array count and the rule.
+The host holds seven full-size float32 arrays for the loop itself: four
+`W_k`, `z`, and the two average buffers.  The agents' choices add to that
+count.
+
+| Setting | Full-size host arrays |
+|---|---|
+| The loop alone | 7 |
+| Plus the prox stack, kept when the filter is on or the prox warm start is on (the default) | 8 |
+| Plus the denoiser warm start on all three orientations | 11 |
+
+At thirty frames of a 512-cubed volume each array is 16 GB, so the default
+run of that size needs about 130 GB of host memory, and the same run with
+the denoiser warm start needs about 180 GB.  On gautschi, host memory comes
+at about 126 GB per GPU requested, so such a run requests at least two
+GPUs.  The demo and the documentation state the array count and the rule.
 
 On a device, a hyperplane task holds one batch: the input slab, the
 permuted copy, the sweep's state, and the subset temporaries of the
@@ -376,6 +466,9 @@ computation.
 | `rho_mann` | 0.5 | `set_params` | The consensus step |
 | `prox_num_iterations` | 3 | `set_params` | VCD iterations per data-fit call |
 | `prox_stop_threshold` | 0.02 | `set_params` | Stop threshold of the initialization reconstruction |
+| `prox_partition_advance` | 1.0 | `set_params` | Entries of the partition sequence the data-fit agent advances per MACE iteration; a float, and it may be below one |
+| `prox_warm_start` | True | `set_params` | The data-fit agent starts each inner solve from its previous output |
+| `denoiser_warm_start` | False | `set_params` | Each hyperplane agent keeps its previous output and starts from it, at one full-size array per orientation |
 | `sigma_prox` | None, meaning automatic | `set_params`, registered with `no_warning` | Passed to every `prox_map` |
 | `dejitter` | True | `set_params` | Apply the temporal filter |
 | `dejitter_verbose` | 0 | `set_params` | Printing for the filter only |
@@ -402,9 +495,11 @@ the denoiser's `granularity`.
 ### 3.3 Differences a user can see
 
 - The data-fit agent runs exactly `prox_num_iterations` VCD iterations per
-  call, with a stop threshold of zero, and walks the partition sequence
-  coarse to fine across the whole run instead of restarting it every
-  iteration.  `prox_stop_threshold` applies to the initialization
+  call, with a stop threshold of zero, and advances through the partition
+  sequence at `prox_partition_advance` entries per MACE iteration instead
+  of restarting it every call.  With the default advance, iteration 0 runs
+  the same three entries mbirjax ran on every call, and later iterations
+  run finer ones.  `prox_stop_threshold` applies to the initialization
   reconstruction only.
 - The consensus update is folded, so the float32 rounding of `W` and
   `xbar` differs from mbirjax's.
@@ -436,7 +531,7 @@ Tests, in `tests/test_denoiser.py`:
 - The batched gradient and Hessian equal the single-image function on
   each volume of a stack, for subset 0 of a seeded partition, with
   compilation off, within a relative maximum difference of 1e-7.  The
-  prototype measured exact equality; the test prints the difference it
+  prototype measured exact equality, and the test prints the difference it
   sees.
 - `denoise_stack` on six volumes of shape `(8, 10, 12)` equals a loop of
   `denoise` calls on the same volumes with the same pinned parameters and
@@ -452,8 +547,9 @@ Tests, in `tests/test_denoiser.py`:
   exercises the padded last batch.
 - A denoiser configured with two devices raises from `denoise_stack`.
 
-Stage 0 ends when these tests pass on every available device and the
-existing denoiser tests pass unchanged.
+Stage 0 ends when these tests pass on every available device, the
+existing denoiser tests pass unchanged, and the check against mbirjax in
+Section 5 is recorded within its expected agreement.
 
 ### Stage 1: measurements
 
@@ -475,7 +571,9 @@ frame.  Add `gpu_devices`, `cpu_devices`, and `default_devices` next to
 Three tests: the 24-view case gives 5 frames and `view_slices[1] ==
 slice(4, 12)`, a `frames_per_rotation` large enough to give a stride below
 one view raises, and `default_devices()` is nonempty while `cpu_devices()`
-has one entry.
+has one entry.  Two further cases pin the view slices as literals computed
+once in mbirjax, one of them a scan spanning more than one rotation, as
+the checks in Section 5 describe.
 
 Stage 2 ends when these tests pass.
 
@@ -484,10 +582,11 @@ Stage 2 ends when these tests pass.
 Files: a new `mbirtorch/mace.py`, `mbirtorch/__init__.py`, a new
 `tests/test_mace.py`, and `experiments/drunet/`.
 
-Write the agent protocol, the loop with the folding update and the hybrid
-scheduling, the pool resolution, `ForwardProxAgent`, `QGGMRFDenoiserAgent`,
-`HyperplaneAgent`, and `temporal_filter_matrix`, as Sections 2.2 to 2.5
-specify.  Export the public names through the lazy loader, with the
+Write the agent protocol, the `MACE` class with `step`, `run`,
+`state_dict`, `load_state_dict`, and `close`, with the folding update and
+the hybrid scheduling inside it, the one-line `mace` wrapper, the pool
+resolution, `ForwardProxAgent`, `QGGMRFDenoiserAgent`, `HyperplaneAgent`,
+and `temporal_filter_matrix`, as Sections 2.2 to 2.5 specify.  Export the public names through the lazy loader, with the
 matching lines in the `TYPE_CHECKING` block that the export test enforces.
 Then make `experiments/drunet/mace.py` and `agents.py` import from the
 package, and confirm that `run_qggmrf_gate.py` still passes its 2D gate.
@@ -506,6 +605,19 @@ Tests, in `tests/test_mace.py`:
 - `HyperplaneAgent` with a stack denoiser that adds a constant, on a small
   4D array, equals the same operation done without batching, for each of
   the three axes and with a batch size that does not divide the slab count.
+- A checkpoint round trip: three steps, `state_dict`, a new `MACE` with
+  `load_state_dict`, two more steps, equals five steps in one object to a
+  relative maximum difference of 1e-6, with agents that carry warm-start
+  state.
+- `mu` and `rho` changed between steps take effect on the next step.
+- `partition_advance`: with a stub model whose `prox_map` records its
+  arguments, the `first_iteration` of the call at iteration `i` equals
+  `floor(i * advance)` for advances of 1.0, 0.25, and 3.0, and
+  `max_iterations` exceeds it by `inner_iterations`.
+- `use_warm_start`: the same stub records `init_recon` equal to the
+  previous output when the flag is on and equal to the input when it is
+  off.  `HyperplaneAgent` with a stack denoiser that records `init_stack`
+  shows the same two behaviors.
 - The 2D equality gate of the nn_priors work as a test: MACE with
   `ForwardProxAgent` and `QGGMRFDenoiserAgent` at matched sigma and pinned
   prior parameters reproduces `recon` on a small problem within 1 percent
@@ -523,8 +635,11 @@ Write the constructor and parameter registration, the host helpers
 `_validate_init_recon`, `_load_cached_init`, `_run_settings`,
 `_write_run_info`), `set_device_pool`, `devices`, the data-fit agent of
 Section 2.3, the construction of the three hyperplane agents, the global
-sigma estimate, the qGGMRF configuration once per run and orientation, the
-initialization, the call to `mace`, and the three log files.
+sigma estimate, the qGGMRF configuration once per run and orientation, the initialization, the construction of a `MACE` and its `run` inside a
+context manager, and the three log files.  The three parameters
+`prox_partition_advance`, `prox_warm_start`, and `denoiser_warm_start` are
+passed to the agents at construction, and the timing log gains the mean
+denoiser iteration count per MACE iteration.
 
 The qGGMRF configuration for an orientation runs once per `recon`: permute
 the initial image, merge it to 3D, set `sigma_noise` to the global sigma,
@@ -540,6 +655,8 @@ writes the three log files, and a run with `set_device_pool(['cpu',
 'cpu'])` shows tasks from both workers in `task_log.csv`.  It also ends
 only when a check confirms that no worker thread exceeded the recompile
 budget, read from torch's recompile counters after the two-worker run.
+The end-to-end check against mbirjax in Section 5 is run and recorded
+before the stage closes.  Its result is advisory.
 
 ### Stage 5: tests
 
@@ -621,6 +738,35 @@ The smooth sinogram of the mbirjax test is kept as the test data, for the
 reason its comment gives: a random sinogram reconstructs to a volume with
 extreme values, on which the line search computes zero over zero.
 
+### Checks against mbirjax
+
+mbirjax is a sanity reference for the port, not ground truth.  The port
+reproduces the method and not the trajectory, so the two libraries agree
+closely only where the design keeps them the same.  Where they disagree
+beyond the expected level, the reference-free gates decide which one is
+wrong.  Three checks are worth their cost.  They run once, in a separate
+CPU environment made with `pip install mbirjax` and used for nothing else.
+Generator scripts run there and write small `.npz` reference arrays, and
+comparison scripts run in the torch environment.  Both kinds of script and
+their companion `.md` records live in `plans/experiments/features/mace4d/`.
+Nothing from them enters the mbirtorch repository, in keeping with the
+retire_jax plan.
+
+| Stage | Check | Expected agreement | Standing |
+|---|---|---|---|
+| 0 | `denoise_stack` against mbirjax's batched hyperplane denoiser on the same seeded stack, with the same sigma, the same `sigma_x` floor, and the same subset floor | Relative maximum difference below 1e-3, and likely far below it, as the denoiser golden showed | Required for the exit of Stage 0 |
+| 2 | The view slices of `construct_time_frame_models` for three or four parameter sets, one of them spanning more than one rotation, computed once in mbirjax and pinned as literals in the test | Exact, because the slices are integers | Required; the literals carry no attribution |
+| 4 | One end-to-end run on a small problem, configured to mimic mbirjax: `prox_partition_advance=0.0`, prox warm start on, denoiser warm start off, the same seed, and the same `init_recon` given to both runs | Relative maximum difference between 1e-3 and 1e-2, the level of the partition redraw and the `sigma_x` sampling; both `sigma_x` values are recorded beside the result | Advisory; a larger disagreement means stop and diagnose one agent at a time |
+
+Two design differences bound the Stage 4 agreement.  mbirjax redraws the
+pixel partitions on every `prox_map` call and lets each call stop at
+`prox_stop_threshold`, while the port fixes the partitions at iteration 0
+and runs a fixed count.  And mbirjax computes the denoiser's `sigma_x` on
+the whole merged stack, while the port computes it on the row subsample
+that `auto_set_regularization_params` takes.  A `partition_advance` of
+zero removes the schedule difference: every call then runs the same three
+sequence entries mbirjax ran.
+
 ## 6. Risks
 
 | Risk | Severity | How to handle it |
@@ -633,6 +779,7 @@ extreme values, on which the line search computes zero over zero.
 | The one-frame gate fails at 1 percent | Medium | The nn_priors gates passed at 0.65 and 0.23 percent; a failure is diagnosed one agent at a time, with the qGGMRF single-volume agent in place of the three hyperplane agents first. |
 | Host memory at production size | Medium | Eight arrays, stated in the documentation; request GPUs for host memory on gautschi. |
 | The filter removes every temporal mode at small frame counts | Low | The tests set `dejitter=False`; the documentation states the rule. |
+| The default partition advance is a heuristic | Low | One float parameter over the model's own sequence, with the mbirjax entries at iteration 0; tune later from the timing logs. |
 | The end-to-end phantom run fails only at full scale | Medium | Stage 7 runs small first; the cache and the logs make a failed full run resumable. |
 
 ## 7. Size and order
@@ -642,7 +789,7 @@ extreme values, on which the line search computes zero over zero.
 | 0 | `denoise_stack` and the two batched functions, with tests | 350 lines |
 | 1 | Measurements | Done |
 | 2 | Frame construction and device helpers, with tests | 160 lines |
-| 3 | The shared module, with tests, and the drunet scripts moved onto it | 700 lines |
+| 3 | The shared module, with tests, and the drunet scripts moved onto it | 750 lines |
 | 4 | `MACE4DModel` | 450 lines |
 | 5 | Tests for `MACE4DModel` | 300 lines |
 | 6 | Documentation and registration | 100 lines of reStructuredText |
@@ -671,3 +818,10 @@ Opus specification, reviewed before the next starts.
   protocol of Section 2.2.
 - Moving the state to the devices for problems whose host memory is the
   limit, once the eight-array form is in use.
+- Tuning `prox_partition_advance` from the timing logs of real runs, and
+  turning the denoiser warm start on if the logged denoiser iteration
+  counts show that denoising is the long pole.
+- A `checkpoint_dir` argument on `MACE4DModel.recon`, saving the `MACE`
+  state after each iteration so that a killed job resumes.  It follows
+  from `state_dict` and is small.  It is not in the stages.  Whether to
+  add it is Greg's call.

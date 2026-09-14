@@ -633,6 +633,11 @@ before the module is written.
 
 DECIDED at review: agreed.
 
+A later side discussion settled the loop's form.  The loop is one small
+class, `MACE`, with `step`, `run`, and a checkpoint pair.  The agents are
+independent classes on the protocol, and there is no hierarchy of MACE
+forms.  Section 2.2 of the version 2 plan gives it.
+
 ### 8.4 A batch dimension in the reconstruction loop
 
 The question is whether a leading axis over independent reconstructions,

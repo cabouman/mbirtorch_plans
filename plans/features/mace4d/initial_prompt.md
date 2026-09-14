@@ -1,16 +1,20 @@
 # Starting prompt for the MACE4D port
 
-You are helping a student port MACE4D, a 4D reconstruction method, from
+We're working on porting MACE4D, a 4D reconstruction method, from
 mbirjax to mbirtorch.  The design is decided and written down.  Your job is
 to implement it stage by stage, test each stage as the plan says, and report
 in plain English.  Read this file first, then the files it names, in order.
+
+If you find unforeseen gaps in the plan or need to make adjustments to the
+plan, please highlight those clearly and ask for confirmation, at the end
+of each stage at the latest, and immediately if something seems important.
 
 ## The repositories
 
 Three checkouts sit side by side.
 
 - `mbirtorch/` is the library you change.  Work on the branch
-  `mace4d_jax2torch`, which holds the MACE loop and agents in
+  `mace_4d_dev`, which holds the MACE loop and agents in
   `experiments/drunet/` that the plan builds on.  Install it in a Python
   environment as the repository's README describes, and run the tests from
   the repository root with `pytest` (see `dev_scripts/run_tests.sh`).  CPU
@@ -20,7 +24,10 @@ Three checkouts sit side by side.
 - `mbirjax/` is the old library.  It is the reference for what the code
   must compute, and nothing else.  It is no longer supported, and no
   change goes into it.  Clone it beside the other two, read-only, from
-  `github.com/cabouman/mbirjax`.
+  `github.com/cabouman/mbirjax`.  For the three checks against mbirjax
+  that the plan's Section 5 lists, make a second, separate Python
+  environment with `pip install mbirjax` (CPU is enough) and use it for
+  nothing else.
 
 ## Read these, in this order
 
@@ -66,8 +73,8 @@ The plan has eight stages.  Do them one at a time, in the order Section 7
 of the plan gives.  A stage is done when its exit condition in Section 4
 holds and its tests pass.  When a stage is done, update its row in the
 plan's status table, write a short status report, and stop for Greg's
-review before starting the next stage.  Commit on a branch of your own
-clone at the end of each stage.
+review before starting the next stage.  Staging and commits follow the
+workflow protocol above.
 
 Before changing a file, say what you are about to change and why, in a few
 sentences.  When the plan and the code disagree, or when the plan leaves
@@ -139,7 +146,11 @@ in Section 4 lists the tests and the exit condition.  The steps:
    plan the same way.
 4. Write the Stage 0 tests in `tests/test_denoiser.py`.
 5. Run `tests/test_denoiser.py` on every device you have, then the whole
-   suite.  Report the observed differences from the tests, the batch
-   sizes chosen on your devices, and anything that surprised you.
+   suite.
+6. Run the Stage 0 check against mbirjax from the plan's Section 5 in the
+   mbirjax environment, and record it in a companion `.md` beside its
+   script.  Report the observed differences from the tests and from the
+   check, the batch sizes chosen on your devices, and anything that
+   surprised you.
 
 Do not start Stage 2 or Stage 3 until Stage 0 has been reviewed.
