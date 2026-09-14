@@ -1,8 +1,7 @@
 # Device memory in the VCD loop, in tiers: plan
 
 Status: DRAFT, written 2026-09-14 and revised the same day after a
-three-reviewer panel (accuracy, reasoning, style).  Greg took decisions 1,
-2, 4, 5, 6, and 7 on 2026-09-14, and decision 3 is open.  This plan supersedes
+three-reviewer panel (accuracy, reasoning, style).  Greg took all seven decisions on 2026-09-14.  This plan supersedes
 the host-resident plan at
 `plans/features/device_memory_tiers/host_resident_layout_plan.md` as the
 plan of record.  That plan's design becomes Tier 2 here, and its measured
@@ -59,8 +58,7 @@ The policy prices each candidate with the memory ledger and takes the
 cheapest one that fits.  At first the candidates are tried in a fixed
 order.  Later a measured cost comparison chooses among them.  `recon` stays
 one method.  What changes is the device plan the policy hands it, and the
-explicit override is a model parameter.  Section 9 records the decisions.  Greg took six of them on 2026-09-14.
-The one still open is how the package delivers the allocator setting.
+explicit override is a model parameter.  Section 9 records the decisions.  Greg took all seven on 2026-09-14.
 
 ## Status by increment
 
@@ -68,7 +66,7 @@ The one still open is how the package delivers the allocator setting.
 |---|---|---|---|
 | 1 | 0 | Measurements on the ORNL scan: the peak attributed to the loop's phases, the allocator setting on and off with the device count pinned, and a steady-state time per iteration | Measured 2026-09-14 (jobs 16406732 and 16409250); record in `dm1_record.md` |
 | 2 | 0 | The co-live sinogram shards removed at the sites Increment 1 confirms, with the ledger updated | Sites 1 to 4 committed 2026-09-14 (mbirtorch a225319), suite green; site 5 in progress under decision 4; the cluster measurement follows |
-| 3 | 0 | The allocator setting, offered as Increment 1 and Decision 3 decide | Not started |
+| 3 | 0 | The allocator setting as documentation, a hint line, and the opt-in call, plus a run-log line separating memory in use from the allocator's cache | Not started |
 | 4 | 1 | The device plan, the `recon` dispatch, the split mode priced by the ledger, and the explicit override | Not started |
 | 5 | 2 | The host-resident mode: the host-resident plan's increments, starting with its H100 measurement | Not started |
 | 6 | 1 and 2 | Both modes together, and the cost comparison that chooses between them | Not started |
@@ -278,6 +276,12 @@ own workload.  LEAP neither uses nor needs the setting.  Its library
 allocates device memory directly with `cudaMalloc` inside each call and
 frees it at the end, so it holds no cache and shows no reserve, and it
 pays a fresh allocation on every call instead.
+
+Increment 3 also adds one line to the reconstruction log reporting, per
+device, the peak of memory in use and the allocator's cache beyond it.
+torch's counters separate the two inside the process, and nothing outside
+the process can, so this line is where users get the split that
+`nvidia-smi` cannot show.
 
 Releasing cached memory at phase boundaries is not part of this plan.  It
 returns free blocks to the driver and changes what NVML reports and what a
@@ -547,8 +551,9 @@ recommendation.
    document the setting, print one hint line before a reconstruction when
    it is unset, and provide an explicit opt-in call.  The alternative is to
    set it at import when it is unset.
-   Open: Greg asked for the downsides of setting it at import before
-   deciding, and Section 2.2 records them.
+   Decision (Greg, 2026-09-14): the documented setting plus the hint line,
+   as recommended.  Section 2.2 records the downsides of the import-time
+   alternative that the choice weighed.
 
 4. How far should the initial-scale computation change?  For a weighted
    scan, the computation of the scale applied to the initial reconstruction
