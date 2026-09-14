@@ -306,6 +306,19 @@ the whole volume on the card, as the one-card ablation shows.  With any
 number of GPUs, a job that LEAP's memory estimate says fits is not split
 further.
 
+Why the earlier head-to-head saw the opposite.  The record in
+`plans/experiments/features/leap_comparison/results/leap_benchmark_results.md`
+measured LEAP on one H100, where LEAP does not chunk when the whole job
+fits.  Each call there uploaded the whole sinogram and the whole volume,
+kept a texture copy, and LEAP's own RWLS held its working arrays on the
+card, so at N=1024 LEAP's iterative peak was 65.6 GiB against mbirtorch's
+45.0 GiB.  The one-card ablation of Section 3.3 shows the same behavior on
+the ORNL scan.  That record's four-GPU section already shows the chunked
+footprint, 1.9 GB per card for a projection and 2.8 GB for FBP, with 12.8
+GB on one card for the ten RWLS iterations.  The ORNL comparison ran on
+four cards with a loop that keeps every array on the host, which is the
+chunked path throughout.
+
 The price of this design is paid in host memory and host time.  Their loop
 holds five sinogram-shaped arrays and seven volumes in host memory, which is
 the 175 GiB host peak in both their table and ours.  Every iteration moves
