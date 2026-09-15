@@ -108,6 +108,27 @@ better operating point on this data.  Volumes and traces:
 deepinv + cu130 torchvision installed --no-deps into the gautschi `mbirtorch` conda env;
 DRUNet weights staged at `~/.cache/torch/hub/checkpoints/`.
 
+Addendum 2026-09-15 — second real-data run, at production scale: multi-slice fusion on
+the ORNL Inconel scan (2132 views of 1456 x 1840, reconstruction (1360, 1360, 1296)
+float32, 8.9 GiB), on four gautschi H100s, via
+`plans/experiments/features/leap_comparison/ornl/msf_ornl.py`.  The run record
+`msf_ornl.md` beside the script holds the settings, the timeline, and the traces.  What is
+new in the script is where the state lives.  The consensus state is nine host volumes, the
+proximal agent hands host arrays to `prox_map` on four cards, and each DRUNet agent streams
+slice batches through one card, so the loop runs on a volume with thirteen times the
+voxels of the Lilly run.  The strength was `sigma_scaled` 0.02, the light end of the
+range, at Greg's request to keep sharp edges; the other settings match the Lilly run.  One
+outer iteration took 12.2 minutes, and the run stopped after 25 iterations, at its
+iteration-24 checkpoint, because the six-hour walltime would have ended it before the
+next checkpoint.  Weighted sinogram residual: standard 0.05925, three-orientation
+postprocessing 0.08075, fusion 0.06063.  The consensus spread reached 1.32e-2 and was
+still falling by just under one percent per iteration, so this run did not settle, where
+the Lilly runs settled near 5e-3 to 8e-3 within 30 iterations.  In the central slice the
+grain of the standard reconstruction is gone from both denoised volumes; the
+postprocessing lightens the small pores, and the fusion keeps them dark and compact.
+Whether to run a stronger prior (0.03 or 0.04) is Greg's call after seeing the slices.
+Volumes and traces: `/scratch/gautschi/buzzard/leap_ornl/out/msf/` on gautschi.
+
 **Increment 1: 3D problem and 3D qGGMRF gate (quantitative gate).**
 A 3D problem module beside `cone_beam_2d.py` (the same generator without the
 mid-slice restriction), and the equality gate at 3D: MACE with the forward

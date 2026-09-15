@@ -72,6 +72,10 @@ does.  The findings page holds the results and their interpretation.
 - `ablation.sbatch`: two H100s, five iterations per arm: LEAP on one card,
   on two, on two with the chunk cap at 32, and mbirtorch pinned to two
   devices with the stop rule off.
+- `msf_ornl.py`, `msf_finish.py`, `render_early.py`: the multi-slice
+  fusion reconstruction of the scan with DRUNet priors, the step that makes
+  its metrics and images, and a renderer for a run in progress.  The run
+  detail is in `msf_ornl.md` beside them.
 
 Outputs go to `out/` as `<arm>_<tag>_results.json`, central slices in an
 `.npz`, and the full volume as float32 `.npy` when `--save-volume` is given.
@@ -90,6 +94,9 @@ committed.  The cluster directory keeps the originals.
 | full, LEAP | 16396080 | h008 | 15 min | `full_leap_16396080.log` |
 | FDK parts, both codes | 16401543 | h011 | 5 min | `fdk_pieces_16401543.log` |
 | LEAP transfer share | interactive job 16395336 | h005 | 8 min | `leap_transfer.log` |
+| fusion smoke pass and crashed full run | 16417144 | four H100s | 4 min | `msf_ornl_16417144.log`; see `msf_ornl.md` |
+| fusion full run | 16421729 | h013 | up to 6 h | `msf_ornl_16421729.log`; see `msf_ornl.md` |
+| fusion finisher | 16426291 | one H100 | minutes | runs after 16421729; see `msf_ornl.md` |
 
 The results files are named `<arm>_<tag>_results.json` with tags `full`,
 `abl_leap_g1`, `abl_leap_g2`, `abl_leap_g2_s32`, and `abl_mbirtorch_d2`.
