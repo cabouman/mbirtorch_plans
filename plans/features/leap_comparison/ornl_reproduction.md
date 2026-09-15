@@ -225,6 +225,10 @@ Inside `recon` with no initial reconstruction the FDK result stays on the
 devices.  The collaborators' script asked for the FDK on the host and then
 passed it back as the initial reconstruction, which moves the volume twice.
 
+The gather was rebuilt after this measurement.  `host_gather.md` beside this
+page records where its time went, the change to `Shards.gather`, and the
+gather's speed afterwards.
+
 The two kernels differ in how they weight the detector samples, not in
 whether they are transposes.  Both are matched pairs: LEAP's default
 projector is `SF`, which `get_projector` confirmed, and its unmatched
