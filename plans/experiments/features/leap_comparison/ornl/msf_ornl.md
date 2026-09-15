@@ -158,6 +158,16 @@ pores dark and compact, close to their appearance in the standard
 reconstruction, with the grain removed.  The part's outer edge and the
 bright band near its surface look the same in all three.
 
+`msf_profiles.py` plots the three volumes along two segments of the same
+slice, chosen inside the zoom window to cross as many pores as possible:
+a horizontal segment of 5.2 mm at row 652 crossing four pores, and a
+vertical one at column 488 crossing nine.  The figure is
+`ornl_sigma002_profiles.png`.  Along both segments the fusion reaches the
+same depth in every pore as the standard reconstruction and is flat between
+them, while the postprocessing keeps a reduced copy of the standard
+reconstruction's grain between the pores and comes up short in the depth of
+a few of them.
+
 ## Outputs
 
 All under `out/msf/` in the cluster directory, none committed here:

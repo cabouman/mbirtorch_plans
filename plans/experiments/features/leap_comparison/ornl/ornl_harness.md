@@ -75,7 +75,8 @@ does.  The findings page holds the results and their interpretation.
 - `msf_ornl.py`, `msf_finish.py`, `render_early.py`: the multi-slice
   fusion reconstruction of the scan with DRUNet priors, the step that makes
   its metrics and images, and a renderer for a run in progress.  The run
-  detail is in `msf_ornl.md` beside them.
+  detail is in `msf_ornl.md` beside them.  `msf_profiles.py` plots
+  intensity profiles across pores from the saved central slices.
 
 Outputs go to `out/` as `<arm>_<tag>_results.json`, central slices in an
 `.npz`, and the full volume as float32 `.npy` when `--save-volume` is given.
