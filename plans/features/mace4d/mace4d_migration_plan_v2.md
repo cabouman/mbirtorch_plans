@@ -58,12 +58,12 @@ which about 600 form the shared module that the nn_priors program also uses.
 
 | Stage | Delivers | Status |
 |---|---|---|
-| 0 | `denoise_stack`, the two batched functions, `auto_batch_size`, and their tests | Not started |
+| 0 | `denoise_stack`, the two batched functions, `auto_batch_size`, and their tests | Done 2026-09-13, awaiting review.  The `sigma_x` estimate moved to a subsample of whole volumes on 2026-09-14 (see the note in Section 2.1).  The check against mbirjax is recorded in `plans/experiments/features/mace4d/m4d4_denoise_stack_check.md` |
 | 1 | The three measurement scripts and their records | Done |
-| 2 | `construct_time_frame_models` and the device helpers, with tests | Not started |
-| 3 | `mbirtorch/mace.py` with its tests, and the drunet scripts moved onto it | Not started |
-| 4 | `MACE4DModel` in `mbirtorch/mace4d.py` | Not started |
-| 5 | `tests/test_mace4d.py`, including the one-frame equality gate | Not started |
+| 2 | `construct_time_frame_models` and the device helpers, with tests | Done 2026-09-14, awaiting review; the pinned view slices are recorded in `plans/experiments/features/mace4d/m4d5_time_frames_check.md` |
+| 3 | `mbirtorch/mace.py` with its tests, and the drunet scripts moved onto it | Done 2026-09-14, awaiting review; the panel review and the gate result are recorded in `plans/features/mace4d/stage3_panel_review.md` |
+| 4 | `MACE4DModel` in `mbirtorch/mace4d.py` | Done 2026-09-14, awaiting review; the filter utilities moved into `mace4d.py`; the check against mbirjax is recorded in `plans/experiments/features/mace4d/m4d7_mace4d_check.md` |
+| 5 | `tests/test_mace4d.py`, including the one-frame equality gate | Done 2026-09-15, awaiting review; the gate passes at 0.45 percent after 40 iterations against a 200-iteration reference on a full-rotation frame |
 | 6 | The documentation pages and the lazy export | Not started |
 | 7 | `save_volume_as_gif` and the demo, run on the phantom dataset | Not started |
 | 8 | The H100 measurement and its record | Not started |
@@ -136,10 +136,29 @@ denoiser's device.  `init_stack` is an optional initial image per volume
 and defaults to the input.  `sigma_noise` follows `denoise`: `None`
 estimates it from the stack merged to 3D, `stack.reshape(-1, d1, d2)`, and
 `sigma_y` is kept equal to it.  When `auto_regularize_flag` is set, the
-regularization parameters are set once from the merged stack through the
-same row-subsampled path `denoise` uses.  That path subsamples the rows of
-whatever image it is given, so the merged stack gives statistics over every
-volume.  The mbirjax workaround is therefore not needed.
+regularization parameters are set once by
+`QGGMRFDenoiser.auto_set_regularization_params_from_stack`.  It chooses
+about 20 whole volumes, evenly spaced, by the rule `subsample_views` applies
+to views: every volume when the stack holds at most 39, and every
+`P // 20`-th volume otherwise.  Only the chosen volumes cross to the host.
+They are merged into one 3D array and the estimator runs on it with no
+further subsampling, so the neighbor differences along the frame axis are
+between adjacent frames.  The method floors `sigma_x` at 1e-6, because a
+stack dominated by background gives a `sigma_x` near zero and the sweep then
+returns NaN.
+
+Note, 2026-09-14.  This paragraph first said that the parameters come from
+the row-subsampled path `denoise` uses, applied to the merged stack.  That
+path keeps about 20 rows of the merged array `(P * d0, d1, d2)`, so two rows
+adjacent in the subsample lie `row_step` frames apart in the stack, and past
+`row_step >= d0` they lie in different volumes.  The row-neighbor difference
+in the estimator then grows with `P * d0` instead of measuring adjacent
+frames.  The m4d4 record,
+`plans/experiments/features/mace4d/m4d4_denoise_stack_check.md`, measured
+that path at 1.64 to 2.21 times the whole-stack `sigma_x` on three test
+stacks, moving the denoised result by 4.6 to 7.9 percent, and measured the
+volume subsample restoring the whole-stack value for stacks of at most 39
+volumes.  The method above replaced the row subsample on 2026-09-14.
 
 One pixel partition is drawn from `granularity[partition_sequence[0]]`
 over `(d0, d1)`, placed on the device, and used by every volume.  It comes
@@ -422,6 +441,10 @@ count.
 | Plus the prox stack, kept when the filter is on or the prox warm start is on (the default) | 8 |
 | Plus the denoiser warm start on all three orientations | 11 |
 
+*Note, 2026-09-15.*  The counts hold when `recon` reads or computes the
+initial image.  When the caller supplies it, the data-fit agent copies it
+rather than write into the caller's array, so each row is one array higher.
+
 At thirty frames of a 512-cubed volume each array is 16 GB, so the default
 run of that size needs about 130 GB of host memory, and the same run with
 the denoiser warm start needs about 180 GB.  On gautschi, host memory comes
@@ -486,7 +509,9 @@ reconstruction of its own.  `mace_prior_weight` is validated when it is set.
 Three fixed values are kept from mbirjax and stated in the code: 15
 iterations for the initialization reconstruction, 15 iterations and a 0.2
 percent threshold for each denoiser sweep, and a floor of 1e-6 on the
-estimated `sigma_x`.  The subset count of each hyperplane denoiser is
+estimated `sigma_x`, which `auto_set_regularization_params_from_stack`
+applies, so `MACE4DModel` applies no floor of its own.  The subset count of
+each hyperplane denoiser is
 `max(1, min(granularity[0], num_pixels // 64))` with `num_pixels = T * d1`,
 because a subset with fewer than about 64 pixels makes the line search
 compute zero over zero on flat regions.  The hyperplane agent sets this as
@@ -505,7 +530,11 @@ the denoiser's `granularity`.
   `xbar` differs from mbirjax's.
 - `task_log.csv` gains a `part` field, the batch index of a denoise task,
   blank for a prox task, because a denoise orientation is now several
-  tasks.
+  tasks.  Its `device` column is named `worker`, since it holds the index of
+  the worker thread and a pool may hold two workers on one device (note,
+  2026-09-15).
+- `set_params` returns nothing.  The base class returns nothing either, so
+  the `-> bool` of Section 3.1 was never carried (note, 2026-09-15).
 - `set_device_pool('cpu')` gives one device.
 - The filter is a matrix.  Its values match the scipy filter to float32
   rounding.
@@ -642,10 +671,12 @@ passed to the agents at construction, and the timing log gains the mean
 denoiser iteration count per MACE iteration.
 
 The qGGMRF configuration for an orientation runs once per `recon`: permute
-the initial image, merge it to 3D, set `sigma_noise` to the global sigma,
-call `auto_set_regularization_params` on the row subsample, floor
-`sigma_x`, set the subset count, and set `auto_regularize_flag=False`.  The
-resulting parameters go into the `make_stack_denoiser` closure, which
+the initial image so that the hyperplane index comes first, set
+`sigma_noise` to the global sigma, call
+`auto_set_regularization_params_from_stack` on the permuted stack, which
+chooses the volumes, merges them, and floors `sigma_x`, then set the subset
+count and set `auto_regularize_flag=False`.  No separate floor is applied.
+The resulting parameters go into the `make_stack_denoiser` closure, which
 creates a pinned `QGGMRFDenoiser` per device.  The frame-to-device
 assignment is round robin over the pool.
 
@@ -756,16 +787,19 @@ retire_jax plan.
 |---|---|---|---|
 | 0 | `denoise_stack` against mbirjax's batched hyperplane denoiser on the same seeded stack, with the same sigma, the same `sigma_x` floor, and the same subset floor | Relative maximum difference below 1e-3, and likely far below it, as the denoiser golden showed | Required for the exit of Stage 0 |
 | 2 | The view slices of `construct_time_frame_models` for three or four parameter sets, one of them spanning more than one rotation, computed once in mbirjax and pinned as literals in the test | Exact, because the slices are integers | Required; the literals carry no attribution |
-| 4 | One end-to-end run on a small problem, configured to mimic mbirjax: `prox_partition_advance=0.0`, prox warm start on, denoiser warm start off, the same seed, and the same `init_recon` given to both runs | Relative maximum difference between 1e-3 and 1e-2, the level of the partition redraw and the `sigma_x` sampling; both `sigma_x` values are recorded beside the result | Advisory; a larger disagreement means stop and diagnose one agent at a time |
+| 4 | One end-to-end run on a small problem, configured to mimic mbirjax: `prox_partition_advance=0.0`, prox warm start on, denoiser warm start off, the same seed, and the same `init_recon` given to both runs | Relative maximum difference between 1e-3 and 1e-2, the level of the partition redraw; the `sigma_x` values agree for an orientation with at most 39 hyperplanes and differ by a sampling error above that; both `sigma_x` values are recorded beside the result | Advisory; a larger disagreement means stop and diagnose one agent at a time |
 
-Two design differences bound the Stage 4 agreement.  mbirjax redraws the
-pixel partitions on every `prox_map` call and lets each call stop at
-`prox_stop_threshold`, while the port fixes the partitions at iteration 0
-and runs a fixed count.  And mbirjax computes the denoiser's `sigma_x` on
-the whole merged stack, while the port computes it on the row subsample
-that `auto_set_regularization_params` takes.  A `partition_advance` of
+One design difference and one sampling difference bound the Stage 4
+agreement.  mbirjax redraws the pixel partitions on every `prox_map` call
+and lets each call stop at `prox_stop_threshold`, while the port fixes the
+partitions at iteration 0 and runs a fixed count.  A `partition_advance` of
 zero removes the schedule difference: every call then runs the same three
-sequence entries mbirjax ran.
+sequence entries mbirjax ran.  mbirjax computes the denoiser's `sigma_x` on
+the whole merged stack, and the port computes it on a subsample of about 20
+whole volumes.  The two values are therefore the same for an orientation
+with at most 39 hyperplanes and differ by a sampling error above that.  The
+m4d4 record measured that error at 0.3 percent on one stack of 60 volumes,
+where it moved the denoised result by 2.8e-4.
 
 ## 6. Risks
 
