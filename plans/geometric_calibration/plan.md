@@ -1,5 +1,10 @@
 # Geometric calibration, plan of record v2
 
+Status: PAUSED
+Updated: 2026-09-18
+Code: mbirtorch prerelease d90fd69 holds Increments 1 and 2 and the docs, demo, and Zeiss argument of v1's Increment 6 (550b5d3, 4781600, 590fea9, d7dbd85); the estimator of sub-increments 1.2 to 1.5 is not built
+Next step: Decide how to estimate the detector rotation robustly. The conjugate-view band estimator is not robust on real scans, and the reconstruction-scored estimator was measured in sub-increment 1.1 but not built. Then resume at sub-increment 1.2 or revise the plan.
+
 Date: 2026-09-05.  Status: APPROVED by Greg on 2026-09-05.  A panel of three reviewed the
 first draft, and this version applies their findings.  This plan supersedes
 `closed/geometric_calibration_plan.md`, called v1 below.  The estimator this plan builds first

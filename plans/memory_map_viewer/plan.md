@@ -1,4 +1,9 @@
-## Memory-map large volumes in the viewers
+# Memory-map large volumes in the viewers
+
+Status: PROPOSED
+Updated: 2026-09-18
+Code: nothing built
+Next step: Decide whether to build it.
 
 In the mbirtorch slice_viewer, viewing large arrays 
 loads them fully into memory.    

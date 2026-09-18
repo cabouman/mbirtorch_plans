@@ -1,5 +1,10 @@
 # Beam-hardening parameters from reconstruction quality: a viability brainstorm
 
+Status: PROPOSED
+Updated: 2026-09-18
+Code: nothing built; mbirtorch has BH_correction and recon_plastic_metal but no image-scored estimator
+Next step: Greg rules on the four decisions in this survey (which deliverable, whether the plastic's own hardening enters the model, polynomial or physical family, whether the NSI export is vendor-corrected), then Step 0.
+
 Date: 2026-09-05.  Status: brainstorm, revised once after a three-reviewer panel and once after
 Greg's request for a reorganization, not yet ruled on by Greg.  This page synthesizes six agent
 reports written in this session.  All six are in this directory: `brainstorm_score.md`,

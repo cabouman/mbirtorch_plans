@@ -1,7 +1,12 @@
 # MACE4D in mbirtorch: migration plan, version 2
 
-This plan replaces the plan of 2026-09-11, which is kept beside it as
-`mace4d_migration_plan.md`.  The first plan describes what the mbirjax
+Status: ACTIVE
+Updated: 2026-09-18
+Code: mbirtorch prerelease d90fd69 holds Stages 0 to 6 (79d5321 through 140e518) and the GIF writer of Stage 7 (051e3d4)
+Next step: Land decisions 13 and 17 of decisions.md (one pixel partition per run; reproducible seeded runs on several workers), write the demo, and record the H100 measurement of Stage 8.
+
+This plan replaces the plan of 2026-09-11, `mace4d_migration_plan.md`, which was
+deleted from the tree on 2026-09-18 and remains in the git history.  The first plan describes what the mbirjax
 code computes and which mbirtorch pieces it can use.  Those parts are still
 correct, and this plan refers to them rather than repeating them.  What
 changed is the design of the port.  The reasons and the measurements behind

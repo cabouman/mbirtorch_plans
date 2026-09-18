@@ -1,5 +1,10 @@
 # MACE with a neural-network denoiser prior — proof-of-concept plan
 
+Status: ACTIVE
+Updated: 2026-09-18
+Code: mbirtorch prerelease d90fd69; the MACE loop is in mbirtorch/mace.py (42e0991), and the drunet scripts in the mbirtorch repository import it
+Next step: Move the remaining proof-of-concept functionality from experiments/drunet in the mbirtorch repository into the package, then the follow-ups of the findings page: the sigma_prox and rho sweeps and the divided-device exchange at 3D.
+
 Status: ACTIVE 2026-08-27.  Code lives in the `mbirtorch` repo at
 `experiments/drunet/` (starting point: `cone_beam_2d.py`, the 2D noisy cone-beam
 problem).  Background survey: `surveys/denoisers/survey.md` beside this plan.

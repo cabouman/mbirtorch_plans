@@ -1,5 +1,10 @@
 # Geometry conventions of the mbirtorch models
 
+Status: ACTIVE
+Updated: 2026-09-18
+Code: mbirtorch prerelease d90fd69; the conventions are checked numerically for six geometries
+Next step: Correct two stale passages: the docstring criticisms that d9882d2 fixed, and the detector-face row order, where the "Display convention" section matches the code.
+
 Date: 2026-09-09.  Status: confirmed numerically for six geometries.
 
 This page states where the source, the detector, the volume, the rotation axis,

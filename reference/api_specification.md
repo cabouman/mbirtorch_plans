@@ -1,5 +1,10 @@
 # API OVERVIEW
 
+Status: ACTIVE
+Updated: 2026-09-18
+Code: describes mbirtorch prerelease as of 2026-09-12, before the MACE and calibration additions
+Next step: Add the surface that landed after 2026-09-12: the MACE family and MACE4DModel, the geometry calibration functions, denoise_stack, save_volume_as_gif, and the viewer classes.
+
 ## Design philosophy
 
 The API is designed so that a user's script does not depend on the number of GPUs.

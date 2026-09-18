@@ -1,5 +1,10 @@
 # Geometry viewer, plan of record
 
+Status: COMPLETE
+Updated: 2026-09-18
+Code: mbirtorch prerelease d90fd69 holds Increments 1 to 7 (d9882d2, cde72a0, e662d27, 41fca86, all 2026-09-12)
+Next step: Correct the stale status lines and the pre-move module paths in this plan and in the gv8 and gv9 records, then move the folder to archive/.
+
 Date: 2026-09-09.  Status: APPROVED direction (Greg, 2026-09-09).  Increment 1 is
 done (2026-09-09): `reference/geometry_conventions.md` records the confirmed conventions, and
 `gv1_conventions_probe.py` passed its gate for all six geometries with a largest

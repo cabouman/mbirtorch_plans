@@ -1,5 +1,10 @@
 # Retiring mbirjax as the reference, plan of record
 
+Status: APPROVED
+Updated: 2026-09-18
+Code: mbirtorch prerelease d90fd69; nothing built
+Next step: Take the four decisions at the end of this plan, then write the specification for Increment 1, the baseline script and the converted tests.
+
 Date: 2026-09-12, revised 2026-09-13.  Status: APPROVED direction (Greg, 2026-09-13).
 The four decisions in the last section are open, and nothing has been built.  Decision
 recorded on 2026-09-12: mbirjax is no longer supported, so neither backward

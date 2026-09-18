@@ -1,5 +1,10 @@
 # Device memory in the VCD loop, in tiers: plan
 
+Status: ACTIVE
+Updated: 2026-09-18
+Code: mbirtorch prerelease d90fd69 holds Increments 1 and 2 and the pool statistics of Increment 3 (a225319, 3101e93, 23c4a43, merged 2026-09-18)
+Next step: Finish Increment 3 (the allocator setting in the docs, the preflight hint line, the opt-in call, the run-log line), then Increment 4, the automatic split mode.
+
 Status: DRAFT, written 2026-09-14 and revised the same day after a
 three-reviewer panel (accuracy, reasoning, style).  Greg took all seven decisions on 2026-09-14.  This plan supersedes
 the host-resident plan at

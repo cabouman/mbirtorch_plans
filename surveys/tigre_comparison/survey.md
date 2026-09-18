@@ -1,5 +1,10 @@
 # TIGRE vs mbirtorch: features and performance
 
+Status: PAUSED
+Updated: 2026-09-18
+Code: TIGRE at 51ae1a02 and mbirtorch 0.0.2 at 26bd0ea for the comparison; no timing was run
+Next step: Decide whether to run the head-to-head timing; the harness this survey cites was never committed. Items 4, 7, and 9 of its gap list (short-scan weighting, a noise simulator, a per-iteration hook) are still absent from mbirtorch.
+
 Date: 2026-09-03. Versions compared: TIGRE at commit `51ae1a02` (master, 2026-09-02, 77 commits past tag v3.1.3), and mbirtorch 0.0.2 at commit `26bd0ea`.
 
 ## Summary

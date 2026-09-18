@@ -1,5 +1,10 @@
 # LEAP vs mbirtorch: features and performance, version 2
 
+Status: ACTIVE
+Updated: 2026-09-18
+Code: mbirtorch efeca90 (greg_dev, 2026-09-14) and LEAP v1.26 at 0c8846f4 for the measurements
+Next step: The follow-ups in the survey: a fixed-quality comparison against the ORNL OGM2 loop, the fusion prototype on the ORNL scan, an adjoint check on a texture-free LEAP build, a real scan with a known geometry error, and more than one noise level.
+
 Date: 2026-09-14.  Versions compared: LEAP v1.26 at commit `0c8846f4`, mbirtorch 0.0.2 at commit
 `efeca90` on branch `greg_dev`, the 4D reconstruction work at commit `8304b25` on branch
 `mace_4d_dev`, and the ORNL `leapMBIR` scripts at commit `044f38a`.

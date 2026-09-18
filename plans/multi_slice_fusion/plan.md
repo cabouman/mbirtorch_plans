@@ -1,5 +1,10 @@
 # Plan for multi-slice fusion with a network denoiser prior
 
+Status: ACTIVE
+Updated: 2026-09-18
+Code: mbirtorch prerelease d90fd69 holds the fusion prototype (27c3cf5, 26bd0ea); the ORNL run script carries its own MACE loop
+Next step: Move the fusion onto mbirtorch.mace as a library function, and decide the stronger prior (0.03 or 0.04) for the unsettled ORNL run.
+
 This plan realizes the first queued follow-up of `plans/mace_poc/findings/mace_poc_findings.md`: move
 the validated MACE loop from the 2D proof of concept to a 3D problem, with
 three orientation denoiser agents fused with the forward model — the

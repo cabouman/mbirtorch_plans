@@ -1,5 +1,10 @@
 # Overview of denoisers for PnP/MACE with CT
 
+Status: PAUSED
+Updated: 2026-09-18
+Code: none
+Next step: Decide whether steps 3 and 4 of this survey (the FastDVDnet and BM4D comparison; structN2V and ZS-N2N) are still wanted.
+
 The landscape sorts into a few clear buckets, and one option stands out for a proof of concept. 
 Short version: **use DRUNet (grayscale, noise-level-conditioned) from the `deepinv` package, 
 applied slice-wise, then fuse three orientations** — it's the strongest widely-used plug-and-play 
