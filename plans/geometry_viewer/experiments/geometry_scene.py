@@ -49,7 +49,7 @@ source and the detector at a distance derived from the volume's size; see
 ``drawing_distance``.
 
 The conventions this module implements are recorded, and confirmed against the
-projector, in ``geometry_conventions.md`` of the geometry viewer plan directory.
+projector, in ``reference/geometry_conventions.md`` of the geometry viewer plan directory.
 """
 
 from dataclasses import dataclass, field

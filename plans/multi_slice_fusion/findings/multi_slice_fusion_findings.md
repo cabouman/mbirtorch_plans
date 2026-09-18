@@ -3,7 +3,7 @@
 2026-08-27.  Code: `experiments/drunet/` in the mbirtorch repo.  Run
 records: `experiments/drunet/output/qggmrf_gate_3d.npz`,
 `fusion_initial.npz`, and `fusion_sweep.npz`.  Plan:
-`multi_slice_fusion.md` beside this file.
+`plans/multi_slice_fusion/plan.md` beside this file.
 
 ## What was built
 

@@ -15,7 +15,7 @@ the drawing shows up as a marker in the wrong corner.
 There are no command-line arguments.  The parameters are the constants below.
 
 Run:
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     MPLBACKEND=Agg PYTHONPATH=<mbirtorch clone> python gv3_render_figures.py
 
 The run takes a few seconds and prints the path of each figure it wrote.

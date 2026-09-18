@@ -1,7 +1,7 @@
 # Geometry sketches in other packages
 
 Date: 2026-09-09.  Purpose: record what TIGRE, LEAP, and CIL draw, so that the
-figure design of Increment 3 in `geometry_viewer_plan.md` can borrow from them
+figure design of Increment 3 in `plans/geometry_viewer/plan.md` can borrow from them
 deliberately.  Sources were read at the commits the comparison studies cite.
 
 ## What each package draws

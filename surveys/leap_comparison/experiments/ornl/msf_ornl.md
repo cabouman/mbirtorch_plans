@@ -2,7 +2,7 @@
 
 Companion to `msf_ornl.py`, `msf_finish.py`, and `render_early.py` in this
 directory, and to the addendum for this run in
-`plans/nn_priors/multi_slice_fusion.md`.  This file holds the run detail and
+`plans/multi_slice_fusion/plan.md`.  This file holds the run detail and
 the numbers.  The addendum holds their interpretation.
 
 ## What runs
@@ -12,7 +12,7 @@ the forward agent, and three DRUNet denoiser agents, one per slice
 orientation, are the prior, at consensus weights (1/2, 1/6, 1/6, 1/6).  The
 construction and the algorithm choices follow the Lilly script
 `mbirtorch_applications/nsi/msf_recon.py` and the findings in
-`plans/nn_priors/multi_slice_fusion_findings.md`.
+`plans/multi_slice_fusion/findings/multi_slice_fusion_findings.md`.
 
 The difference from the Lilly run is scale.  The volume is (1360, 1360,
 1296) float32, 8.9 GiB, so the consensus state lives in host memory: four

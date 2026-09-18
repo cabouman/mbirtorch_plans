@@ -5,7 +5,7 @@ This plan replaces the plan of 2026-09-11, which is kept beside it as
 code computes and which mbirtorch pieces it can use.  Those parts are still
 correct, and this plan refers to them rather than repeating them.  What
 changed is the design of the port.  The reasons and the measurements behind
-the changes are in `mace4d_plan_evaluation.md`, also beside this plan, and
+the changes are in `plans/mace4d/findings/mace4d_plan_evaluation.md`, also beside this plan, and
 the decisions were taken at the review of 2026-09-13.  This plan was written
 the same day.
 
@@ -13,7 +13,7 @@ The mbirjax sources are `mbirjax/mbirjax/mace4d.py` (1040 lines),
 `mbirjax/tests/test_mace4d.py` (305 lines), and
 `mbirjax/docs/source/usr_mace4d.rst` (61 lines).  The MACE loop and agents
 already written for mbirtorch are `mbirtorch/experiments/drunet/mace.py` and
-`agents.py`, with their records in `mbirtorch_plans/plans/nn_priors/`.
+`agents.py`, with their records in `mbirtorch_plans/plans/mace_poc/` and `mbirtorch_plans/plans/multi_slice_fusion/`.
 
 ## Summary
 
@@ -58,11 +58,11 @@ which about 600 form the shared module that the nn_priors program also uses.
 
 | Stage | Delivers | Status |
 |---|---|---|
-| 0 | `denoise_stack`, the two batched functions, `auto_batch_size`, and their tests | Done 2026-09-13, awaiting review.  The `sigma_x` estimate moved to a subsample of whole volumes on 2026-09-14 (see the note in Section 2.1).  The check against mbirjax is recorded in `plans/experiments/features/mace4d/m4d4_denoise_stack_check.md` |
+| 0 | `denoise_stack`, the two batched functions, `auto_batch_size`, and their tests | Done 2026-09-13, awaiting review.  The `sigma_x` estimate moved to a subsample of whole volumes on 2026-09-14 (see the note in Section 2.1).  The check against mbirjax is recorded in `plans/mace4d/experiments/m4d4_denoise_stack_check.md` |
 | 1 | The three measurement scripts and their records | Done |
-| 2 | `construct_time_frame_models` and the device helpers, with tests | Done 2026-09-14, awaiting review; the pinned view slices are recorded in `plans/experiments/features/mace4d/m4d5_time_frames_check.md` |
-| 3 | `mbirtorch/mace.py` with its tests, and the drunet scripts moved onto it | Done 2026-09-14, awaiting review; the panel review and the gate result are recorded in `plans/features/mace4d/stage3_panel_review.md` |
-| 4 | `MACE4DModel` in `mbirtorch/mace4d.py` | Done 2026-09-14, awaiting review; the filter utilities moved into `mace4d.py`; the check against mbirjax is recorded in `plans/experiments/features/mace4d/m4d7_mace4d_check.md` |
+| 2 | `construct_time_frame_models` and the device helpers, with tests | Done 2026-09-14, awaiting review; the pinned view slices are recorded in `plans/mace4d/experiments/m4d5_time_frames_check.md` |
+| 3 | `mbirtorch/mace.py` with its tests, and the drunet scripts moved onto it | Done 2026-09-14, awaiting review; the panel review and the gate result are recorded in `plans/mace4d/stage3_panel_review.md` |
+| 4 | `MACE4DModel` in `mbirtorch/mace4d.py` | Done 2026-09-14, awaiting review; the filter utilities moved into `mace4d.py`; the check against mbirjax is recorded in `plans/mace4d/experiments/m4d7_mace4d_check.md` |
 | 5 | `tests/test_mace4d.py`, including the one-frame equality gate | Done 2026-09-15, awaiting review; the gate passes at 0.45 percent after 40 iterations against a 200-iteration reference on a full-rotation frame |
 | 6 | The documentation pages and the lazy export | Not started |
 | 7 | `save_volume_as_gif` and the demo, run on the phantom dataset | Not started |
@@ -154,7 +154,7 @@ adjacent in the subsample lie `row_step` frames apart in the stack, and past
 `row_step >= d0` they lie in different volumes.  The row-neighbor difference
 in the estimator then grows with `P * d0` instead of measuring adjacent
 frames.  The m4d4 record,
-`plans/experiments/features/mace4d/m4d4_denoise_stack_check.md`, measured
+`plans/mace4d/experiments/m4d4_denoise_stack_check.md`, measured
 that path at 1.64 to 2.21 times the whole-stack `sigma_x` on three test
 stacks, moving the denoised result by 4.6 to 7.9 percent, and measured the
 volume subsample restoring the whole-stack value for stacks of at most 39
@@ -177,7 +177,7 @@ and slice axes, so the step size `alpha` has shape `(B,)`.  The boolean
 tensor `active` zeroes the step of an inactive volume.  Both functions go
 through `maybe_compile`.  `active` is a tensor argument, so changing it
 triggers no recompile.  The prototype of both functions is in
-`plans/experiments/features/mace4d/m4d1_batched_denoiser_options.py`,
+`plans/mace4d/experiments/m4d1_batched_denoiser_options.py`,
 where they equal the package values bit for bit.
 
 The stopping test is per volume.  After each iteration the loop computes
@@ -583,7 +583,7 @@ Section 5 is recorded within its expected agreement.
 ### Stage 1: measurements
 
 Done.  The three scripts and their records are in
-`plans/experiments/features/mace4d/`, and Section 5 of the evaluation
+`plans/mace4d/experiments/`, and Section 5 of the evaluation
 summarizes them.
 
 ### Stage 2: the utilities
@@ -739,7 +739,7 @@ the three log files, and the GIFs.
 ### Stage 8: the H100 measurement
 
 Files: a script and an sbatch file under
-`plans/experiments/features/mace4d/`, and a companion `.md`.
+`plans/mace4d/experiments/`, and a companion `.md`.
 
 After Stage 0, run one job on one H100 with synthetic data at two sizes:
 twelve frames of a 256-cubed volume and twenty-four frames of a 512-cubed
@@ -779,7 +779,7 @@ wrong.  Three checks are worth their cost.  They run once, in a separate
 CPU environment made with `pip install mbirjax` and used for nothing else.
 Generator scripts run there and write small `.npz` reference arrays, and
 comparison scripts run in the torch environment.  Both kinds of script and
-their companion `.md` records live in `plans/experiments/features/mace4d/`.
+their companion `.md` records live in `plans/mace4d/experiments/`.
 Nothing from them enters the mbirtorch repository, in keeping with the
 retire_jax plan.
 

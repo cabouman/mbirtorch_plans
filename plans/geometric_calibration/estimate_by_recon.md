@@ -4,7 +4,7 @@ Date: 2026-09-05.  Status: the design behind `estimate_by_recon_plan.md`, which 
 review shaped; this outline itself was not separately panel-reviewed.  Greg chose the function
 name `estimate_geometry_from_recon` on 2026-09-05, and this file keeps its earlier short name.
 Every number cited here was read in this session from the record named beside it, in this
-directory or in `plans/experiments/features/geometric_calibration/`; records of the closed
+directory or in `plans/geometric_calibration/experiments/`; records of the closed
 campaign now live under `closed/` in each of those two directories.
 
 `estimate_geometry_from_recon` estimates scan geometry by reconstructing slices at candidate values and

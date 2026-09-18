@@ -1,4 +1,4 @@
-# plans/experiments/sharding/parallel_performance — file index
+# archive/sharding/experiments/parallel_performance — file index
 
 - `device_put_check.py` — standalone (no mbirjax) probe for the multi-GPU
   `device_put` corruption bug; tests 4 cross-device ops. Verified 2026-05-29:

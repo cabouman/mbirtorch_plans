@@ -1,7 +1,7 @@
 # Reproducing the ORNL comparison of LEAP and mbirtorch on the Inconel scan
 
 Date: 2026-09-14.  Status: MEASURED.  Every number below is read from the
-results files in `plans/experiments/features/leap_comparison/ornl/results/`
+results files in `surveys/leap_comparison/experiments/ornl/results/`
 or from the two ORNL PDFs, which are Greg's files and are kept outside
 this repository.
 
@@ -87,7 +87,7 @@ loop's own timer at 98 to 106 s per iteration.
 The harness runs the collaborators' loader and their LEAP loop unchanged, as
 copies of their `utils` package, with drivers of our own around them.  The
 drivers and a companion file with the run detail live in
-`plans/experiments/features/leap_comparison/ornl/`.
+`surveys/leap_comparison/experiments/ornl/`.
 
 - `ornl_data.py` calls their parameter reader once, caches the weights and
   parameters, and reads the corrected tiff.
@@ -225,7 +225,7 @@ Inside `recon` with no initial reconstruction the FDK result stays on the
 devices.  The collaborators' script asked for the FDK on the host and then
 passed it back as the initial reconstruction, which moves the volume twice.
 
-The gather was rebuilt after this measurement.  `host_gather.md` beside this
+The gather was rebuilt after this measurement.  `surveys/leap_comparison/findings/host_gather.md` beside this
 page records where its time went, the change to `Shards.gather`, and the
 gather's speed afterwards.
 
@@ -311,7 +311,7 @@ number of GPUs, a job that LEAP's memory estimate says fits is not split
 further.
 
 Why the earlier head-to-head saw the opposite.  The record in
-`plans/experiments/features/leap_comparison/results/leap_benchmark_results.md`
+`surveys/leap_comparison/experiments/results/leap_benchmark_results.md`
 measured LEAP on one H100, where LEAP does not chunk when the whole job
 fits.  Each call there uploaded the whole sinogram and the whole volume,
 kept a texture copy, and LEAP's own RWLS held its working arrays on the
@@ -343,7 +343,7 @@ time cost, for example through `PYTORCH_CUDA_ALLOC_CONF`, is a measurement
 this page does not make.
 
 The host-resident reconstruction plan in
-`plans/features/device_memory_tiers/host_resident_layout_plan.md` keeps the
+`plans/device_memory_tiers/host_resident_layout_plan.md` keeps the
 reconstruction-shaped arrays in host memory and moves rows per subset.  For
 this scan those arrays are 4.5 GiB of the 15.3 GiB persistent set per card
 on four devices, because the sinogram is 2.4 times the volume.  The larger
@@ -364,7 +364,7 @@ host memory to run at all.
   The one-page note is a separate micro-benchmark on volumes of at most 96
   voxels per side with mbirtorch's compiler and Triton disabled.  It is not
   the measurement reproduced here.
-- Harness, run detail, and records: `plans/experiments/features/leap_comparison/ornl/`
+- Harness, run detail, and records: `surveys/leap_comparison/experiments/ornl/`
   with `ornl_harness.md` and `results/` holding the results files, the job
   logs, and the slice figures.  The repository's ignore rules exclude
   `.json`, `.log`, `.png`, and `.sbatch` files, so those stay in the working

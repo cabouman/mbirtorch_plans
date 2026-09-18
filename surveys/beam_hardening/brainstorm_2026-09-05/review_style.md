@@ -1,4 +1,4 @@
-# Style review: `bh_from_recon_brainstorm.md`
+# Style review: `surveys/beam_hardening/survey.md`
 
 Reviewer: style. Checked against `mbirtorch_plans/.claude/writing_style.md` and the
 "When communicating" section of `mbirtorch_plans/.claude/claude_prompt.md`.

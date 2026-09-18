@@ -37,7 +37,7 @@ view stride is exact, because `reduce_sinogram` selects views and averages nothi
 (`mbirtorch/preprocess/geometry_calibration.py:417-419`).  The cheap reduction for a
 beam-hardening search is therefore the view stride, with `bin_factor` left at 1 on the channel axis,
 which is the fallback the geometry plan already writes for its coarse level
-(`plans/features/geometric_calibration/estimate_by_recon_plan.md`, sub-increment 1.3).
+(`plans/geometric_calibration/estimate_by_recon_plan.md`, sub-increment 1.3).
 
 **In cone beam no finite slab is self-contained.**  `build_reduced_problem` crops the detector to
 the rows `_slab_row_window` returns (`geometry_calibration.py:328-330`), and its own docstring
@@ -53,7 +53,7 @@ That ray reaches up to `z = v*(sid + r)/sdd = h*(sid + r)/(sid - r)`.  It theref
 by `h * 2*r/(sid - r)` above it.
 
 Numbers, on the geometry the existing rotation experiment used: `sid = 400` ALU, `sdd = 800` ALU,
-half fan angle 5.7 degrees (`plans/experiments/features/geometric_calibration/rotation_zero_point_synthetic.md:61-63`).
+half fan angle 5.7 degrees (`plans/geometric_calibration/experiments/rotation_zero_point_synthetic.md:61-63`).
 Then `r = 400 * sin(5.7 deg) = 400 * 0.0993 = 39.7` ALU, and `2*r/(sid - r) = 79.4/360.3 = 0.220`.
 An 8-slice slab has `h = 4` slices, so the overreach is `4 * 0.220 = 0.88` slices at each end.  At a
 15 degree half fan, `r/sid = 0.2588` and `2*r/(sid - r) = 0.5176/0.7412 = 0.698`, so the overreach is
@@ -165,7 +165,7 @@ which needs a reduced model, a reduced sinogram, and a basis stack, all built fr
 the correction already holds; the OSQP constraint machinery is dropped.  What stays: the driver,
 the correction, the alternation, the segmentation.  The risk is dimension.  Theta has 6 to 54 free
 parameters, and the geometry estimator's own record says an image score separated candidates half a
-channel apart and no closer (`plans/features/geometric_calibration/estimate_by_recon.md:33-37`).  A
+channel apart and no closer (`plans/geometric_calibration/estimate_by_recon.md:33-37`).  A
 search in six or more dimensions on such a score is a different problem from the one- and
 two-parameter searches that plan gates.
 

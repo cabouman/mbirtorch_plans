@@ -1,7 +1,7 @@
 # mg19 run record
 
 One run.  The findings and their tables are in
-`plans/torch_port/active/multigpu_findings.md` §1.20; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.20; this file holds
 the run detail.
 
 ## Run of 2026-08-17 (job 15314401)
@@ -22,7 +22,7 @@ the run detail.
 * Values legs: 4.0e-6 to 9.6e-6 against the staged references, gate
   1e-4.  Same-count composed repeats: 5.4e-7 to 8.5e-7.
 * Output rows:
-  `plans/experiments/torch_port/rows/mg19_baselines_h003_20260817_082830.jsonl`.
+  `archive/torch_port/experiments/rows/mg19_baselines_h003_20260817_082830.jsonl`.
 
 Notes a later reader may want:
 

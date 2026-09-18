@@ -11,7 +11,7 @@ Units.  An offset is given in channels, which are 1 mm at 512 channels and 0.5 m
 rotation is given in degrees, and its edge displacement is the distance it moves the edge pixel
 of the detector, in pixels.  The estimator under test is `estimate_det_channel_offset` and
 `estimate_det_rotation` in `mbirtorch/preprocess/geometry_calibration.py`, called the module
-below.  The LEAP comparison is the study recorded in `plans/features/leap_comparison/`.
+below.  The LEAP comparison is the study recorded in `surveys/leap_comparison/`.
 
 ## The answers
 

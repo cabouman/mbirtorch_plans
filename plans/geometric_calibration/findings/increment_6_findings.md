@@ -3,7 +3,7 @@
 Date: 2026-09-04.  Status: implemented, awaiting Greg's review.  The code is on the
 `geometric_calibration` branch of mbirtorch, on top of the Increment 2 commit `4781600`.  It is
 staged and not committed.  The plan of record is `geometric_calibration_plan.md` in this
-directory.  On 2026-09-04 Greg read `increment_3_evaluation.md` in this directory and chose two of
+directory.  On 2026-09-04 Greg read `plans/geometric_calibration/findings/increment_3_evaluation.md` in this directory and chose two of
 its options: the real-scan validation and Increment 6.  This page reports on both.  A panel of
 three reviewers read it for accuracy, reasoning, and style, and their findings were applied.
 
@@ -127,7 +127,7 @@ pass together in about 4 seconds.  The full suite was not run, because another s
 running it.
 
 The real-scan validation is four cluster jobs on gautschi, and each has a record beside its script
-in `plans/experiments/features/geometric_calibration/`.  The peaks below are the scripts' own
+in `plans/geometric_calibration/experiments/`.  The peaks below are the scripts' own
 `getrusage` peaks of host memory.  Slurm job 15925593 ran `real_scan_validation.py` in 21 minutes
 with a peak of 50 GB, and its record is `real_scan_validation.md`.  Slurm job 15927130 ran
 `real_scan_followup.py` in 35 minutes with a peak of 50 GB, and its record is
@@ -421,8 +421,8 @@ The following files are staged on the `geometric_calibration` branch of mbirtorc
 - `tests/test_reader_det_rotation.py`, new;
 - `demo/demo_10_geometry_calibration.py`, new.
 
-The following files are staged in this repository: `increment_3_evaluation.md` and this page in
-this directory, and in `plans/experiments/features/geometric_calibration/` the scripts
+The following files are staged in this repository: `plans/geometric_calibration/findings/increment_3_evaluation.md` and this page in
+this directory, and in `plans/geometric_calibration/experiments/` the scripts
 `residual_score_probe.py`, `real_scan_validation.py`, `real_scan_followup.py`,
 `real_scan_rotation_check.py`, `real_scan_rotation_recon.py`, and `real_scan_leap_tilt.py` with
 their records, and `real_scan_rotation_recon_metrics.py`, which computed the fourth record's blurred

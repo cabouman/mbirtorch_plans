@@ -1,7 +1,7 @@
 # mg64 run record
 
 Two submissions.  The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.51; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.51; this file holds
 the run detail.
 
 ## mg64, the row-bound change verified (job 15487827)

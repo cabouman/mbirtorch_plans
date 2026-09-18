@@ -2,7 +2,7 @@
 
 Two runs, one increment: B7's spike step, ruled by Greg 2026-08-18.
 The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.27; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.27; this file holds
 the run detail.
 
 ## mg29, the view-loop spike (job 15345411)

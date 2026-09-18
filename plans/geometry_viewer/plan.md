@@ -1,7 +1,7 @@
 # Geometry viewer, plan of record
 
 Date: 2026-09-09.  Status: APPROVED direction (Greg, 2026-09-09).  Increment 1 is
-done (2026-09-09): `geometry_conventions.md` records the confirmed conventions, and
+done (2026-09-09): `reference/geometry_conventions.md` records the confirmed conventions, and
 `gv1_conventions_probe.py` passed its gate for all six geometries with a largest
 error of 0.11 detector pixel.  Increment 2 is done (2026-09-09): `geometry_scene.py`
 and its 67 tests pass, and `gv2_scene_findings.md` records the surface and the drawing
@@ -19,7 +19,7 @@ record.  Greg's first use (2026-09-09
 and 2026-09-10) produced four changes: a display fix for backends outside the blit
 path, labels on the source and detector, an angle-0 reference, and the display
 convention that negative z is the top of every drawing, recorded in
-`geometry_conventions.md`.  `gv_show_example.py` opens the viewer on any of the six
+`reference/geometry_conventions.md`.  `gv_show_example.py` opens the viewer on any of the six
 geometries.
 Decisions recorded on 2026-09-09: the first frontend is matplotlib; the primary
 uses are checking a real scan's geometry before reconstruction and supporting the
@@ -29,10 +29,10 @@ the volume) come after the geometry itself works.
 
 Citations.  mbirtorch file paths are given from the package directory, so
 `mbirtorch/cone_beam.py` means `mbirtorch/mbirtorch/cone_beam.py` in the sibling
-repository.  Experiment scripts live in `plans/experiments/geometry_viewer/` and are
+repository.  Experiment scripts live in `plans/geometry_viewer/experiments/` and are
 cited by bare name.  The comparison studies cited are
-`plans/features/tigre comparison/TIGRE_comparison.md` and
-`plans/features/leap_comparison/leap_comparison.md`.
+`surveys/tigre_comparison/survey.md` and
+`surveys/leap_comparison/leap_comparison.md`.
 
 ## Purpose
 
@@ -93,7 +93,7 @@ so that they always agree.
 - **Index markers.**  Detector pixel (row 0, channel 0) and voxel (0, 0, 0) are
   marked in every panel where they appear.  A mirrored channel order or a wrong
   offset sign is visible from these two markers alone.  CIL's sketch does this,
-  and `reference_sketches.md` in this directory records what the three reference
+  and `plans/geometry_viewer/findings/reference_sketches.md` in this directory records what the three reference
   packages draw.
 - **Top view (the xy plane).**  The fan angle, the lateral field of view at the
   rotation axis, and the volume's footprint.  A lateral offset of the detector is
@@ -145,10 +145,10 @@ pyplot on first construction and never at import time.  The scene reads paramete
 through `get_params`, so it depends on the parameter names and not on the model
 classes.
 
-The prototype lives in `plans/experiments/geometry_viewer/` in this repository, and
+The prototype lives in `plans/geometry_viewer/experiments/` in this repository, and
 the port moves two files into mbirtorch.  The slice viewer was built the same way,
 as a package-independent file with a thin wrapper.  The port adds the public entry
-point, a demo, a docs page, and a row in `plans/API_specification.md`.
+point, a demo, a docs page, and a row in `reference/api_specification.md`.
 
 ## Increments
 
@@ -157,7 +157,7 @@ pass before the next increment starts.  Increments 1 to 3 run in order.  Increme
 follows 3.  Increment 5 may start once 3 is done.  Increment 6 is a separate
 session in the mbirtorch repository.
 
-**Increment 1.  Conventions record.**  The deliverable is `geometry_conventions.md`
+**Increment 1.  Conventions record.**  The deliverable is `reference/geometry_conventions.md`
 in this directory, one section per geometry, stating where the source, the detector,
 the rotation axis, and the offsets sit in the object frame, and which way the view
 angle turns.  The probe script `gv1_conventions_probe.py` confirms each statement.
@@ -266,7 +266,7 @@ Greg asked for the viewer on huggingface.co, as an entry in Charlie Bouman's Thi
 Repository, whose builder's guide sets the rules.  The viewer needs neither torch nor
 mbirtorch, because the scene is built from a parameter dictionary and the figure is
 matplotlib, so it can run on a Hugging Face Space.  Two packagings are built from one
-Gradio app in `plans/experiments/geometry_viewer/web/`.
+Gradio app in `plans/geometry_viewer/experiments/web/`.
 
 The primary packaging is a Gradio-Lite static page, `web/lite/index.html`, which
 runs the Python in the visitor's browser through Pyodide.  It is the route the guide
@@ -386,7 +386,7 @@ with the shim to paste, is `gradio_lite_space_guide.md` in this directory.
 - **Long helical travel** makes the side view tall and the detector small.  The side
   view may need its own scale, or a range indicator in place of a to-scale drawing.
 - **The experiment directory.**  The initial prompt places scripts in
-  `plans/experiments/geometry_viewer/`.  The other feature studies use
+  `plans/geometry_viewer/experiments/`.  The other feature studies use
   `plans/experiments/features/<name>/`.  This plan follows the initial prompt.
 
 ## Terms

@@ -32,7 +32,7 @@ now carries six toggles, and no toggle's label may overlap another, the view
 slider, or the legend band above the row.
 
 Run:
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     MPLBACKEND=Agg PYTHONPATH=<mbirtorch clone> python -m pytest -q \
         test_geometry_viewer.py
 """

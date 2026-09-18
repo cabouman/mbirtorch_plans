@@ -691,7 +691,7 @@ appears only in the commit message, which is where the guideline allows it.
 
 This is cleaner than the translation port, which carried three borderline lines.
 Notably, mbirjax's own source at the corresponding places DOES carry plan
-notation ("decision C", a `plans/sharding/...` path in `_sharded_histogram`), and
+notation ("decision C", a `archive/sharding/...` path in `_sharded_histogram`), and
 the port dropped all of it rather than copying it through — the right call, and
 worth noticing as evidence the guideline was applied deliberately rather than by
 luck.

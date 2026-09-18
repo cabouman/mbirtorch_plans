@@ -23,7 +23,7 @@ that pins ``geometry_defaults.py`` against the real models is
 ``test_geometry_defaults.py``.
 
 Run:
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     MPLBACKEND=Agg python -m pytest -q test_web_app.py
 
 The end-to-end test needs Playwright and a Chromium.  It skips with a message

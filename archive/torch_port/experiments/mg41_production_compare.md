@@ -1,7 +1,7 @@
 # mg41 run record
 
 One run.  The finding lands in
-`plans/torch_port/active/execution_overview.md` §5.4; this file holds
+`archive/torch_port/active/execution_overview.md` §5.4; this file holds
 the run detail.
 
 ## mg41, the production-shaped comparison (job 15371081)

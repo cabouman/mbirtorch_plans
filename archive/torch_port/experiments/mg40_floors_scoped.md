@@ -1,7 +1,7 @@
 # mg40 run record
 
 One run.  The finding is in
-`plans/torch_port/active/multigpu_findings.md` §1.34; the refreshed
+`archive/torch_port/active/multigpu_findings.md` §1.34; the refreshed
 parallel rows are pasted into `mbirtorch/_widening_floors.py`
 (staged).  This file holds the run detail.
 

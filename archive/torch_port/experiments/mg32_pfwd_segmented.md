@@ -2,7 +2,7 @@
 
 Two submissions of one spike (the design note's increment 1, approved
 2026-08-18).  The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.29; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.29; this file holds
 the run detail.
 
 ## First submission (job 15346037): a compiler constraint, and one

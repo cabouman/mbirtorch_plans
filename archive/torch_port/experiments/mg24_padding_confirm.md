@@ -3,7 +3,7 @@
 Two jobs, one gate campaign: the band-padding remedy's gate run and its
 composed confirmation (back_remedy_design.md §7, increments 2 and 3).
 The finding and its tables are in
-`plans/torch_port/active/multigpu_findings.md` §1.23; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.23; this file holds
 the run detail.  Both jobs ran the merged tree plus the padding
 implementation, shipped file by file with md5 verification before Greg
 committed it as 64dedb8.

@@ -1,4 +1,4 @@
-<!-- Appendix to plans/projector_kernels/gpu_headroom_plan.md.
+<!-- Appendix to archive/projector_kernels/gpu_headroom_plan.md.
 Produced 2026-07-12 by a parallel research agent during the headroom-investigation kickoff
 (five-agent workflow; this file is one agent's report, reproduced verbatim).
 Claims marked "verified" were checked against the repo / the pinned jax 0.10.1 env / cited
@@ -22,10 +22,10 @@ All paths absolute; `…/mbirjax` = `/Users/gbuzzard/Documents/PyCharm Projects/
 
 ## 2. Measured anchors used below
 
-- Post-campaign kernels (H100 n=1, `…/mbirjax/plans/projector_kernels/fwd_back_findings.md`): parallel fwd 8.19 s / back 10.92 s at 1024³; cone fwd 19.4 s; 513³ fwd 342 ms / back 314 ms; 200³ fwd 10.5 ms / back 15.1 ms. Cone back 18.9 s (unchanged).
+- Post-campaign kernels (H100 n=1, `…/mbirjax/archive/projector_kernels/fwd_back_findings.md`): parallel fwd 8.19 s / back 10.92 s at 1024³; cone fwd 19.4 s; 513³ fwd 342 ms / back 314 ms; 200³ fwd 10.5 ms / back 15.1 ms. Cone back 18.9 s (unchanged).
 - Pre-campaign nightly (prerelease, 2026-07-10, `…/mbirjax_metrics/results/gpu/prerelease/regression_gpu_20260710T204130Z_84e9f18d_table.yaml`): parallel 1024³ n=1 fwd 35.0 s / back 18.2 s / `vcd_nonconst` **254.8 s**; 512-class vcd 8.12 s; 200-class vcd 348 ms; cone 1024³ vcd 268.0 s (n=2 only 1.26×; cone back n=2 = **0.87×**).
 - Intra-kernel floors: `fwd_noscatter` = 3–4% of the pre-campaign 35 s kernel (≈1.1–1.4 s pure compute → ~15% of the CURRENT 8.19 s fwd kernel); `back_nogather` = 0.08–0.10× of the CURRENT back kernel (~90% gather).
-- VCD 200³ (A/B harness cell): ~2.0 s wall, ~95% HOST time / ~0.1 s device kernels (`…/mbirjax/plans/current_plans.md` §3 line 92; `…/mbirjax/.claude/lessons.md` line 133). Note the nightly 200-class vcd cell (348 ms, 3 coarse iterations) shows ~58% projector by algebra — the kernel share collapses as granularity gets finer, which is the production regime.
+- VCD 200³ (A/B harness cell): ~2.0 s wall, ~95% HOST time / ~0.1 s device kernels (`…/mbirjax/archive/torch_port/closed/current_plans.md` §3 line 92; `…/mbirjax/.claude/lessons.md` line 133). Note the nightly 200-class vcd cell (348 ms, 3 coarse iterations) shows ~58% projector by algebra — the kernel share collapses as granularity gets finer, which is the production regime.
 - **The nightly vcd cell runs only 3 iterations at granularities [1,4,16]** (`…/mbirjax_metrics/tooling/scaling_tests/performance_tracking.py` line 112) — it UNDER-represents fine-granularity (128-subset) host overhead relative to a production 15–50-iteration recon (~1493 subsets ≈ ~3000 sparse projector calls).
 
 ## 3. The table
@@ -62,6 +62,6 @@ f = fraction of workload wall time in fwd/back GPU device kernels. Max end-to-en
 | Post-campaign VCD wall at 512³/1024³ | one nightly-harness run of the `vcd_nonconst` cells on `greg/kernel_investigation` (no kernel-branch results dir exists yet under `…/mbirjax_metrics/results/gpu/`). |
 | Cone forward vfan/hfan split at 1024³ | replicate the `cone_back_kernel_ab.py` split-bench pattern for forward (open item #1 in `key_findings.md`), or ncu the vfan fusions — single sbatch cell. |
 | MAR wall split (projections vs H-column fit) | `time.perf_counter` brackets around `_est_plastic_metal_sinos_from_recon` vs `_estimate_BH_model_params` in the existing real-data MAR script (context in `mar_refactor_plan.md`). |
-| Per-subset fixed cost vs pixel-proportional cost at 6.3k-pixel subsets | sweep `sparse_forward/back_project` wall vs pixel count {1.6k, 6.3k, 12.7k, 50k, full} at 1024³ — one script in the `…/mbirjax/plans/experiments/projector_kernels/` bench style; directly predicts fine-granularity VCD kernel share without a full recon. |
+| Per-subset fixed cost vs pixel-proportional cost at 6.3k-pixel subsets | sweep `sparse_forward/back_project` wall vs pixel count {1.6k, 6.3k, 12.7k, 50k, full} at 1024³ — one script in the `…/mbirjax/archive/projector_kernels/experiments/` bench style; directly predicts fine-granularity VCD kernel share without a full recon. |
 
 **Bottom line:** a 5× projector-kernel win is worth ~3–5× on every full-projection workload (init, Hessian, forward/back APIs, MAR's projections), a derived ~2.7–3.1× on coarse-granularity large VCD, ~nothing at 200³, and an unmeasured amount — the single most decision-relevant gap — on production fine-granularity VCD at 512³/1024³. The multi-device band transpose is a second, independent payoff (scaling, not single-device time), and cone (the real-data geometry) requires rewriting the vertical fan and the composed cone back kernel, not just the horizontal-fan primitives the campaign already optimized.

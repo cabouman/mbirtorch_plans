@@ -157,7 +157,7 @@ costs one more subset-updater compile.
   count) remains an option if size-adaptivity is wanted later.
 
 > **ADDENDUM (2026-07-18) — the flat-tail options above were REFUTED before shipping; decision
-> record.**  The slice-parity study's broader evidence (`plans/slice_parity/slice_parity_plan.md`,
+> record.**  The slice-parity study's broader evidence (`archive/cylinder_subsets/slice_parity_plan.md`,
 > Summary finding 3: three real datasets × two sharpness settings against 150-iteration
 > references) found **flat-fine sequences without a coarse start unsafe as defaults** at
 > interactive iteration budgets: `[7]` (flat 128) is mildly worse on Lilly and CATASTROPHIC on
@@ -204,7 +204,7 @@ comparisons are unaffected (the flash is schedule-independent).
 ## Phases
 
 - **P0** — cache-builder script: one cached bundle per dataset.  (As of 2026-07-06 the whole
-  pipeline lives in `mbirjax_metrics/plans/experiments/partition_sequence/`, driven by one
+  pipeline lives in `mbirjax_metrics/archive/partition_sequence/experiments/`, driven by one
   `config.yaml`; caches are on the shared depot dir
   `/depot/bouman/data/mbirjax_metrics/partition_sequence/cache/`.  See that folder's README.)
 - **P1** — references + trajectory harness (chunk-vs-rerun decision measured here).

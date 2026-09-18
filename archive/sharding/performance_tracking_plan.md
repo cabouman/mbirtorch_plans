@@ -66,14 +66,14 @@ Three independent regression surfaces, each with its own gate:
           git worktree add <tmp> $BRANCH  # list two branches → two-track nightly
      3. install INTO the worktree:  weekly → clean_install_all.sh ; else pip install -e . (fast)
      4. run_tests.sh → capture summary + failure list → tests_<date>.yaml
-     5. python <worktree>/plans/experiments/sharding/scaling_tests/performance_tracking.py \
+     5. python <worktree>/archive/sharding/experiments/scaling_tests/performance_tracking.py \
             --out-dir <STABLE> --date TODAY --tests-result tests_<date>.yaml
      6. exit code → notify (cron MAILTO / slurm --mail-user)
      7. git worktree remove <tmp>
                                   │ invokes
                                   ▼
  LAYER 2 — the measurement ENGINE  (stays in scaling_tests/, beside scaling_common.py)
-   plans/experiments/sharding/scaling_tests/performance_tracking.py
+   archive/sharding/experiments/scaling_tests/performance_tracking.py
      • run(config): sweep GEOMETRY × OP × size × n_dev over the EXISTING scaling_common
        harness (isolated subprocess per (geom,op,size) by default; --inline for a
        debuggable single process)
@@ -83,7 +83,7 @@ Three independent regression surfaces, each with its own gate:
                                   ▲ imports
                                   │
  LAYER 3 — manual launcher (current working tree)
-   plans/experiments/sharding/scaling_tests/run_performance_local.py
+   archive/sharding/experiments/scaling_tests/run_performance_local.py
      • params at the TOP (subset of geometries/ops/sizes/counts; INLINE; RUN_TAG)
      • forces out-dir = results/manual/<tag>/ and compare=off (or a chosen baseline)
        so it NEVER overwrites or gates against the nightly time series

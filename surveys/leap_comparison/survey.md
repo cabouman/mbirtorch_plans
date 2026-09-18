@@ -90,7 +90,7 @@ Nesterov OGM2 loop calling LEAP's projectors.  Peak GPU memory over the four GPU
 mbirtorch and 22.2 GiB for that loop, and peak host memory was 72.6 GiB against 175.4 GiB.  Changes
 committed on 2026-09-14 lowered mbirtorch's combined GPU figure from 156.32 GiB to 124.65 GiB in
 runs that pinned four GPUs.  The quality result is one phantom at one noise level, and the ORNL
-result is one scan.  The records are `quality_results.md`, `ornl_reproduction.md`, and
+result is one scan.  The records are `surveys/leap_comparison/findings/quality_results.md`, `surveys/leap_comparison/findings/ornl_reproduction.md`, and
 `dm1_record.md`, whose paths are in Sources.
 
 ## Scope and versions
@@ -156,8 +156,8 @@ GPU memory at about the same time per iteration.
 
 Two inventory files are cited by abbreviation below:
 
-- `LEAP-inv` = `plans/features/leap_comparison/leap_comparison_sources/leap_inventory.md`.
-- `MT-inv` = `plans/features/leap_comparison/leap_comparison_sources/mbirtorch_inventory.md`, which
+- `LEAP-inv` = `surveys/leap_comparison/leap_inventory.md`.
+- `MT-inv` = `surveys/leap_comparison/mbirtorch_inventory.md`, which
   describes mbirtorch at commit `26bd0ea`.
 
 ### Geometries
@@ -357,8 +357,8 @@ than a traced graph.  A comment in LEAP's source marks its FBP backward as needi
 | Automatic chunking below GPU memory | yes, a halving loop | no, a manual band split today, made automatic by a later increment of the device memory tiers plan | [src/tomographic_models.cpp#L779-L787](https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/src/tomographic_models.cpp#L779-L787); `recon_split_sino` in [mbirtorch/tomography_model.py](https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/mbirtorch/tomography_model.py) |
 | Detector-row and slice range calculators | yes | no | [src/leapctype.py#L2962](https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/src/leapctype.py#L2962) |
 | Memory cost computed before allocation | yes, an error message | yes, a memory ledger, and `get_memory_stats` now reports the allocator pool's peak and its unused part | [src/projectors.cpp#L66-L70](https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/src/projectors.cpp#L66-L70); [mbirtorch/_memory_ledger.py](https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/mbirtorch/_memory_ledger.py) and [mbirtorch/memory_stats.py](https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/mbirtorch/memory_stats.py) |
-| GPU memory on four GPUs, ORNL scan | 22.2 GiB combined | 156.32 GiB combined before the September changes and 124.65 GiB after, or 116.68 GiB with the allocator setting | `ornl_reproduction.md`; `dm1_record.md` |
-| Host memory on the same run | 175.4 GiB | 72.6 GiB | `ornl_reproduction.md` |
+| GPU memory on four GPUs, ORNL scan | 22.2 GiB combined | 156.32 GiB combined before the September changes and 124.65 GiB after, or 116.68 GiB with the allocator setting | `surveys/leap_comparison/findings/ornl_reproduction.md`; `dm1_record.md` |
+| Host memory on the same run | 175.4 GiB | 72.6 GiB | `surveys/leap_comparison/findings/ornl_reproduction.md` |
 | Reduced precision, multi-node | no | no | `LEAP-inv` sections 4.5 and 10.5; [docs/source/usr_multi_gpu.rst](https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/docs/source/usr_multi_gpu.rst) |
 
 The two designs differ in where the arrays live.  LEAP owns no arrays, and it streams chunks of at
@@ -412,7 +412,7 @@ commit `26bd0ea`, and both used torch 2.13.0+cu130.  The multi-GPU comparison us
 GPUs on one node.  Each projection and direct-reconstruction time below is the best of three timed
 repeats after one warmup run, and the ten-iteration rows are single runs that charge mbirtorch's
 one-time compilation to the reconstruction.  The source is
-`plans/experiments/features/leap_comparison/results/leap_benchmark_results.md`.
+`surveys/leap_comparison/experiments/results/leap_benchmark_results.md`.
 
 | N | Operation | LEAP time | mbirtorch time | LEAP GPU peak | mbirtorch GPU peak |
 | --- | --- | --- | --- | --- | --- |
@@ -471,7 +471,7 @@ These measurements support four findings:
   mbirtorch pinned, and for ten iterations the busiest GPU held 12827 MiB against 18055 MiB.
 
 The next table gives the correctness cross-checks, at N = 256 unless stated otherwise.  The N = 64
-readings are in `plans/experiments/features/leap_comparison/results/smoke_results.jsonl`.
+readings are in `surveys/leap_comparison/experiments/results/smoke_results.jsonl`.
 
 | Check | mbirtorch | LEAP |
 | --- | --- | --- |
@@ -498,7 +498,7 @@ reconstruction, ran for exactly k iterations per point at its own best setting, 
 NRMSE against the voxelized phantom inside the inscribed cylinder.  The noiseless sinogram was
 forward projected with mbirtorch rather than LEAP.  The two forward projectors agree to 0.052
 percent at N = 256, so neither package is reconstructing data only its own projector could have
-made.  The source is `plans/features/leap_comparison/quality_results.md`.
+made.  The source is `surveys/leap_comparison/findings/quality_results.md`.
 
 The target at each size is 1.02 times the larger of the two packages' best NRMSE at that size, which
 is a quality both packages demonstrably reach.  Warm time is k times the steady-state per-iteration
@@ -549,7 +549,7 @@ The scan is one full-turn cone-beam scan of an Inconel additive-manufacturing sa
 views and a 1456 by 1840 detector at 0.127 mm.  The reconstruction is 1360 by 1360 by 1296 voxels of
 0.0172847 mm, so a sinogram-shaped float32 array is 21.3 GiB and a volume is 8.9 GiB.  The harness
 ran the collaborators' loader and their OGM2 loop unchanged, with mbirtorch at commit `41fca86` of
-2026-09-12 and LEAP at the pinned commit.  The source is `ornl_reproduction.md`.
+2026-09-12 and LEAP at the pinned commit.  The source is `surveys/leap_comparison/findings/ornl_reproduction.md`.
 
 | quantity | mbirtorch | ORNL OGM2 loop |
 | --- | --- | --- |
@@ -635,7 +635,7 @@ The direct reconstruction splits into parts that say where each package spends i
 
 The back projection kernel was not the slow part.  The gather of the volume to the host was the slow
 part, and it was rebuilt after this measurement.  On four GPUs that gather fell from 5.7 s to
-0.24 s, a rate of 36 to 40 GB/s (`plans/features/leap_comparison/host_gather.md`).
+0.24 s, a rate of 36 to 40 GB/s (`surveys/leap_comparison/findings/host_gather.md`).
 
 ### 4. Automatic device policy against a pinned layout
 
@@ -657,7 +657,7 @@ Five measurements would extend the conclusions above:
 - A fixed-quality comparison against the ORNL OGM2 loop on the real scan, which would say what each
   iteration achieves rather than what it costs.
 - The multi-slice fusion prototype on the ORNL scan.  Its run record is
-  `plans/experiments/features/leap_comparison/ornl/msf_ornl.md`, whose results section is
+  `surveys/leap_comparison/experiments/ornl/msf_ornl.md`, whose results section is
   pending.
 - The same adjoint check on a LEAP build without textures, which would settle the attribution.  The
   `AMD` branch is one ("update kernensl for AMD (no texture memory GPU)", `LEAP-inv` line 416).
@@ -1029,9 +1029,9 @@ Neither state is evidence about long-term support.
 
 The following sources support every claim above:
 
-1. `plans/features/leap_comparison/leap_comparison.md`, version 1 of this comparison
-2. `plans/features/leap_comparison/leap_comparison_sources/leap_inventory.md`
-3. `plans/features/leap_comparison/leap_comparison_sources/mbirtorch_inventory.md`, at `26bd0ea`
+1. `surveys/leap_comparison/leap_comparison.md`, version 1 of this comparison
+2. `surveys/leap_comparison/leap_inventory.md`
+3. `surveys/leap_comparison/mbirtorch_inventory.md`, at `26bd0ea`
 4. `https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/` , the LEAP base URL
 5. `https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/` , the mbirtorch base URL
 6. `https://github.com/cabouman/mbirtorch/blob/8304b25ec4f1877a236946b809312779fae38917/` , the 4D branch base URL
@@ -1040,25 +1040,25 @@ The following sources support every claim above:
    and [documentation/LEAP.tex](https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/documentation/LEAP.tex)
 8. [unitTests/unit_tests.py#L40](https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/unitTests/unit_tests.py#L40), LEAP's disabled geometry loop
 9. `https://docs.nvidia.com/cuda/archive/10.0/pdf/CUDA_C_Programming_Guide.pdf` , PG-02829-001_v10.0 of October 2018, Appendix G section G.2, page 243
-10. `plans/experiments/features/leap_comparison/results/leap_benchmark_results.md`
-11. `plans/experiments/features/leap_comparison/results/smoke_results.jsonl`, the N = 64 readings
-12. `plans/experiments/features/leap_comparison/bench_leap_vs_mbirtorch.py`, with its batch files
-13. `plans/features/leap_comparison/quality_results.md`
-14. `plans/experiments/features/leap_comparison/quality_leap_vs_mbirtorch.py`, with its batch files
-15. `plans/experiments/features/leap_comparison/results/`, the JSON results and the figures
-16. `plans/features/leap_comparison/ornl_reproduction.md`
-17. `plans/experiments/features/leap_comparison/ornl/`, the reproduction harness and its records
-18. `plans/features/leap_comparison/host_gather.md`
-19. `plans/experiments/features/device_memory_tiers/dm1_record.md`
-20. `plans/features/device_memory_tiers/device_memory_tiers_plan.md`
-21. `plans/experiments/features/geometric_calibration/closed/calibration_512_gautschi.md`
-22. `plans/experiments/features/geometric_calibration/closed/real_scan_leap_tilt.md`
-23. `plans/features/geometric_calibration/executive_summary_2026-09-05.md`
-24. `plans/features/geometric_calibration/increment_1_1_findings.md`
-25. `plans/features/geometric_calibration/geometric_calibration_plan_v2.md`
-26. `plans/nn_priors/multi_slice_fusion.md` and `plans/nn_priors/multi_slice_fusion_findings.md`
+10. `surveys/leap_comparison/experiments/results/leap_benchmark_results.md`
+11. `surveys/leap_comparison/experiments/results/smoke_results.jsonl`, the N = 64 readings
+12. `surveys/leap_comparison/experiments/bench_leap_vs_mbirtorch.py`, with its batch files
+13. `surveys/leap_comparison/findings/quality_results.md`
+14. `surveys/leap_comparison/experiments/quality_leap_vs_mbirtorch.py`, with its batch files
+15. `surveys/leap_comparison/experiments/results/`, the JSON results and the figures
+16. `surveys/leap_comparison/findings/ornl_reproduction.md`
+17. `surveys/leap_comparison/experiments/ornl/`, the reproduction harness and its records
+18. `surveys/leap_comparison/findings/host_gather.md`
+19. `plans/device_memory_tiers/experiments/dm1_record.md`
+20. `plans/device_memory_tiers/plan.md`
+21. `plans/geometric_calibration/experiments/closed/calibration_512_gautschi.md`
+22. `plans/geometric_calibration/experiments/closed/real_scan_leap_tilt.md`
+23. `plans/geometric_calibration/executive_summary_2026-09-05.md`
+24. `plans/geometric_calibration/findings/increment_1_1_findings.md`
+25. `plans/geometric_calibration/plan.md`
+26. `plans/multi_slice_fusion/plan.md` and `plans/multi_slice_fusion/findings/multi_slice_fusion_findings.md`
 27. `../../archive/flash_remediation/flash_remediation_plan.md`, the axial truncation work
-28. `plans/features/mace4d/mace4d_migration_plan_v2.md`
+28. `plans/mace4d/plan.md`
 29. Section "The ORNL code" of this document, the survey of `leapMBIR`, whose remote is
     `https://github.com/aziabari/leapMBIR/` at commit `044f38ae2a6bc4509f565ba0384b426998bd43fc`
 30. `https://api.github.com/repos/LLNL/LEAP` and `https://api.github.com/repos/cabouman/mbirtorch` , read 2026-09-14

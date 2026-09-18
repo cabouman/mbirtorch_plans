@@ -3,7 +3,7 @@
 Measured 2026-09-03 on the Purdue gautschi cluster, one NVIDIA H100 80GB HBM3
 per job except the device-policy check, which used four.  Every number below is
 read from the JSON files in
-`../../experiments/features/leap_comparison/results/`:
+`../experiments/results/`:
 
 | file | slurm job | what it holds |
 |---|---|---|
@@ -556,12 +556,12 @@ lead device.
 
 8. **This document was moved while this study was running.**  Another session
    relocated it from
-   `plans/experiments/features/leap_comparison/results/quality_results.md` to
-   `plans/features/leap_comparison/quality_results.md` and committed it there
+   `surveys/leap_comparison/experiments/results/quality_results.md` to
+   `surveys/leap_comparison/findings/quality_results.md` and committed it there
    (commit 0da862f).  The warm-process and image sections were written into the
    relocated copy rather than the old path, so there is one document, not two.
    The JSON files, figures and slices all remain under
-   `plans/experiments/features/leap_comparison/results/`.
+   `surveys/leap_comparison/experiments/results/`.
 
 9. **One phantom, one noise level, one seed.**  Nothing here separates the two
    libraries' image quality in general; it compares two particular algorithms at

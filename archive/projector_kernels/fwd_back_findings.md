@@ -1,7 +1,7 @@
 # Forward-projection kernel investigation: attribution, alternatives, and results
 
 **Written 2026-07-07, final update 2026-07-08** (branch `greg/kernel_investigation`).
-Companion to the benches in plans/experiments/projector_kernels/ (`fwd_back_kernel_ab.py`,
+Companion to the benches in archive/projector_kernels/experiments/ (`fwd_back_kernel_ab.py`,
 `fwd_band_pixel_sweep.py`, `mt_back_kernel_ab.py`, `translation_fwd_psf_ab.py`,
 `pixel_count_crossover_ab.py`, `phased_overhead_ab.py`), which produced every number below.
 

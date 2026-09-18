@@ -19,13 +19,13 @@ image is committed, because its source is on the cluster:
 
 | image | source |
 |---|---|
-| `memory_layers.pdf` | `plans/experiments/features/device_memory_tiers/dm1_record.md`, the verification table |
-| `memory_levels.pdf` | `plans/features/leap_comparison/ornl_reproduction.md`, Section 3.2, the four-device row |
-| `ornl_gpu_memory.pdf` | `plans/features/leap_comparison/ornl_reproduction.md`, Section 3.1 |
-| `gather_time.pdf` | `plans/features/leap_comparison/host_gather.md`, the summary table |
+| `memory_layers.pdf` | `plans/device_memory_tiers/experiments/dm1_record.md`, the verification table |
+| `memory_levels.pdf` | `surveys/leap_comparison/findings/ornl_reproduction.md`, Section 3.2, the four-device row |
+| `ornl_gpu_memory.pdf` | `surveys/leap_comparison/findings/ornl_reproduction.md`, Section 3.1 |
+| `gather_time.pdf` | `surveys/leap_comparison/findings/host_gather.md`, the summary table |
 | `geometry_viewer_cone.png` | `docs/source/figs/geometry_viewer_cone.png` in the mbirtorch repository |
-| `quality_nrmse_vs_time_512.png` | `plans/experiments/features/leap_comparison/results/` |
-| `ornl_fusion_zoom.png` | written by `make_figures.py <path>` from the slice arrays `/scratch/gautschi/buzzard/leap_ornl/out/msf/ornl_sigma002_slices.npz` on gautschi (keys `standard`, `postproc`, `fusion`), from the run `plans/experiments/features/leap_comparison/ornl/msf_ornl.md` records; a 240-voxel window at the top edge of the part |
+| `quality_nrmse_vs_time_512.png` | `surveys/leap_comparison/experiments/results/` |
+| `ornl_fusion_zoom.png` | written by `make_figures.py <path>` from the slice arrays `/scratch/gautschi/buzzard/leap_ornl/out/msf/ornl_sigma002_slices.npz` on gautschi (keys `standard`, `postproc`, `fusion`), from the run `surveys/leap_comparison/experiments/ornl/msf_ornl.md` records; a 240-voxel window at the top edge of the part |
 
 To redraw the fusion image, copy the `.npz` file from the cluster to the Mac
 and pass its path as the script's one argument.  Without the argument the

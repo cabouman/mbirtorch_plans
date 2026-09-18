@@ -2,7 +2,7 @@
 
 2026-08-27.  Code: `experiments/drunet/` in the mbirtorch repo.  Run records:
 `experiments/drunet/output/qggmrf_gate.npz` and `drunet_sweep.npz`.  Plan:
-`mace_poc_plan.md` beside this file.
+`plans/mace_poc/plan.md` beside this file.
 
 ## What was built
 

@@ -57,7 +57,7 @@ mbirjax, subject to the third decision.
 Citations.  File paths are given from the root of the mbirtorch repository, so
 `tests/test_cone.py` means `mbirtorch/tests/test_cone.py` in the sibling checkout.
 The port's original parity gates are described in
-`plans/archive/torch_port/port_plan.md` in this repository.  This plan closes them.
+`archive/torch_port/port_plan.md` in this repository.  This plan closes them.
 
 ## Purpose
 

@@ -1,7 +1,7 @@
 # mg18 run record
 
 One run so far.  The finding and its tables are in
-`plans/torch_port/active/multigpu_findings.md` §1.18; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.18; this file holds
 the run detail.
 
 ## Run of 2026-08-17 (job 15307729)
@@ -13,7 +13,7 @@ the run detail.
   check confirmed translation and multiaxis still banded by default
   and cone and parallel already gathered.
 * Output rows:
-  `plans/experiments/torch_port/rows/mg18_ab_h014_20260816_231137.jsonl`
+  `archive/torch_port/experiments/rows/mg18_ab_h014_20260816_231137.jsonl`
   (24 arm rows plus a summary row).  The job log carries the printed
   tables.
 * Witness summary: no errors, no preflight refusals, every arm on its

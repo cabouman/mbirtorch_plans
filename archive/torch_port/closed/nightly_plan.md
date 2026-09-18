@@ -737,7 +737,7 @@ mbirjax_metrics.
 | file | change |
 |---|---|
 | `nightly_plan.md` | this file, plus the findings and closing sections at the second STOP |
-| `plans/current_plans.md` | item 4 state, at the second STOP |
+| `archive/torch_port/closed/current_plans.md` | item 4 state, at the second STOP |
 | `../../../experiments/torch_port/archive/nt_nightly/nt1_gate_control.py` | NEW — the §4.3 pure control, re-runnable |
 | `../../../experiments/torch_port/archive/nt_nightly/nt1_trial.sbatch` | NEW — the trial-run submission script |
 

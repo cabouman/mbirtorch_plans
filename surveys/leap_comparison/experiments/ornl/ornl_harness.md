@@ -1,7 +1,7 @@
 # Harness for reproducing the ORNL LEAP versus mbirtorch comparison
 
 Companion to the scripts in this directory and to the findings page
-`plans/features/leap_comparison/ornl_reproduction.md`.  This file holds the
+`surveys/leap_comparison/findings/ornl_reproduction.md`.  This file holds the
 run detail: environment, commands, job identifiers, and what each script
 does.  The findings page holds the results and their interpretation.
 

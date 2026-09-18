@@ -36,7 +36,7 @@ mbirtorch's advantages over TIGRE are these:
 9. HDF5 export and physical-unit bookkeeping; TIGRE ships no file writers at all.
 10. A documentation site of 30 pages; TIGRE documents itself through demos, and its readthedocs configuration points at a directory that does not exist in the tree.
 
-No head-to-head timing has been run yet. A benchmark harness and two cluster job scripts were prepared in `plans/experiments/features/tigre_comparison/`, following the LEAP comparison's protocol, and this session had no cluster access to run them. The published TIGRE numbers below are from a Tesla K40, GTX 1080 Ti cards, and an RTX 4070. The recorded mbirtorch numbers are from H100 cards. Numbers from different hardware cannot be compared with each other, so this document makes no cross-package speed claim.
+No head-to-head timing has been run yet. A benchmark harness and two cluster job scripts were prepared in `surveys/tigre_comparison/experiments/`, following the LEAP comparison's protocol, and this session had no cluster access to run them. The published TIGRE numbers below are from a Tesla K40, GTX 1080 Ti cards, and an RTX 4070. The recorded mbirtorch numbers are from H100 cards. Numbers from different hardware cannot be compared with each other, so this document makes no cross-package speed claim.
 
 ---
 
@@ -48,7 +48,7 @@ The evidence has three parts: a sourced TIGRE inventory prepared in this session
 
 The TIGRE version is the master branch at commit `51ae1a02e070888c8aca481e41157d54b20f692f`, dated 2026-09-02. That commit is 77 commits past the last release tag, v3.1.3 (2026-03-06), and its `pyproject.toml` still declares version 3.1.3. The tip was compared rather than the tag because TIGRE's development lands on master continuously, and the tip includes recent work such as the automatic FISTA step-size estimate.
 
-The mbirtorch version is 0.0.2, at commit `26bd0ea`, dated 2026-08-27, on branch `greg_dev`. This is the same mbirtorch pin as the LEAP comparison (`plans/features/leap_comparison/leap_comparison.md`), so the mbirtorch columns of the two documents describe the same code.
+The mbirtorch version is 0.0.2, at commit `26bd0ea`, dated 2026-08-27, on branch `greg_dev`. This is the same mbirtorch pin as the LEAP comparison (`surveys/leap_comparison/leap_comparison.md`), so the mbirtorch columns of the two documents describe the same code.
 
 TIGRE has two language front ends over one CUDA core. The comparison target here is the Python package, pytigre. Capabilities that exist only on the MATLAB side are marked, because a Python user does not get them.
 
@@ -60,8 +60,8 @@ References in this section are written against two pinned commits and two invent
 
 - TIGRE file references link under `https://github.com/CERN/TIGRE/blob/51ae1a02e070888c8aca481e41157d54b20f692f/`.
 - mbirtorch file references link under `https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/`.
-- `TG-inv` = `plans/features/tigre_comparison/tigre_comparison_sources/tigre_inventory.md`.
-- `MT-inv` = `plans/features/leap_comparison/leap_comparison_sources/mbirtorch_inventory.md`.
+- `TG-inv` = `surveys/tigre_comparison/tigre_comparison_sources/tigre_inventory.md`.
+- `MT-inv` = `surveys/leap_comparison/mbirtorch_inventory.md`.
 
 ### Geometries
 
@@ -261,13 +261,13 @@ mbirtorch's latest regression run is on NVIDIA H100 80GB HBM3 GPUs, recorded in 
 | cone | VCD, 3 iterations | 1024x1008x992 | 59,178.1 ms | 31,038.9 ms | 17,344.2 ms |
 | cone | forward | 512x448x384 | 307.4 ms | 154.5 ms | 78.3 ms |
 
-The caveats on these rows are recorded in the LEAP comparison and are not repeated here: the 1024-view rows are single trials, and some parallel-beam rows in the same file carry a thermal-throttle flag (`plans/features/leap_comparison/leap_comparison.md`, "mbirtorch's recorded numbers").
+The caveats on these rows are recorded in the LEAP comparison and are not repeated here: the 1024-view rows are single trials, and some parallel-beam rows in the same file carry a thermal-throttle flag (`surveys/leap_comparison/leap_comparison.md`, "mbirtorch's recorded numbers").
 
 ### No head-to-head has been run
 
 The TIGRE and mbirtorch numbers above are from different decades of hardware, different problem sizes, and different operations. They support no cross-package speed conclusion. The nearest same-hardware anchor is indirect and weak: the LEAP comparison measured mbirtorch against LEAP on H100s, and no measurement connects LEAP and TIGRE on shared hardware either.
 
-A head-to-head harness is ready. `plans/experiments/features/tigre_comparison/bench_tigre_vs_mbirtorch.py` reuses the LEAP benchmark's protocol: the same sphere phantom, the same cone geometry at N = 256, 512, and 1024 on one H100, timed forward and back projection, FDK, ten fixed iterations, adjoint checks, and cross-checks of the two forward projections. Its mbirtorch mode is identical to the LEAP harness's mbirtorch mode, so one run of the TIGRE side would make all three packages comparable at those sizes. The TIGRE side times both of TIGRE's forward models, both of its backprojector weightings, and OS-SART and CGLS as the iterative arms. Two job scripts, `tigre_cmp_gautschi.sbatch` and `tigre_cmp_multigpu_gautschi.sbatch`, cover the single-GPU sizes and a four-GPU arm at N = 1024. The harness compiles but has not executed, because this session had no cluster access; a smoke pass at N = 64 should precede the full sizes.
+A head-to-head harness is ready. `surveys/tigre_comparison/experiments/bench_tigre_vs_mbirtorch.py` reuses the LEAP benchmark's protocol: the same sphere phantom, the same cone geometry at N = 256, 512, and 1024 on one H100, timed forward and back projection, FDK, ten fixed iterations, adjoint checks, and cross-checks of the two forward projections. Its mbirtorch mode is identical to the LEAP harness's mbirtorch mode, so one run of the TIGRE side would make all three packages comparable at those sizes. The TIGRE side times both of TIGRE's forward models, both of its backprojector weightings, and OS-SART and CGLS as the iterative arms. Two job scripts, `tigre_cmp_gautschi.sbatch` and `tigre_cmp_multigpu_gautschi.sbatch`, cover the single-GPU sizes and a four-GPU arm at N = 1024. The harness compiles but has not executed, because this session had no cluster access; a smoke pass at N = 64 should precede the full sizes.
 
 Two design facts will shape the eventual numbers and are worth stating in advance. TIGRE's times will include host transfers on every call, because its interface is host arrays in and host arrays out. And TIGRE's iterative arms solve different objectives than VCD, so per-iteration cost will need the same interpretation care as in the LEAP comparison: cost per iteration says nothing about iterations to a given quality. A fixed-quality study on noisy data, like the LEAP comparison's, is the follow-up that would answer the question a user cares about, and TIGRE's OS-ASD-POCS would be its natural arm.
 
@@ -427,13 +427,13 @@ TIGRE is a mature, active, community-maintained project. It has ten years of rel
 
 The following sources support every claim above:
 
-1. `plans/features/tigre_comparison/tigre_comparison_sources/tigre_inventory.md`, the sourced TIGRE inventory prepared for this comparison
-2. `plans/features/leap_comparison/leap_comparison_sources/mbirtorch_inventory.md`, the sourced mbirtorch inventory, shared with the LEAP comparison
+1. `surveys/tigre_comparison/tigre_comparison_sources/tigre_inventory.md`, the sourced TIGRE inventory prepared for this comparison
+2. `surveys/leap_comparison/mbirtorch_inventory.md`, the sourced mbirtorch inventory, shared with the LEAP comparison
 3. https://github.com/CERN/TIGRE/tree/51ae1a02e070888c8aca481e41157d54b20f692f , the TIGRE tree that every TIGRE reference above is pinned to
 4. `https://github.com/CERN/TIGRE/blob/51ae1a02e070888c8aca481e41157d54b20f692f/` , the base URL that TIGRE file references are written against
 5. `https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/` , the base URL that mbirtorch file references are written against
 6. https://github.com/cabouman/mbirtorch/tree/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2 , the mbirtorch source at the compared commit
-7. `plans/features/leap_comparison/leap_comparison.md`, whose mbirtorch columns share this document's mbirtorch pin
+7. `surveys/leap_comparison/leap_comparison.md`, whose mbirtorch columns share this document's mbirtorch pin
 8. Biguri, Dosanjh, Hancock, Soleimani, "TIGRE: a MATLAB-GPU toolbox for CBCT image reconstruction", Biomedical Physics & Engineering Express 2(5) 055010, 2016, https://iopscience.iop.org/article/10.1088/2057-1976/2/5/055010
 9. Biguri and coauthors, "Arbitrarily large iterative tomographic reconstruction on multiple GPUs using the TIGRE toolbox", Journal of Parallel and Distributed Computing, 2020, https://arxiv.org/abs/1905.03748
 10. Biguri and coauthors, "TIGRE v3: Efficient and easy to use iterative computed tomographic reconstruction toolbox for real datasets", Engineering Research Express 7, 015011, 2025, https://arxiv.org/abs/2412.10129
@@ -442,8 +442,8 @@ The following sources support every claim above:
 13. https://anaconda.org/ccpi/tigre , read 2026-09-03
 14. https://tigre.readthedocs.io/en/latest/ , read 2026-09-03
 15. `mbirtorch_metrics/results/gpu/prerelease/regression_gpu_20260827T175529Z_26bd0ea9_table.yaml`, mbirtorch's recorded H100 numbers
-16. `plans/experiments/features/tigre_comparison/bench_tigre_vs_mbirtorch.py`, the prepared and unexecuted benchmark harness
-17. `plans/experiments/features/tigre_comparison/tigre_cmp_gautschi.sbatch` and `tigre_cmp_multigpu_gautschi.sbatch`, the prepared job scripts
-18. `plans/projector_kernels/headroom_appendices/appendix_ct_kernel_practice.md`, the 2026-07-12 kernel survey, which classifies TIGRE's projector taxonomy but contains no TIGRE throughput measurement
+16. `surveys/tigre_comparison/experiments/bench_tigre_vs_mbirtorch.py`, the prepared and unexecuted benchmark harness
+17. `surveys/tigre_comparison/experiments/tigre_cmp_gautschi.sbatch` and `tigre_cmp_multigpu_gautschi.sbatch`, the prepared job scripts
+18. `archive/projector_kernels/headroom_appendices/appendix_ct_kernel_practice.md`, the 2026-07-12 kernel survey, which classifies TIGRE's projector taxonomy but contains no TIGRE throughput measurement
 
 One earlier record in this repository mentions TIGRE: the kernel survey at source 18 lists TIGRE's forward and back projector types in its taxonomy table. It contains normalized throughput numbers for other packages and none for TIGRE, so no number from it appears above.

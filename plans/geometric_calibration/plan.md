@@ -7,9 +7,11 @@ has its own detailed plan, `estimate_by_recon_plan.md` in this directory, whose 
 numbered 1.1 to 1.5 here.  The current evidence is summarized in
 `executive_summary_2026-09-05.md`.
 
-Citations.  Pages of this directory's closed campaign are cited as `closed/NAME.md`.  Experiment
-records are cited by bare name and live in `plans/experiments/features/geometric_calibration/`,
-the closed campaign's in the `closed/` subdirectory there.  mbirtorch file paths are given from
+Citations.  Pages of this directory's closed campaign were cited as `closed/NAME.md`; the
+increment findings are now under `findings/` in this directory, and the superseded v1 plan and
+the status snapshot of 2026-09-05 were deleted on 2026-09-18 and remain in the git history.
+Experiment records are cited by bare name and live in `experiments/` in this directory,
+the closed campaign's in the `experiments/closed/` subdirectory.  mbirtorch file paths are given from
 the package directory, so `mbirtorch/cone_beam.py` means `mbirtorch/mbirtorch/cone_beam.py` in
 the sibling repository.  Measured numbers were read in this session from the cited records.
 
@@ -145,7 +147,7 @@ review with `ParamDict`, the flag rename, and the name-coordination test.  Their
 statements, files, tests, and gates are v1's increment blocks
 (`closed/geometric_calibration_plan.md`, "Increments", Increments 7 and 8), with the design in
 that plan's "Parameter system" section and the prototype in
-`../runtime_offsets/runtime_offsets_findings.md`.
+`findings/runtime_offsets_findings.md`.
 
 ## Where each v1 item went
 
@@ -215,7 +217,7 @@ Each parked item names the evidence that would activate it.
 The constraints of v1 stay in force.  Increments run with the review stops stated above.  A
 sinogram correction must not allocate a second full-size sinogram.  Code comments carry no plan
 or increment references.  Geometry arithmetic stays in the model classes.  Experiment scripts go
-in `plans/experiments/features/geometric_calibration/`.  Each script sets its run parameters at
+in `plans/geometric_calibration/experiments/`.  Each script sets its run parameters at
 the top and takes no command-line arguments.  Findings pages go in this directory.  A measured
 number appears in a durable record only after it was read from its source in the same session.
 Work happens on the `geometric_calibration` branch, staged and not committed without

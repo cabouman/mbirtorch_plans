@@ -1,7 +1,7 @@
 # mg27 run record
 
 Two runs of one harness.  The refreshed comparison tables are in
-`plans/torch_port/active/execution_overview.md` §5.1 and §5.2, with
+`archive/torch_port/active/execution_overview.md` §5.1 and §5.2, with
 provenance in §5.3; the user-docs table is in
 `mbirtorch/docs/source/usr_multi_gpu.rst`.  This file holds the run
 detail; the newest run is first.

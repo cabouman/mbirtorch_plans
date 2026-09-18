@@ -2,7 +2,7 @@
 
 **Status: PLAN ONLY — no code written yet.** Awaiting go-ahead. Discussion-first; stage only.
 
-Origin: `plans/current_plans.md` §1 (flash remediation tail). Triggered by an OOM on the Lilly
+Origin: `archive/torch_port/closed/current_plans.md` §1 (flash remediation tail). Triggered by an OOM on the Lilly
 `Connected_Autoinjector_Horizontal` scan where the cone-beam automatic `recon_shape` came out
 `(1880, 1880, 4007)` instead of `(1880, 1880, ~1751)`.
 
@@ -208,7 +208,7 @@ it now emits the deprecation warning). Test-hygiene fix required by the read-onl
 - `docs/source/` parameter docs / `_static/new_model_template.py`: check whether any doc describes
   `delta_det_*` as `set_params`-able and add a construction-time note (low priority; verify during
   implementation).
-- `plans/current_plans.md` §1: append a line noting the geometry-at-construction fix, the fan-reach
+- `archive/torch_port/closed/current_plans.md` §1: append a line noting the geometry-at-construction fix, the fan-reach
   cap, the read-only deprecation, and the OOM memory-stats (propose separately).
 - `README.md` / `../../README.md`: index this plan doc.
 - **mbirjax_metrics `recon_shape` pin** — SEPARATE coordinated change (spawned as its own task/chip):

@@ -1,7 +1,7 @@
 # Evaluation of the MACE4D migration plan, and a design that fits torch
 
 Status: written 2026-09-13 and reviewed the same day.  Section 7 records
-the decisions taken, and `mace4d_migration_plan_v2.md` beside this page is
+the decisions taken, and `plans/mace4d/plan.md` beside this page is
 the plan of record that follows from them.  This page evaluates the plan
 in `mbirtorch/plans/mace4d_migration_plan.md` (revised 2026-09-11) and
 proposes changes where the plan copies a jax mechanism that torch does not
@@ -9,8 +9,8 @@ need.  The sources read for this evaluation are the plan, the mbirjax module
 `mbirjax/mace4d.py` and its test, the mbirtorch modules `denoising.py`,
 `qggmrf.py`, `projectors.py`, `tomography_model.py`, and `_sharding.py`, and
 the MACE work already in the mbirtorch repository at `experiments/drunet/`
-with its records in `plans/nn_priors/`.  The measurements in Section 5 come
-from three scripts in `plans/experiments/features/mace4d/`.  Each script has
+with its records in `plans/mace_poc/` and `plans/multi_slice_fusion/`.  The measurements in Section 5 come
+from three scripts in `plans/mace4d/experiments/`.  Each script has
 a companion `.md` with the run record.
 
 ## Executive summary
@@ -349,7 +349,7 @@ the reason the library is fast, and it would not reuse the memory ledger.
 
 ## 5. Measurements
 
-Three scripts in `plans/experiments/features/mace4d/` measured the claims of
+Three scripts in `plans/mace4d/experiments/` measured the claims of
 Sections 2 and 3 on the Mac (Apple M3 Max, torch 2.13.0, `cpu` and `mps`, no
 CUDA).  Each script has a companion `.md` with the full run record, and every
 number below is copied from those records.  The Mac numbers show which forms

@@ -19,7 +19,7 @@ edge channel of the detector, in pixels.  The estimators under test are `estimat
 `estimate_det_rotation`, and `check_rotation_direction` in
 `mbirtorch/preprocess/geometry_calibration.py`, called the module below.  A vendor value is the
 value the scanner's own calibration recorded, as the reader for that scanner reports it.  The LEAP
-comparison is the study recorded in `plans/features/leap_comparison/`.
+comparison is the study recorded in `surveys/leap_comparison/`.
 
 ## The answers
 

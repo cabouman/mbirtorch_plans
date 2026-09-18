@@ -12,7 +12,7 @@ The experiment scripts for this program are not here.  They are in
 ## The four subfolders
 
 `active` holds the documents you need to read today.  A document belongs here
-while the `plans/current_plans.md` item it serves is still open.
+while the `archive/torch_port/closed/current_plans.md` item it serves is still open.
 
 `closed` holds the records of campaigns that finished.  These are still cited
 by open work, so they stay in the tree rather than being deleted.
@@ -30,7 +30,7 @@ reference, and are never updated.
 `port_plan.md` is the plan of record for the whole program, and it indexes all
 six phases.  It is also the one path in this folder that is quoted from the
 other repository: `mbirtorch/README.md` line 6 reads
-`mbirjax_plans/plans/torch_port/port_plan.md`.  Keeping the file at the top
+`mbirjax_plans/archive/torch_port/port_plan.md`.  Keeping the file at the top
 level costs one entry in the listing and keeps that cross-repository reference
 correct without an edit.
 

@@ -3,11 +3,11 @@
 Status: DRAFT, written 2026-09-14 and revised the same day after a
 three-reviewer panel (accuracy, reasoning, style).  Greg took all seven decisions on 2026-09-14.  This plan supersedes
 the host-resident plan at
-`plans/features/device_memory_tiers/host_resident_layout_plan.md` as the
+`plans/device_memory_tiers/host_resident_layout_plan.md` as the
 plan of record.  That plan's design becomes Tier 2 here, and its measured
 numbers are cited from that file rather than repeated.  The new numbers come
 from the reproduction of the ORNL comparison at
-`plans/features/leap_comparison/ornl_reproduction.md` and from the ledger
+`surveys/leap_comparison/findings/ornl_reproduction.md` and from the ledger
 pricing recorded in Section 1.  File paths are given from the root of the
 mbirtorch repository unless a path starts with `plans/`.
 
@@ -119,12 +119,12 @@ existed.
 The figures below are for the ORNL scan on H100 cards, with weights and an
 initial reconstruction supplied.  That scan is 2132 views of 1456 x 1840
 detector pixels on a 1360 x 1360 x 1296 volume.  The measured rows come from
-`ornl_reproduction.md` Sections 3.1 and 3.2.  The four-device run is the
+`surveys/leap_comparison/findings/ornl_reproduction.md` Sections 3.1 and 3.2.  The four-device run is the
 full 15-iteration reproduction, and the two-device run is the five-iteration
 ablation.  The modeled rows come from the ledger, priced with the torch
 bodies and with the bodies' batch terms removed, so that what remains does
 not depend on the pricing device.  The script is `price_phases.py` in
-`plans/experiments/features/device_memory_tiers/`.
+`plans/device_memory_tiers/experiments/`.
 
 | quantity | four devices, busiest card | two devices, busiest card |
 |---|---|---|
@@ -247,7 +247,7 @@ through the environment variable `PYTORCH_ALLOC_CONF`, or the older
 `PYTORCH_CUDA_ALLOC_CONF`, before that point.  torch 2.13 also has a private
 function that changes the settings at run time.  The project measured the
 setting on an H100 at the 1024-class in
-`plans/experiments/archive/torch_port/mg53_host_cost_split.md`: it moved no
+`archive/torch_port/experiments/mg53_host_cost_split.md`: it moved no
 wall time.  Increment 1 measured it on this scan, with the device count pinned to
 four and the setting on in two runs.  The reserved peak on the busiest
 card fell from 38.45 GiB to 33.87 GiB, so the reserve fell from 9.4 GiB
@@ -255,7 +255,7 @@ to 4.8 GiB, and the NVML peak fell from 39.66 GiB to 35.08 GiB.  The peak
 of arrays in use was unchanged at 29.03 GiB.  The 15 iterations took
 567.6 s at the default and 565.3 and 566.6 s with the setting, so the
 setting cost no time.  The record is `dm1_record.md` in
-`plans/experiments/features/device_memory_tiers/`.
+`plans/device_memory_tiers/experiments/`.
 
 The setting does not empty the reserve.  The allocator still caches
 freed blocks by design, so the setting removes the growth from
@@ -432,7 +432,7 @@ two measured overheads and nothing else.
 ## 6. The measurement of Increment 1
 
 The job runs on four H100 cards with the ORNL harness in
-`plans/experiments/features/leap_comparison/ornl/`, with the device count
+`surveys/leap_comparison/experiments/ornl/`, with the device count
 pinned to four so that every run has the layout the full reproduction
 chose.
 
@@ -459,7 +459,7 @@ chose.
   of one-time cost.  This is the reference for every later time gate.
 
 The record is a companion file beside the scripts in
-`plans/experiments/features/device_memory_tiers/`.  The job takes about four
+`plans/device_memory_tiers/experiments/`.  The job takes about four
 GPU-hours.
 
 ## 7. Tests and exit conditions
@@ -593,10 +593,10 @@ recommendation.
 ## 10. Files
 
 - This plan.
-- The host-resident plan: `plans/features/device_memory_tiers/host_resident_layout_plan.md`.
-- The ORNL reproduction: `plans/features/leap_comparison/ornl_reproduction.md`
-  and the harness under `plans/experiments/features/leap_comparison/ornl/`.
+- The host-resident plan: `plans/device_memory_tiers/host_resident_layout_plan.md`.
+- The ORNL reproduction: `surveys/leap_comparison/findings/ornl_reproduction.md`
+  and the harness under `surveys/leap_comparison/experiments/ornl/`.
 - The Increment 1 scripts and their record under
-  `plans/experiments/features/device_memory_tiers/`: `price_phases.py`,
+  `plans/device_memory_tiers/experiments/`: `price_phases.py`,
   `dm1_phase_peaks.py`, `dm1_weighted_product_cost.py`, and
   `dm1_allocator_and_product.sbatch`.

@@ -1,4 +1,4 @@
-<!-- Appendix to plans/projector_kernels/gpu_headroom_plan.md.
+<!-- Appendix to archive/projector_kernels/gpu_headroom_plan.md.
 Produced 2026-07-12 by a parallel research agent during the headroom-investigation kickoff
 (five-agent workflow; this file is one agent's report, reproduced verbatim).
 Claims marked "verified" were checked against the repo / the pinned jax 0.10.1 env / cited

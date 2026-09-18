@@ -1,7 +1,7 @@
 # Increment 1 of the device memory plan: the measurements
 
 Companion to the scripts in this directory and to
-`plans/features/device_memory_tiers/device_memory_tiers_plan.md`, Section 6.
+`plans/device_memory_tiers/plan.md`, Section 6.
 This file holds the run detail and the numbers.  The plan holds their
 interpretation.
 
@@ -11,7 +11,7 @@ Job `dm1_allocator_and_product.sbatch` on four H100 cards of gautschi, with
 the device count pinned to four through `MBIRTORCH_NUM_DEVICES`, in the
 ORNL harness directory `/scratch/gautschi/buzzard/leap_ornl/`.  The data and
 the model parameters are the ORNL Inconel scan's, as in
-`plans/experiments/features/leap_comparison/ornl/ornl_harness.md`.
+`surveys/leap_comparison/experiments/ornl/ornl_harness.md`.
 
 | step | script | what it records |
 |---|---|---|

@@ -2,7 +2,7 @@
 
 Date: 2026-09-05.  Status: measured, texts revised and staged, awaiting Greg's review.  The plan of
 record is `estimate_by_recon_plan.md` in this directory.  Greg approved it on 2026-09-05.  The
-experiment record is `plans/experiments/features/geometric_calibration/recon_sweep_fine.md`, and every
+experiment record is `plans/geometric_calibration/experiments/recon_sweep_fine.md`, and every
 number below was read from it or from the sources it cites.  That record's "Units and terms" defines
 the raw and normalized trimmed curves, the structure curve, the half width, and the repeatability
 floor.  This page uses those terms as that record defines them.  The code is on the
@@ -129,7 +129,7 @@ Two files are staged in mbirtorch, on the `geometric_calibration` branch:
 staged in this repository: the four experiment scripts `recon_sweep_fine.py`,
 `recon_sweep_fine_fourier.py`, `recon_sweep_fine_analysis.py`, and `recon_sweep_fine_tables.py`; the
 record `recon_sweep_fine.md`; and this page.  The first five are in
-`plans/experiments/features/geometric_calibration/`.  This repository's `.gitignore` excludes
+`plans/geometric_calibration/experiments/`.  This repository's `.gitignore` excludes
 `.sbatch`, `.jsonl`, `.json`, `.log`, and `.png` files, so the record transcribes what it needs from
 those outputs.
 

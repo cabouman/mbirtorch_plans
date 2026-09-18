@@ -31,7 +31,7 @@ score that exists now, and one was written.  It is the mean squared difference b
 high-pass filtered sinogram and the high-pass filtered forward projection of a direct
 reconstruction, divided by the mean square of the filtered sinogram, over the central half of the
 detector rows.  Two measurements determined its form, and both are recorded in
-`plans/experiments/features/geometric_calibration/direction_score_contrast.md`.  With a thin
+`plans/geometric_calibration/experiments/closed/direction_score_contrast.md`.  With a thin
 slab the two directions scored almost the same.  The kept rows measure material outside the slab,
 and the slab cannot explain that material, so that error term dominated both scores.  The check
 therefore keeps the whole axial extent.  Scoring the central half of the rows then raised the
@@ -264,7 +264,7 @@ In mbirtorch, on the `geometric_calibration` branch:
 - `tests/test_geometry_calibration.py`, new.
 
 In this repository: this page, and `direction_score_contrast.py` with its companion `.md` in
-`plans/experiments/features/geometric_calibration/`.
+`plans/geometric_calibration/experiments/`.
 
 ## What is left
 

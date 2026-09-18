@@ -13,7 +13,7 @@ its source.  Code citations are to the `geometric_calibration` branch of mbirtor
 `590fea9`, with paths from the package directory.
 
 Four terms are used throughout.  The geometry estimator is `estimate_geometry_from_recon`, the
-function planned in `plans/features/geometric_calibration/estimate_by_recon_plan.md`.  It
+function planned in `plans/geometric_calibration/estimate_by_recon_plan.md`.  It
 searches geometry parameters by scoring the reconstruction each candidate produces.  The direct
 reconstruction is the filtered back projection of `recon_direct`, which is FDK for cone beam.
 The existing fit is the sinogram-domain least squares of `correct_sino_plastic_metal`

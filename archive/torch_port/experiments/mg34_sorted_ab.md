@@ -1,7 +1,7 @@
 # mg34 and mg35 run record
 
 The composed gate on the sorted-contraction forward, both halves.
-The finding is in `plans/torch_port/active/multigpu_findings.md`
+The finding is in `archive/torch_port/active/multigpu_findings.md`
 §1.31; this file holds the run detail.  The tree under test in both
 jobs is 64dedb8 plus the staged sorted-forward change
 (triton_parallel.py and two test files), synced per file by md5.

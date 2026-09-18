@@ -145,7 +145,7 @@ the icon from his own run.
 To run the app on a machine instead of in a Space:
 
 ```
-cd plans/experiments/geometry_viewer/web
+cd plans/geometry_viewer/experiments/web
 pip install -r requirements.txt
 python app.py
 ```

@@ -109,7 +109,7 @@ Status line of `slice_viewer_eval.md` and the plans README entry.
 ## Working rules for the executing session
 
 - Repos: mbirtorch is the only code target.  mbirjax is READ-ONLY reference.
-  Durable docs go to `mbirjax_plans/plans/viewer/`.
+  Durable docs go to `mbirjax_plans/archive/viewer/`.
 - Git: `git add` only, in both repos.  Never commit; Greg commits from
   PyCharm.
 - Environment: the `mbirtorch` conda env

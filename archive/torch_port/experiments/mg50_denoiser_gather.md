@@ -1,7 +1,7 @@
 # mg50 run record
 
 One run.  The finding is in
-`plans/torch_port/active/multigpu_findings.md` section 1.39, together
+`archive/torch_port/active/multigpu_findings.md` section 1.39, together
 with mg49's, because the two runs answer one question.  This file holds
 the run detail.
 

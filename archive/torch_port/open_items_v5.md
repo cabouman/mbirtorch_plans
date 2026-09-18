@@ -299,7 +299,7 @@ inputs.**  It now refuses what it silently mishandled: tensors on
 more than one device raise an error naming the devices, and a
 divided-form input raises an error directing the caller to gather to
 the host first.  A new test file pins the working forms' values and
-covers both refusals.  *(API_specification.md Issue 2, marked fixed;
+covers both refusals.  *(reference/api_specification.md Issue 2, marked fixed;
 tests/test_utilities.py.)*
 
 **D2. CLOSED 2026-08-21.  The array-forms rule is not applied
@@ -633,7 +633,7 @@ multigpu_findings.md §1.39; _sharding.py.)*
 
 ## The current_plans.md migration (2026-08-19)
 
-Greg retired `plans/current_plans.md` in favor of this file.  What
+Greg retired `archive/torch_port/closed/current_plans.md` in favor of this file.  What
 moved and where:
 
 * Items 1, 2, 4 through 8, 14, and 15 were complete with their
@@ -657,7 +657,7 @@ moved and where:
   the stream-caching half survives as the design note's recorded
   memoization follow-up (pfwd_segmented_design.md §2).
 
-`plans/torch_port/active/functional_interface_proposal.md` is its
+`archive/torch_port/active/functional_interface_proposal.md` is its
 own open proposal, awaiting review; H2 is its entry in this list.
 The `closed` records carry decisions with revisit triggers rather
 than open items.  Items that closed before 2026-08-16 are audited in

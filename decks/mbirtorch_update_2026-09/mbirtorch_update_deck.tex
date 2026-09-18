@@ -151,7 +151,7 @@
   because mbirtorch now has the two estimators of Part 1.  The low-memory mode
   and the physics corrections rank higher than before, on evidence from the
   ORNL scan and the ORNL collaborators' scripts.}
-  \source{\texttt{plans/features/leap\_comparison/leap\_comparison\_v2.md}; \texttt{plans/features/tigre comparison/TIGRE\_comparison.md}}
+  \source{\texttt{surveys/leap\_comparison/survey.md}; \texttt{surveys/tigre\_comparison/survey.md}}
 \end{frame}
 
 % ================================================================ PART 1
@@ -241,7 +241,7 @@
       \end{itemize}}
     \end{column}
   \end{columns}
-  \source{\texttt{plans/experiments/features/geometric\_calibration/closed/calibration\_512\_gautschi.md} and \texttt{real\_scan\_leap\_tilt.md}}
+  \source{\texttt{plans/geometric\_calibration/experiments/closed/calibration\_512\_gautschi.md} and \texttt{real\_scan\_leap\_tilt.md}}
 \end{frame}
 \end{continuation}
 
@@ -390,7 +390,7 @@
       H100 GPUs, 15 iterations, before the changes.}
     \end{column}
   \end{columns}
-  \source{\texttt{plans/features/leap\_comparison/ornl\_reproduction.md}, Sections 3.1 and 3.2}
+  \source{\texttt{surveys/leap\_comparison/findings/ornl\_reproduction.md}, Sections 3.1 and 3.2}
 \end{frame}
 
 % ---------------------------------------------------------------- memory, 2
@@ -421,7 +421,7 @@
       allocator setting.}
     \end{column}
   \end{columns}
-  \source{\texttt{plans/experiments/features/device\_memory\_tiers/dm1\_record.md}}
+  \source{\texttt{plans/device\_memory\_tiers/experiments/dm1\_record.md}}
 \end{frame}
 \end{continuation}
 
@@ -451,8 +451,8 @@
       gautschi H100 nodes, timed by the gather harness on its own.}
     \end{column}
   \end{columns}
-  \source{\texttt{plans/features/leap\_comparison/host\_gather.md};
-  \texttt{ornl\_reproduction.md}, Section 3.4}
+  \source{\texttt{surveys/leap\_comparison/findings/host\_gather.md};
+  \texttt{surveys/leap\_comparison/findings/ornl\_reproduction.md}, Section 3.4}
 \end{frame}
 
 % ---------------------------------------------------------------- multiaxis kernels
@@ -493,7 +493,7 @@
       memory within 7 percent, so it picks four GPUs for that scan.}
     \end{column}
   \end{columns}
-  \source{\texttt{plans/archive/torch\_port/active/multigpu\_findings.md}, Sections 1.45 and 1.46}
+  \source{\texttt{archive/torch\_port/active/multigpu\_findings.md}, Sections 1.45 and 1.46}
 \end{frame}
 
 % ---------------------------------------------------------------- smaller changes
@@ -551,8 +551,8 @@
   \end{itemize}\vspace{8pt}
   The slides keep the same three parts: the problem, what changed, and how
   to use it.}
-  \source{\texttt{plans/features/mace4d/mace4d\_migration\_plan\_v2.md};
-  \texttt{plans/nn\_priors/multi\_slice\_fusion.md}}
+  \source{\texttt{plans/mace4d/plan.md};
+  \texttt{plans/multi\_slice\_fusion/plan.md}}
 \end{frame}
 
 % ---------------------------------------------------------------- MACE loop
@@ -595,7 +595,7 @@
       average of the inputs.}
     \end{column}
   \end{columns}
-  \source{\texttt{mbirtorch/mace.py} at \texttt{8304b25}; \texttt{plans/features/mace4d/}}
+  \source{\texttt{mbirtorch/mace.py} at \texttt{8304b25}; \texttt{plans/mace4d/}}
 \end{frame}
 
 % ---------------------------------------------------------------- fusion
@@ -627,9 +627,9 @@
       each.  One gray scale for all three.}
     \end{column}
   \end{columns}
-  \source{\texttt{plans/nn\_priors/multi\_slice\_fusion\_findings.md};
-  \texttt{plans/experiments/features/leap\_comparison/ornl/msf\_ornl.md};
-  \texttt{ornl\_reproduction.md}, Section 3.1}
+  \source{\texttt{plans/multi\_slice\_fusion/findings/multi\_slice\_fusion\_findings.md};
+  \texttt{surveys/leap\_comparison/experiments/ornl/msf\_ornl.md};
+  \texttt{surveys/leap\_comparison/findings/ornl\_reproduction.md}, Section 3.1}
 \end{frame}
 
 % ---------------------------------------------------------------- 4D
@@ -678,7 +678,7 @@
       reconstructed per frame.}
     \end{column}
   \end{columns}
-  \source{\texttt{mbirtorch/mace4d.py} at \texttt{8304b25}; \texttt{plans/features/mace4d/}}
+  \source{\texttt{mbirtorch/mace4d.py} at \texttt{8304b25}; \texttt{plans/mace4d/}}
 \end{frame}
 
 % ================================================================ PART 2
@@ -710,7 +710,7 @@
       reference; the labels are iteration counts.}
     \end{column}
   \end{columns}
-  \source{\texttt{plans/features/leap\_comparison/quality\_results.md}; \texttt{leap\_comparison\_v2.md}}
+  \source{\texttt{surveys/leap\_comparison/findings/quality\_results.md}; \texttt{surveys/leap\_comparison/survey.md}}
 \end{frame}
 
 % ---------------------------------------------------------------- offset scan, 1
@@ -759,7 +759,7 @@
       a half turn later see the rest.}
     \end{column}
   \end{columns}
-  \source{\texttt{leap\_comparison\_v2.md}, item 1; \texttt{TIGRE\_comparison.md}, item 4}
+  \source{\texttt{surveys/leap\_comparison/survey.md}, item 1; \texttt{surveys/tigre\_comparison/survey.md}, item 4}
 \end{frame}
 
 % ---------------------------------------------------------------- truncated object
@@ -806,7 +806,7 @@
       The ORNL routine does this at both channel edges and both row edges.}
     \end{column}
   \end{columns}
-  \source{\texttt{leap\_comparison\_v2.md}, item 1; \texttt{leapMBIR/utils/Get\_projection\_parameters\_standalone\_fast.py:321}}
+  \source{\texttt{surveys/leap\_comparison/survey.md}, item 1; \texttt{leapMBIR/utils/Get\_projection\_parameters\_standalone\_fast.py:321}}
 \end{frame}
 
 % ---------------------------------------------------------------- low memory
@@ -843,7 +843,7 @@
   them when the whole does not fit at any GPU count.  Tier 2, a host-memory
   mode, keeps the reconstruction-shaped arrays in host memory and streams
   their rows to the GPUs per subset.  Neither is started.\par}
-  \source{\texttt{plans/features/leap\_comparison/ornl\_reproduction.md}; \texttt{plans/features/device\_memory\_tiers/}}
+  \source{\texttt{surveys/leap\_comparison/findings/ornl\_reproduction.md}; \texttt{plans/device\_memory\_tiers/}}
 \end{frame}
 
 % ---------------------------------------------------------------- physics
@@ -880,7 +880,7 @@
       \end{tabular}}
     \end{column}
   \end{columns}
-  \source{\texttt{leap\_comparison\_v2.md}, items 3 and 5; \texttt{TIGRE\_comparison.md}, item 6}
+  \source{\texttt{surveys/leap\_comparison/survey.md}, items 3 and 5; \texttt{surveys/tigre\_comparison/survey.md}, item 6}
 \end{frame}
 
 % ---------------------------------------------------------------- phantoms and noise
@@ -912,7 +912,7 @@
       review.}}
     \end{column}
   \end{columns}
-  \source{\texttt{leap\_comparison\_v2.md}, item 4; \texttt{TIGRE\_comparison.md}, item 7}
+  \source{\texttt{surveys/leap\_comparison/survey.md}, item 4; \texttt{surveys/tigre\_comparison/survey.md}, item 7}
 \end{frame}
 
 % ---------------------------------------------------------------- flexible geometry
@@ -946,7 +946,7 @@
       slower and less accurate than its standard ones.\par}
     \end{column}
   \end{columns}
-  \source{\texttt{leap\_comparison\_v2.md}, item 6; \texttt{TIGRE\_comparison.md}, item 3}
+  \source{\texttt{surveys/leap\_comparison/survey.md}, item 6; \texttt{surveys/tigre\_comparison/survey.md}, item 3}
 \end{frame}
 
 % ---------------------------------------------------------------- algorithms and priors
@@ -981,7 +981,7 @@
       zero.\par}
     \end{column}
   \end{columns}
-  \source{\texttt{leap\_comparison\_v2.md}, item 8; \texttt{TIGRE\_comparison.md}, items 1 and 2}
+  \source{\texttt{surveys/leap\_comparison/survey.md}, item 8; \texttt{surveys/tigre\_comparison/survey.md}, items 1 and 2}
 \end{frame}
 
 % ---------------------------------------------------------------- calibration utilities
@@ -1020,8 +1020,8 @@
       \end{tabular}}
     \end{column}
   \end{columns}
-  \source{\texttt{leap\_comparison\_v2.md}, the calibration table and item 7;
-  \texttt{plans/features/geometric\_calibration/geometric\_calibration\_plan\_v2.md}}
+  \source{\texttt{surveys/leap\_comparison/survey.md}, the calibration table and item 7;
+  \texttt{plans/geometric\_calibration/plan.md}}
 \end{frame}
 
 % ---------------------------------------------------------------- smaller gaps
@@ -1043,7 +1043,7 @@
       and other metrics per iteration; mbirtorch has no hook, so a convergence
       study re-runs the solver at increasing iteration counts. & a callback on \texttt{recon} \\
   \end{tabular}}
-  \source{\texttt{leap\_comparison\_v2.md}, items 9 and 10; \texttt{TIGRE\_comparison.md}, items 8 and 9}
+  \source{\texttt{surveys/leap\_comparison/survey.md}, items 9 and 10; \texttt{surveys/tigre\_comparison/survey.md}, items 8 and 9}
 \end{frame}
 
 % ---------------------------------------------------------------- summary
@@ -1070,8 +1070,8 @@
       scores reconstructed slices;
     \item a fan-beam model, detector deblur, more loaders, and a quality hook.
   \end{enumerate}}
-  \source{\texttt{plans/features/leap\_comparison/leap\_comparison\_v2.md};
-  \texttt{plans/features/tigre comparison/TIGRE\_comparison.md}}
+  \source{\texttt{surveys/leap\_comparison/survey.md};
+  \texttt{surveys/tigre\_comparison/survey.md}}
 \end{frame}
 
 \end{document}

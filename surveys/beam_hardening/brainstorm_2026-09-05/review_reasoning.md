@@ -1,4 +1,4 @@
-# Reasoning review of `bh_from_recon_brainstorm.md`
+# Reasoning review of `surveys/beam_hardening/survey.md`
 
 Date: 2026-09-05.  Reviewer charge: judge the reasoning, not the prose.  Read-only except for this
 file.  Sources checked: the six brainstorm reports, `bh_physics_sim_output.txt`,

@@ -20,7 +20,7 @@ P ≈ 24.4k / 12.2k / 6.1k for bands 512 / 1024 / 2048.
 
 ## Method
 
-`plans/experiments/projector_kernels/fwd_guard_sweep.py` (+ `.slurm`), modeled on
+`archive/projector_kernels/experiments/fwd_guard_sweep.py` (+ `.slurm`), modeled on
 `e4_ab_back.py`: each (band, P, impl) cell in an isolated subprocess (JAX-free
 orchestrator, honest `peak_bytes_in_use`); one H100; sino (views=1024, rows=band,
 channels=1024) so band = num recon slices = the values second dim; P ∈ {2048, 4096,

@@ -45,7 +45,7 @@ declined that shape.  §2 carries the measured verdict.
   widening-floors refresh of §8.
 
 **What this note is.** The decision memo
-(`plans/torch_port/active/forward_remedy_memo.md`) ruled the shape of the
+(`archive/torch_port/active/forward_remedy_memo.md`) ruled the shape of the
 remedy in its §8, and §8.6 named three things the design note owes.  This note
 is that design.  It does not restate the memo, and every number it takes from
 the memo or from the findings carries its citation.  Nothing here is

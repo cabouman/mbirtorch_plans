@@ -5,7 +5,7 @@ Top-level index of the sharding experiment area.  Each subdirectory has its own
 
 ## Subdirectories
 
-- (the program plans and the parallel-performance findings docs moved to `plans/sharding/` and `plans/sharding/parallel_performance/`; see `plans/README.md`)
+- (the program plans and the parallel-performance findings docs moved to `archive/sharding/` and `archive/sharding/parallel_performance/`; see `README.md`)
 - `parallel_performance/` — benchmarks, parallelism-strategy comparisons, and the
   multi-GPU `device_put` correctness probe.
 - `scaling_tests/` — scripts to measure scaling of time and memory as a function

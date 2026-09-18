@@ -6,7 +6,7 @@ This page states where the source, the detector, the volume, the rotation axis,
 and the detector offsets sit in the object frame for each mbirtorch geometry
 model.  The geometry viewer draws from these statements, so each statement is
 written to be drawable and each is confirmed by measurement.  The measurement is
-`plans/experiments/geometry_viewer/gv1_conventions_probe.py`, which
+`plans/geometry_viewer/experiments/gv1_conventions_probe.py`, which
 forward-projects single voxels and compares the footprint centroid on the
 detector with a prediction written from the statements below.  The numbers of
 that run are in `gv1_conventions_probe.md` in the same directory.  Every

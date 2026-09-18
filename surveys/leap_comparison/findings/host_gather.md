@@ -42,7 +42,7 @@ the write alone takes 0.21 to 0.23 s on these nodes.
 
 ## 1. Where the time went
 
-The FDK split in `ornl_reproduction.md` (Section 3.4) put the volume gather
+The FDK split in `surveys/leap_comparison/findings/ornl_reproduction.md` (Section 3.4) put the volume gather
 at 7.1 to 8.0 s on four H100s, against 9.2 s for the back projection that
 produced the shards.  The harness `gather_bench.py` times the gather and its
 parts on the same volume, each variant twice with a new host array each
@@ -151,7 +151,7 @@ both nodes.
 
 ## 4. Files
 
-- Harness: `plans/experiments/features/leap_comparison/gather/gather_bench.py`,
+- Harness: `surveys/leap_comparison/experiments/gather/gather_bench.py`,
   with its batch files and the logs and results of jobs 16427947, 16427948
   (library as it was), 16428335, 16428336 (thread sweep), and 16428659, 16428660
   (library as changed) in `results/`.  Logs, results and batch files are

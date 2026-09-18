@@ -7,7 +7,7 @@ and `mbirtorch/tomography_model.py`, `mbirtorch/view_utils.py`, `mbirtorch/__ini
 `tests/test_geometry_figure.py`, `tests/test_geometry_interaction.py`,
 `tests/test_viewer_wrapper.py`, `demo/demo_11_geometry_viewer.py`,
 `docs/source/usr_geometry_viewer.rst`, `docs/source/figs/geometry_viewer_cone.png`, and
-five other docs pages.  File in this repository: `plans/API_specification.md`.
+five other docs pages.  File in this repository: `reference/api_specification.md`.
 Status: built, reviewed, and staged in both repositories for Greg's review.  Nothing is
 committed.  Opus wrote the code of each of the three parts from a specification, and
 the specification's author reviewed the diffs and the figures.
@@ -144,7 +144,7 @@ viewer object.
 
 ## Two docstring corrections and one more
 
-The two docstrings named in `geometry_conventions.md` were corrected.
+The two docstrings named in `reference/geometry_conventions.md` were corrected.
 `TranslationModel` now says that each view moves the object by minus its vector, with
 the effect of each component on the image.  `MultiAxisParallelModel` now defines the
 elevation as the angle at which the source, on the +y side, looks at the object, with
@@ -174,7 +174,7 @@ The prototype's four non-web test files pass against the refactored package, 278
 tests, because they drive the same projector:
 
 ```
-cd plans/experiments/geometry_viewer
+cd plans/geometry_viewer/experiments
 MPLBACKEND=Agg ~/miniforge3/envs/mbirtorch/bin/python -m pytest -q \
     test_geometry_scene.py test_geometry_viewer.py test_geometry_interaction.py \
     test_geometry_defaults.py

@@ -1,11 +1,11 @@
 # Beam hardening from reconstruction quality: brainstorm of 2026-09-05
 
 This directory holds one brainstorming session's records.  The page to read is
-`../bh_from_recon_brainstorm.md`.  Everything else is the material it was built from.
+`../survey.md`.  Everything else is the material it was built from.
 
 The synthesis:
 
-- `../bh_from_recon_brainstorm.md`: the page.  Executive summary, answer, the existing routines,
+- `../survey.md`: the page.  Executive summary, answer, the existing routines,
   the proposed modifications with their experiments, the alternative techniques with their
   experiments, the run order, and the open questions.
 

@@ -338,7 +338,7 @@ Read the console and match the step, as in the table above.  Then:
   Python wheel uploaded before 2025-09-10T17:06:22Z, and add it to the
   `_PINS` dictionary inside the shim.  The geometry viewer's repository has
   the script that computes the list (`gv5_lite_pins.py` in
-  `plans/experiments/geometry_viewer` of mbirtorch_plans).
+  `plans/geometry_viewer/experiments` of mbirtorch_plans).
 - An `ImportError` or `AttributeError` inside a library during "Importing
   gradio package" is the same problem one step later; treat it the same way.
 - "Can't find a pure Python 3 wheel" during "Installing packages" is one of

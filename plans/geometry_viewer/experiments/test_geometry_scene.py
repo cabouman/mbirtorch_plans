@@ -12,7 +12,7 @@ detector row, an infinite source-detector distance, a curved detector, and the
 translation geometry.
 
 Run:
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     PYTHONPATH=<mbirtorch clone> python -m pytest -q test_geometry_scene.py
 """
 

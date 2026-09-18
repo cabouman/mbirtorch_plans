@@ -1,6 +1,6 @@
 # Current forward plan — goals for the next release
 
-(The EVOLVING running list of open work, at `plans/current_plans.md`.  Rewritten
+(The EVOLVING running list of open work, at `archive/torch_port/closed/current_plans.md`.  Rewritten
 2026-08-07 around the agreed mbirtorch priorities; compressed 2026-08-09 —
 completed items are reduced to outcome bullets, and the detail lives in the
 findings docs each item cites.  This file should be cleaned periodically to
@@ -134,7 +134,7 @@ corrected ledger with its tests is staged in mbirtorch.  One consequence for
 users: the preflight now refuses torch-body reconstructions that previously
 started doomed, and multiaxis 1024 sits at an H100's edge on one device.
 Original charter: section B of
-`plans/torch_port/active/preprocess_sharding_translation_multiaxis.md`.
+`archive/torch_port/active/preprocess_sharding_translation_multiaxis.md`.
 
 - Port TranslationModel and the multiaxis parallel geometry; the jax
   regression harness already carries both, so gate rows have baselines from
@@ -152,7 +152,7 @@ Original charter: section B of
 ## 7. Release workflow — COMPLETE (2026-08-10).
 
 **State:**   The full proposal as implemented is at
-`plans/torch_port/active/release_workflow.md`.
+`archive/torch_port/active/release_workflow.md`.
 
 - GitHub-Release-driven publishing: main/prerelease branch model, CI on
   pull requests, PyPI via Trusted Publishing, Read the Docs on
@@ -160,8 +160,8 @@ Original charter: section B of
 
 ## 8. Remaining utility API surface — COMPLETE
 
-Work list and protocols: `plans/torch_port/active/preprocessing.md` and the census
-in `plans/torch_port/active/docs.md` §5.
+Work list and protocols: `archive/torch_port/active/preprocessing.md` and the census
+in `archive/torch_port/active/docs.md` §5.
 
 - DONE: the preprocess package, MAR, the coupled functions, the download
   utilities, the HDF5 save/load family, and the hsnt and vcls modules
@@ -222,7 +222,7 @@ Open:
 - **Multi-device completion checklist (Charlie-side):** preprocess
   sharding, export acceptance, and the geometry ports proceed in parallel
   with item 3.  Sequencing, riders, and per-item status live in
-  `plans/torch_port/active/preprocess_sharding_translation_multiaxis.md`.
+  `archive/torch_port/active/preprocess_sharding_translation_multiaxis.md`.
 - **Denoiser scope — DECIDED 2026-08-09, full sharding parity.**  The work
   is chartered as item A4 of the checklist above.  A4 includes both
   companion gaps: the `.clone()`-on-`Shards` failure and the log arguments

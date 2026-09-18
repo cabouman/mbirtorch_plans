@@ -2,7 +2,7 @@
 
 Status: ACTIVE 2026-08-27.  Code lives in the `mbirtorch` repo at
 `experiments/drunet/` (starting point: `cone_beam_2d.py`, the 2D noisy cone-beam
-problem).  Background survey: `denoiser_overview.md` beside this plan.
+problem).  Background survey: `surveys/denoisers/survey.md` beside this plan.
 
 ## Goal
 
@@ -102,7 +102,7 @@ Status (updated as work proceeds):
 |---|---|---|
 | 1 | Loop, agents, qGGMRF gate | done 2026-08-27; gate PASS at NRMSE 0.0065 vs the standard recon (consensus spread 8.5e-6); matched-sigma sweep at 0.5x/2x lands at 0.0027/0.0087, so inexact-prox drift is under 1%; from-zero descends monotonically to 0.027 at 30 iterations; the run surfaced library change 3; records in `experiments/drunet/output/qggmrf_gate.npz` |
 | 2 | DRUNet agent and sweep | done 2026-08-27; standard recon 0.385, best postprocessing 0.124 (sigma_scaled 0.10), best MACE prior 0.112 (sigma_scaled 0.075, 60 iterations, spread 6.2e-4); deepinv 0.4.1 added to the miniforge test env; records in `experiments/drunet/output/drunet_sweep.npz` |
-| 3 | Findings and follow-ups | done 2026-08-27; `mace_poc_findings.md`, with the follow-up queue carried there; the first queued item is planned in `multi_slice_fusion.md` |
+| 3 | Findings and follow-ups | done 2026-08-27; `plans/mace_poc/findings/mace_poc_findings.md`, with the follow-up queue carried there; the first queued item is planned in `plans/multi_slice_fusion/plan.md` |
 | 4 | Parameter sandbox (added at Greg's direction) | done 2026-08-27; `experiments/drunet/sandbox.py` compares the standard recon, DRUNet postprocessing, and the DRUNet MACE recon side by side, editing constants at the top of the file, with the standard recon cached across runs; the "standard recon" naming rule was adopted here and in the runner scripts' output ("direct recon" is reserved for the FDK-style `recon_direct`) |
 
 **Increment 1: loop, agents, gate.**  `experiments/drunet/mace.py` (the loop plus

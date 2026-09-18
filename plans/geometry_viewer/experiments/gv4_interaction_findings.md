@@ -113,7 +113,7 @@ about the scan.
 Testing:
 
 ```
-cd plans/experiments/geometry_viewer
+cd plans/geometry_viewer/experiments
 MPLBACKEND=Agg PYTHONPATH=/home/user/cabouman/mbirtorch \
     /home/user/gv_env/bin/python -m pytest -q test_geometry_scene.py \
     test_geometry_viewer.py test_geometry_interaction.py
@@ -144,7 +144,7 @@ fits.
 Timing:
 
 ```
-cd plans/experiments/geometry_viewer
+cd plans/geometry_viewer/experiments
 MPLBACKEND=Agg PYTHONPATH=/home/user/cabouman/mbirtorch \
     /home/user/gv_env/bin/python gv4_timing.py
 ```
@@ -152,7 +152,7 @@ MPLBACKEND=Agg PYTHONPATH=/home/user/cabouman/mbirtorch \
 Rendering the three figures:
 
 ```
-cd plans/experiments/geometry_viewer
+cd plans/geometry_viewer/experiments
 MPLBACKEND=Agg PYTHONPATH=/home/user/cabouman/mbirtorch \
     /home/user/gv_env/bin/python gv4_render_figures.py
 ```
@@ -334,7 +334,7 @@ record is left as it was written.
   excludes `*.png`, and no PNG under `figures/` is tracked, including the eight
   the Increment 3 record shows.  The eight Increment 3 images and the three new
   ones total 2.5 MB.  Adding them takes
-  `git add -f plans/experiments/geometry_viewer/figures`, and without that the
+  `git add -f plans/geometry_viewer/experiments/figures`, and without that the
   images this page and the Increment 3 page review are on disk only.
 
 ## Display test follow-up, 2026-09-09
@@ -586,7 +586,7 @@ y to the left.
 The geometry did not change.  The object frame is still right-handed with +z
 along the increasing slice index.  Every primitive `geometry_scene.py` returns
 is unchanged, and that file was not edited.  No statement in
-`geometry_conventions.md` changes either.  That record states where the source,
+`reference/geometry_conventions.md` changes either.  That record states where the source,
 the detector, and the volume sit in the object frame.  This change states where
 they are drawn on a screen.
 
@@ -648,7 +648,7 @@ plane from -z, which reverses the sense again.  The object's own rotation reads
 clockwise in this panel, and the source's travel reads counterclockwise.
 
 This agrees with the `vcls.show_image_with_projection_rays` docstring quoted in
-`geometry_conventions.md`, which says that the object rotates clockwise as the
+`reference/geometry_conventions.md`, which says that the object rotates clockwise as the
 rotation angle increases.  The scene's arc primitive did not change.  The axis
 inversions produce the new reading on their own.  A test measures the arc's
 signed area about the rotation axis in display coordinates and checks that it
@@ -738,7 +738,7 @@ scan's panel is set at 7.0 points where it was 7.5.
 ### The by-eye check
 
 The six figures of `gv3_render_figures.py` and `gv4_compare_offset.png` were
-read against `geometry_conventions.md`.  Six statements were checked: four in
+read against `reference/geometry_conventions.md`.  Six statements were checked: four in
 the flat cone figure, one in the comparison figure, and one in the helical
 figure.  Each agrees with the record.
 

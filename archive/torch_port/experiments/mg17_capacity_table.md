@@ -1,7 +1,7 @@
 # mg17 run record
 
 One run so far.  The table itself and its readings are in
-`plans/torch_port/active/two_k_design.md`; this file holds the run
+`archive/torch_port/active/two_k_design.md`; this file holds the run
 detail.
 
 ## Run of 2026-08-16 (job 15307591)
@@ -18,7 +18,7 @@ detail.
   directions.  The appendix geometries bound torch bodies in both
   directions, as expected.
 * Output rows:
-  `plans/experiments/torch_port/rows/mg17_capacity_h001_20260816_223415.jsonl`
+  `archive/torch_port/experiments/rows/mg17_capacity_h001_20260816_223415.jsonl`
   (82 rows).  The job log carries the printed tables.
 * The in-script assertion that rebuilds the shipped combining charge
   from the plan fields held on every reduce phase of every row, so

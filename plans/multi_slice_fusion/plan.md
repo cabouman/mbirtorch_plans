@@ -1,6 +1,6 @@
 # Plan for multi-slice fusion with a network denoiser prior
 
-This plan realizes the first queued follow-up of `mace_poc_findings.md`: move
+This plan realizes the first queued follow-up of `plans/mace_poc/findings/mace_poc_findings.md`: move
 the validated MACE loop from the 2D proof of concept to a 3D problem, with
 three orientation denoiser agents fused with the forward model — the
 multi-slice fusion construction.  The framing decisions carry over from the
@@ -87,7 +87,7 @@ Status (updated as work proceeds):
 | 1 | 3D problem and 3D qGGMRF gate | done 2026-08-27; `cone_beam_3d.py` and `run_qggmrf_gate.py --problem 3d`; gate PASS at NRMSE 0.0023 vs the standard recon (spread 6.9e-6, matched sigma, 30 iterations) in 84 s wall on mps; runtime probe `measure_3d_runtimes.py` at (128,128,128): standard recon 2 iterations 4.4 s cold / 4 iterations 2.2 s warm, prox_map 3 iterations 2.1 s, qGGMRF denoise 8 iterations 1.2 s, DRUNet about 1 s per 128-slice orientation stack — the full demo scale is kept and every run stays interactive on the Mac |
 | 2 | slice_axis DRUNet agent and single-orientation baselines | done 2026-08-27; slice_axis landed with the moved-axis equality check; initial fixed-strength comparison reviewed by Greg, then the strength sweep over {0.05, 0.075, 0.10, 0.125, 0.15} (`run_fusion_sweep.py`): post-1 best 0.129 at 0.10, post-3 best 0.122 at 0.075, mace-1 best 0.121 at 0.075 at 30 iterations (0.124 confirmed at 60), all vs standard 0.363; grids in `experiments/drunet/output/fusion_sweep.npz` |
 | 3 | multi-slice fusion runs and sweeps | done 2026-08-27; fusion (default weights 1/2, 1/6, 1/6, 1/6) is best at EVERY grid strength; best 0.0913 at sigma_scaled 0.075 (30 iterations), confirmed 0.0925 at 60 (spread 6.8e-3 — a stable equilibrium with small persistent inter-orientation disagreement); about 25% below the best non-fusion method at convergence; the weight sweep stayed unused since fusion separated at the defaults; data-consistency metric landed — denoised results sit at the noise floor (rms_w 0.0715-0.0736 vs 0.0729) while the standard recon overfits (0.0521); the sandbox gained PROBLEM='3d' with the fusion panel |
-| 4 | findings and follow-ups | done 2026-08-27; `multi_slice_fusion_findings.md`, with the follow-up queue carried there |
+| 4 | findings and follow-ups | done 2026-08-27; `plans/multi_slice_fusion/findings/multi_slice_fusion_findings.md`, with the follow-up queue carried there |
 
 Addendum 2026-08-27 — first real-data run (the queue's real-data follow-up): multi-slice
 fusion on the NSI Lilly Autoinjector scan (downsample 3, view subsample 5, recon
@@ -111,7 +111,7 @@ DRUNet weights staged at `~/.cache/torch/hub/checkpoints/`.
 Addendum 2026-09-15 — second real-data run, at production scale: multi-slice fusion on
 the ORNL Inconel scan (2132 views of 1456 x 1840, reconstruction (1360, 1360, 1296)
 float32, 8.9 GiB), on four gautschi H100s, via
-`plans/experiments/features/leap_comparison/ornl/msf_ornl.py`.  The run record
+`surveys/leap_comparison/experiments/ornl/msf_ornl.py`.  The run record
 `msf_ornl.md` beside the script holds the settings, the timeline, and the traces.  What is
 new in the script is where the state lives.  The consensus state is nine host volumes, the
 proximal agent hands host arrays to `prox_map` on four cards, and each DRUNet agent streams

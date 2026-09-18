@@ -1,10 +1,10 @@
 # mg26 run record
 
 One run.  The finding is in
-`plans/torch_port/active/multigpu_findings.md` §1.25; the refreshed
+`archive/torch_port/active/multigpu_findings.md` §1.25; the refreshed
 rows are pasted into `mbirtorch/_widening_floors.py` (staged); the
 coarsening proposal that reads from them is
-`plans/torch_port/active/floors_coarsening_proposal.md`.  This file
+`archive/torch_port/active/floors_coarsening_proposal.md`.  This file
 holds the run detail.
 
 ## mg26, the floors refresh on the padded tree (job 15342578)

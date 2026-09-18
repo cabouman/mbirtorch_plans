@@ -1,7 +1,7 @@
 # mg21 and mg21b run record
 
 Two runs.  The finding and its tables are in
-`plans/torch_port/active/multigpu_findings.md` §1.21; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.21; this file holds
 the run detail.
 
 ## mg21, the attribution probe (job 15327847)

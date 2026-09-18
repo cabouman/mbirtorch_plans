@@ -37,7 +37,7 @@ missing from the image.
 
 How to run it locally:
 
-    cd plans/experiments/geometry_viewer/web
+    cd plans/geometry_viewer/experiments/web
     pip install -r requirements.txt
     python app.py
 

@@ -1,7 +1,7 @@
 # mg31 run record
 
 One run.  The finding is in
-`plans/torch_port/active/multigpu_findings.md` §1.28, and the reading
+`archive/torch_port/active/multigpu_findings.md` §1.28, and the reading
 fills §4 of `pfwd_segmented_design.md`; this file holds the run
 detail.
 

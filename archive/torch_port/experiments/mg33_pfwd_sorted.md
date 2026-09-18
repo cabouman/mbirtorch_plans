@@ -1,7 +1,7 @@
 # mg33 run record
 
 One run.  The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.30; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.30; this file holds
 the run detail.
 
 ## mg33, the sorted-subset spike (job 15346414)

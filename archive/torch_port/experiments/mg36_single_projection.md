@@ -1,7 +1,7 @@
 # mg36 run record
 
 Single-projection anchors and the 1/128 launch row for the kernels
-document (`plans/torch_port/triton_kernels.md` §3 and Table 1).
+document (`archive/torch_port/triton_kernels.md` §3 and Table 1).
 Ordered by Greg 2026-08-18 as part of the document's revision; no
 record held these numbers.
 

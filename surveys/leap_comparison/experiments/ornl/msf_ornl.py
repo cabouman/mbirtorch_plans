@@ -4,7 +4,7 @@ Runs MACE with the data-fit proximal map as the forward agent and three
 DRUNet denoiser agents, one per slice orientation, at consensus weights
 (1/2, 1/6, 1/6, 1/6).  The construction and every algorithm choice follow
 the NSI fusion script in mbirtorch_applications/nsi/msf_recon.py and the
-findings in mbirtorch_plans/plans/nn_priors/multi_slice_fusion_findings.md.
+findings in mbirtorch_plans/plans/multi_slice_fusion/findings/multi_slice_fusion_findings.md.
 
 What differs here is scale.  The volume is (1360, 1360, 1296) float32, about
 9 GiB, so the consensus state (four agent inputs, four outputs, and the

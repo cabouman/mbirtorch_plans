@@ -131,7 +131,7 @@ reconstructed), but the two symptoms Greg flagged are <em>not</em> axial:</p>
   at the exact center slice (0.22 vs ~0.03 surroundings at iteration 15; still
   0.11 vs ~0.02 at 50) and it is <em>identical</em> in both variants — it is not a
   truncation artifact at all (cross-reference the known center-slice artifact in
-  <code>plans/bugs_and_artifacts/center slice noise/</code>, observed in this same
+  <code>archive/center_slice_noise/</code>, observed in this same
   sharpness 1.5 / snr 35 regime).  The comb pattern is board structure leaking into the
   index; the small end spikes are the axial flash, removed by the extension.  Convergence
   is likewise unchanged (both ~1.5%/iter at 50): BGA's drag is lateral.</figcaption>
@@ -274,7 +274,7 @@ overwritten by the auto call).  Validated on Lilly:</p>
 <p class="note">Reproduction: scripts <code>p3a_*</code> (SiC), <code>p3b_*</code> (BGA
 axial + the noise instrument), <code>p3c_*</code> (Lilly split), <code>p3d_*</code>
 (warning scorecard), <code>p3e_*</code> (lateral+axial), <code>p3f_*</code> (NSI cleanup)
-under <code>plans/experiments/flash_remediation/</code>; every run asserts its library
+under <code>archive/flash_remediation/experiments/</code>; every run asserts its library
 commit in-process, and all volumes/trajectory logs/figures live under
 <code>/depot/bouman/data/mbirjax_metrics/padding/</code>.</p>
 

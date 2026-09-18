@@ -1,7 +1,7 @@
 # mg55 run record
 
 One run, first submission.  The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.46; this file
+`archive/torch_port/active/multigpu_findings.md` §1.46; this file
 holds the run detail.
 
 ## mg55, device counts and the 2048-class (job 15434826)

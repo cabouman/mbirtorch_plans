@@ -9,7 +9,7 @@ SiC/Lilly scorecard + the axial+lateral BGA comparison), D: NSI auto-geometry cl
 `phase_3_results.html` (published).  Step E (re-baseline records + Lilly cache rebuild)
 is in progress — see the implementation record below.**
 
-Source item: `plans/current_plans.md` §1.  The per-case remedy spec — equations, code
+Source item: `archive/torch_port/closed/current_plans.md` §1.  The per-case remedy spec — equations, code
 sketches, pros/cons including do-nothing — is **`phase_2d_remedies.html`**; the
 illustrated evidence pages per phase are listed in `../../../README.md` and published at
 `/depot/bouman/www/mbirjax/flash_remediation/`; scripts live in
@@ -197,7 +197,7 @@ lateral truncation, plus a separate center-slice artifact:**
   high-pass noise index at the exact center slice (0.22 vs ~0.03 surroundings at iter
   15; still 0.11 vs ~0.02 at iter 50) and it is IDENTICAL in old and new — it is not a
   truncation artifact at all; cross-reference the known center-slice artifact
-  (`plans/bugs_and_artifacts/center slice noise/`, observed in this same sharpness 1.5 /
+  (`archive/center_slice_noise/`, observed in this same sharpness 1.5 /
   snr 35 regime).  The broad interior speckle (lateral contamination + sharp
   regularization) changes only ~5% (center-40 noise old/new = 1.06× at iter 15).
 - Convergence unchanged: both variants still ~1.5%/iter at iteration 50, nowhere near

@@ -20,7 +20,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 IMAGES = HERE / 'images'
 IMAGES.mkdir(exist_ok=True)
-PLANS = HERE.parents[2]
+PLANS = HERE.parents[1]
 MBIRTORCH = PLANS.parent / 'mbirtorch'
 
 ACCENT = '#3D6B99'
@@ -33,7 +33,7 @@ plt.rcParams.update({'font.family': 'sans-serif', 'font.size': 11,
 
 def memory_layers():
     """GPU memory of the ORNL scan on four H100 GPUs, before and after the
-    2026-09-14 changes.  Source: plans/experiments/features/device_memory_tiers/
+    2026-09-14 changes.  Source: plans/device_memory_tiers/experiments/
     dm1_record.md, section "Verification after the changes"."""
     labels = ['before', 'after', 'after, with the\nallocator setting']
     allocated = [29.03, 24.89, 24.89]
@@ -67,8 +67,8 @@ def memory_layers():
 
 def ornl_gpu_memory():
     """Peak memory of the ORNL scan on four H100 GPUs: mbirtorch against the
-    collaborators' OGM2 loop on LEAP.  Source: plans/features/leap_comparison/
-    ornl_reproduction.md, Section 3.1."""
+    collaborators' OGM2 loop on LEAP.  Source: surveys/leap_comparison/
+    surveys/leap_comparison/findings/ornl_reproduction.md, Section 3.1."""
     mb = [39.7, 39.3, 39.3, 38.0]
     leap = [18.9, 6.2, 6.2, 6.2]
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.0, 3.6),
@@ -100,8 +100,8 @@ def ornl_gpu_memory():
 
 def gather_time():
     """Time to gather a sharded 8.9 GiB volume to the host, before and after
-    the rebuild of Shards.gather.  Source: plans/features/leap_comparison/
-    host_gather.md, the summary table."""
+    the rebuild of Shards.gather.  Source: surveys/leap_comparison/
+    surveys/leap_comparison/findings/host_gather.md, the summary table."""
     labels = ['1 GPU', '2 GPUs', '4 GPUs']
     before = [2.3, 4.8, 5.7]
     after = [0.25, 0.26, 0.24]
@@ -125,7 +125,7 @@ def gather_time():
 
 def memory_levels():
     """The four levels of GPU memory on one GPU of the ORNL scan, four GPUs,
-    15 iterations.  Source: plans/features/leap_comparison/ornl_reproduction.md,
+    15 iterations.  Source: surveys/leap_comparison/findings/ornl_reproduction.md,
     Section 3.2, the four-device row."""
     labels = ['reported by nvidia-smi', 'reserved by the allocator',
               'peak of arrays in use', 'arrays held for the whole run']
@@ -152,7 +152,7 @@ def copy_images():
     repository or the mbirtorch documentation."""
     copies = {
         MBIRTORCH / 'docs/source/figs/geometry_viewer_cone.png': 'geometry_viewer_cone.png',
-        PLANS / 'plans/experiments/features/leap_comparison/results/quality_nrmse_vs_time_512.png':
+        PLANS / 'surveys/leap_comparison/experiments/results/quality_nrmse_vs_time_512.png':
             'quality_nrmse_vs_time_512.png',
     }
     for src, name in copies.items():

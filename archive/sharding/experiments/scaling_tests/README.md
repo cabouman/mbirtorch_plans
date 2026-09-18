@@ -33,7 +33,7 @@ source /Users/gbuzzard/miniforge3/etc/profile.d/conda.sh && conda activate mbirj
 Runs out of the box — the engine creates virtual CPU devices (`MBIRJAX_NUM_CPU_DEVICES`, default 4)
 and uses the `cpu` size set.
 ```bash
-cd plans/experiments/sharding/scaling_tests
+cd archive/sharding/experiments/scaling_tests
 python performance_tracking.py          # full sweep -> results/regression/regression_cpu_<date>.yaml
 python run_performance_local.py         # ad-hoc, edit the CONFIG block first -> results/manual/<tag>/
 ```
@@ -44,7 +44,7 @@ memory is then cumulative, so trust the default subprocess numbers for the memor
 ```bash
 git pull && pip install -e .            # FRESH build — a stale build once impersonated a leak
 nvidia-smi                              # GPUs visible, not occupied/throttling; run on ALLOCATED GPUs
-cd plans/experiments/sharding/scaling_tests
+cd archive/sharding/experiments/scaling_tests
 python performance_tracking.py          # auto-detects GPU; uses the gpu size set (512/513/1024)
 ```
 The engine sweeps each device count the hardware has (`[1,2,4]`, filtered to the GPU count) and

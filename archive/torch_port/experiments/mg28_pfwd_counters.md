@@ -1,7 +1,7 @@
 # mg28 run record
 
 One run.  The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.26, with the
+`archive/torch_port/active/multigpu_findings.md` §1.26, with the
 correction it makes to §1.19 noted there; this file holds the run
 detail.
 

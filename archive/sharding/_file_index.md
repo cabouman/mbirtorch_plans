@@ -1,4 +1,4 @@
-# plans/sharding — file index (the sharding-program plans; formerly plans/experiments/sharding/plans)
+# archive/sharding — file index (the sharding-program plans; formerly archive/sharding/experiments/plans)
 
 - `sharding_implementation_plan_v2.md` — **the current forward plan** (2026-06-02 on).  Placement
   architecture (`recon_placement`/`sino_placement`, the

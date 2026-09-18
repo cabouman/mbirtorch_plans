@@ -8,7 +8,7 @@ Date: 2026-09-09.  Files: `geometry_scene.py` (the scene), `test_geometry_scene.
 `geometry_scene.py` is the model layer of the geometry viewer.  It imports numpy
 only.  It turns a model's parameters into the points and polylines a drawing needs,
 and it computes detector indices with the conventions of
-`geometry_conventions.md`.  The matplotlib viewer will draw from it and own no
+`reference/geometry_conventions.md`.  The matplotlib viewer will draw from it and own no
 geometry of its own.
 
 The public surface has one class and a few constants.
@@ -38,7 +38,7 @@ The public surface has one class and a few constants.
 The command is
 
 ```
-cd plans/experiments/geometry_viewer
+cd plans/geometry_viewer/experiments
 PYTHONPATH=/home/user/cabouman/mbirtorch /home/user/gv_env/bin/python -m pytest -q test_geometry_scene.py
 ```
 

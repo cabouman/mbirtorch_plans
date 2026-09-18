@@ -3,7 +3,7 @@
 Status: IMPLEMENTED 2026-09-03 (rev 2 after review; the verification log is at the end).  Two
 repos: the metrics harness (`mbirtorch_metrics/tooling/regression/`, `action_scripts/`,
 `state/<plat>/`) and the library's dependency watch and CI (`mbirtorch/ci/`, `.github/`).
-Predecessor design: `plans/torch_port/closed/python_matrix_nightly_check.md` (the watch); this
+Predecessor design: `archive/torch_port/closed/python_matrix_nightly_check.md` (the watch); this
 plan changes what the watch proposes and adds the validation it was waiting for.
 
 ## The policy

@@ -1,7 +1,7 @@
 # mg22 run record
 
 One run.  The finding and its readings are in
-`plans/torch_port/active/multigpu_findings.md` §1.22; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.22; this file holds
 the run detail.  The tool is `dev_scripts/refresh_widening_floors.py`
 in the mbirtorch repository, extended the same day to build multiaxis
 and translation models; the job file is `mg22_floors_gautschi.sbatch`

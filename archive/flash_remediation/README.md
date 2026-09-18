@@ -1,6 +1,6 @@
 # flash_remediation — docs and reports
 
-The FoV-truncation "flash" remediation program (source item: `plans/current_plans.md` §2).
+The FoV-truncation "flash" remediation program (source item: `archive/torch_port/closed/current_plans.md` §2).
 
 - **`index.html`** — the project overview page; links every report below.
 - **`flash_remediation_plan.md`** — the plan of record: mechanism analysis, findings,
@@ -32,7 +32,7 @@ each script:
 
 ```bash
 source /Users/gbuzzard/miniforge3/etc/profile.d/conda.sh && conda activate mbirjax
-cd plans/experiments/flash_remediation
+cd archive/flash_remediation/experiments
 ```
 
 | script | produces | runtime |
@@ -55,7 +55,7 @@ Notes:
 ## Refreshing the reports after regenerating figures
 
 ```bash
-python embed_report_figures.py       # from plans/experiments/flash_remediation/
+python embed_report_figures.py       # from archive/flash_remediation/experiments/
 ```
 
 This swaps the new PNGs into both HTML reports **in place**, matching each `<img>` by its

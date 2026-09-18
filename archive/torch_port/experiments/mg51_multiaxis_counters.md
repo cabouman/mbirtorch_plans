@@ -1,7 +1,7 @@
 # mg51 run record
 
 One run.  The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.42; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.42; this file holds
 the run detail.
 
 ## mg51, the counter run on the compiled multiaxis bodies (job 15424602)

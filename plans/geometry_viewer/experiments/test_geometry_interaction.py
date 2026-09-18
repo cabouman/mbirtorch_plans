@@ -44,7 +44,7 @@ or not it is drawn.
 The tests run under the Agg backend and open no window.
 
 Run:
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     MPLBACKEND=Agg PYTHONPATH=<mbirtorch clone> python -m pytest -q \
         test_geometry_interaction.py
 """

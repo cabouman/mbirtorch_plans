@@ -70,7 +70,7 @@ brown, and overshoot red.
 Rendering the eight figures:
 
 ```
-cd plans/experiments/geometry_viewer
+cd plans/geometry_viewer/experiments
 MPLBACKEND=Agg PYTHONPATH=/home/user/cabouman/mbirtorch \
     /home/user/gv_env/bin/python gv3_render_figures.py
 ```
@@ -81,7 +81,7 @@ The run takes 12 seconds and writes eight PNG files of about 200 kB each into
 Testing:
 
 ```
-cd plans/experiments/geometry_viewer
+cd plans/geometry_viewer/experiments
 MPLBACKEND=Agg PYTHONPATH=/home/user/cabouman/mbirtorch \
     /home/user/gv_env/bin/python -m pytest -q test_geometry_viewer.py
 ```
@@ -106,7 +106,7 @@ Running the scene's own tests alongside these gives 103 passed.
 ## The figures, reviewed against the conventions record
 
 Each figure below is followed by a checklist.  Each line states what the figure
-should show under `geometry_conventions.md` and whether it does.  The numbers
+should show under `reference/geometry_conventions.md` and whether it does.  The numbers
 quoted are the scene's, printed alongside the render.
 
 ### Parallel beam, view 2
@@ -273,7 +273,7 @@ quoted are the scene's, printed alongside the render.
   moves the image toward a higher row index: yes.  The central ray lands at row
   12.7 and the grid center sits at row 11.5.
 
-No figure disagrees with `geometry_conventions.md`.
+No figure disagrees with `reference/geometry_conventions.md`.
 
 ## What the review changed
 

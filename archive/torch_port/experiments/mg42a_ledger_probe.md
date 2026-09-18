@@ -1,8 +1,8 @@
 # mg42a run record
 
 Two runs of one harness.  The finding is in
-`plans/torch_port/active/multigpu_findings.md` §1.35; the design this
-probe serves is `plans/torch_port/active/ledger_calibration_design.md`.
+`archive/torch_port/active/multigpu_findings.md` §1.35; the design this
+probe serves is `archive/torch_port/active/ledger_calibration_design.md`.
 This file holds the run detail.
 
 ## mg42a, the ledger probe (job 15376256), plus the n=1 re-run

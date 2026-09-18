@@ -1,7 +1,7 @@
 # mg48 run record
 
 One run.  The finding is in
-`plans/torch_port/active/multigpu_findings.md` §1.38; the remedy it
+`archive/torch_port/active/multigpu_findings.md` §1.38; the remedy it
 gates is findings §1.37; the run detail and the proposed paste are in
 this file.  Nothing is pasted into the library by this run: the
 sentinel rulings are Greg's.

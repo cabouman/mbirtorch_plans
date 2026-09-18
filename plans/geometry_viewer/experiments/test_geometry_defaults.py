@@ -27,7 +27,7 @@ Two copied helpers are checked on their own, because no model reports them.
 ``cube_phantom`` with ``gen_cube_phantom``.
 
 Run:
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     PYTHONPATH=<mbirtorch clone> python -m pytest -q test_geometry_defaults.py
 """
 

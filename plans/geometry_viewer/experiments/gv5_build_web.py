@@ -31,7 +31,7 @@ There are no command-line arguments.  The inputs are the files named in
 :data:`MODULE_FILES` and :data:`WEB_FILES`, and every output is overwritten.
 
 Run:
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     MPLBACKEND=Agg python gv5_build_web.py
 
 The script prints one line per file it wrote.  ``test_web_app.py`` runs it and
@@ -655,7 +655,7 @@ reconstruction geometry that an mbirtorch model constructor would choose,
 ``geometry_viewer.py`` draws them with matplotlib.  It carries the six stored
 sinograms as well, in ``default_sinograms.b64``.  All of these are copies made
 by ``gv5_build_web.py`` in the ``mbirtorch_plans`` repository, under
-``plans/experiments/geometry_viewer``; that directory holds the sources and the
+``plans/geometry_viewer/experiments``; that directory holds the sources and the
 tests.
 
 The page holds the runtime's dependencies at fixed versions.  The script and

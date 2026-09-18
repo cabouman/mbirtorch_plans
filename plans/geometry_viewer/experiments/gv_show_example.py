@@ -3,7 +3,7 @@
 Run this from a checkout of mbirtorch_plans in an environment where mbirtorch
 is installed and a display is available:
 
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     python gv_show_example.py
 
 Which geometry is shown.  ``GEOMETRY`` chooses one of the six geometries the

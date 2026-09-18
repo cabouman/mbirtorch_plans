@@ -1,4 +1,4 @@
-# plans/experiments/sharding/scaling_tests — file index
+# archive/sharding/experiments/scaling_tests — file index
 
 Scripts to measure time/memory scaling of the sharded operators vs **device count**
 and **problem size**, plus the correctness baselines they compare against.  Grouped
@@ -9,7 +9,7 @@ by purpose below.  Resolved one-off diagnostics live in `archive/` (see
 - **Scaling drivers** and **live diagnostics** — run from the **beta worktree root**
   (the orchestrator forces the beta worktree onto each worker's PYTHONPATH and prints
   the resolved path).  No CLI args for the human: edit the top-of-file constants, then
-  `python plans/experiments/sharding/scaling_tests/<driver>.py`.
+  `python archive/sharding/experiments/scaling_tests/<driver>.py`.
 - **Capture-baseline scripts** — run **once from a *prerelease* checkout**, NOT the
   beta worktree.  Each writes a single platform-agnostic reference into beta's
   `baselines/`; every beta run (CPU or GPU) compares against it.

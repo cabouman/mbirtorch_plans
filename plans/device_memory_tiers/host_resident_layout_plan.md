@@ -1,7 +1,7 @@
 # Host-resident reconstruction arrays in the VCD loop: plan
 
 Status: FOLDED IN on 2026-09-14.  The plan of record is now
-`plans/features/device_memory_tiers/device_memory_tiers_plan.md`, which
+`plans/device_memory_tiers/plan.md`, which
 carries this design as its Tier 2 and cites the numbers below.  The text
 below is unchanged from the revision of 2026-09-13.
 
@@ -11,9 +11,9 @@ it answers on 2026-09-13.  Can every reconstruction-shaped array in
 `_vcd_recon` stay in host memory, with its rows moved to the device as the
 projections need them, while the sinogram-shaped arrays stay on the device?
 And what would that save?  The numbers come from the memory ledger, recorded
-in `plans/experiments/features/device_memory_tiers/hr1_ledger_residents.md`,
+in `plans/device_memory_tiers/experiments/hr1_ledger_residents.md`,
 and from the LEAP comparison record in
-`plans/experiments/features/leap_comparison/results/leap_benchmark_results.md`.
+`surveys/leap_comparison/experiments/results/leap_benchmark_results.md`.
 File paths are given from the root of the mbirtorch repository.
 
 ## Executive summary
@@ -403,7 +403,7 @@ share grows with the count.
 ### Increment 0: the measurements
 
 Files: scripts and sbatch files under
-`plans/experiments/features/device_memory_tiers/`, with companion `.md`
+`plans/device_memory_tiers/experiments/`, with companion `.md`
 records.
 
 One job on an H100 node, about two GPU-hours, with four parts.

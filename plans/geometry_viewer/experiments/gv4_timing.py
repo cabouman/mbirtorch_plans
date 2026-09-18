@@ -23,7 +23,7 @@ reference the optimization is measured against.
 There are no command-line arguments.  The parameters are the constants below.
 
 Run:
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     MPLBACKEND=Agg PYTHONPATH=<mbirtorch clone> python gv4_timing.py
 
 The run takes about a minute and prints one table.  ``gv4_timing.md`` holds the

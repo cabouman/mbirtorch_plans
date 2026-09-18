@@ -2,11 +2,11 @@
 
 Written 2026-09-14, revised the same day after Stage 4.  This page summarizes the work on the port of MACE4D
 from mbirjax to mbirtorch since the plan of record,
-`mace4d_migration_plan_v2.md`, was written on 2026-09-13.  It lists what
+`plans/mace4d/plan.md`, was written on 2026-09-13.  It lists what
 each stage delivered, what the tests observed, which design choices were
 made on the way, and which decisions are still open.  The detailed records
 it points to are beside this page and in
-`plans/experiments/features/mace4d/`.
+`plans/mace4d/experiments/`.
 
 ## Where the work stands
 
@@ -56,7 +56,7 @@ parameters from a subsample of about 20 whole volumes.
 | Batches of 2 against one batch of 5 | 5.8e-8 | 0 | 1e-6 |
 | Against mbirjax's batched hyperplane denoiser, four cases, partitions and iteration counts identical | 2.0e-7 | 2.0e-7 | 1e-3 |
 
-The record is `plans/experiments/features/mace4d/m4d4_denoise_stack_check.md`.
+The record is `plans/mace4d/experiments/m4d4_denoise_stack_check.md`.
 
 **Findings.**  The CPU rounds the elementwise qGGMRF chain differently on a
 3D tensor than on a 2D one when the element count is not a multiple of 8,
@@ -89,7 +89,7 @@ overlapping windows of consecutive views and builds one model per window.
 slices of five parameter sets match mbirjax exactly, including 240 views at
 2.5 degrees with the angles stored modulo 360, which is how the NSI
 preprocessing stores them, and its monotonic form.  Record:
-`plans/experiments/features/mace4d/m4d5_time_frames_check.md`.
+`plans/mace4d/experiments/m4d5_time_frames_check.md`.
 
 **Design choices taken.**  The verbose suppression of the mbirjax function
 was left out, because mbirtorch prints nothing when a model is built or
@@ -186,7 +186,7 @@ moved filter tests.
 | Whole suite, eight workers | 1104 passed and 143 skipped.  One wall-clock gate of the geometry viewer failed under the load of eight workers.  Run alone it passed at 52 ms against its 100 ms limit.  It behaved the same way before Stage 3 was pushed. | |
 
 **Check against mbirjax.**  Record:
-`plans/experiments/features/mace4d/m4d7_mace4d_check.md`.  The check was
+`plans/mace4d/experiments/m4d7_mace4d_check.md`.  The check was
 run in a configuration in which the two libraries compute the same
 iteration.  It uses one pixel subset, so mbirjax's redraw of the partitions
 on every proximal map cannot change the result.  In that configuration the
@@ -574,7 +574,7 @@ eight workers and passes alone at half its limit.
 mbirtorch_plans, branch `main`; the local branch and the remote are both
 at `d23fad2`.  The
 mace4d files of this work are unstaged: the edits to
-`mace4d_migration_plan_v2.md` and to the two nn_priors findings pages, and
+`plans/mace4d/plan.md` and to the two nn_priors findings pages, and
 the untracked records, prompts, panel pages, scripts, and output files under
-`plans/features/mace4d/` and `plans/experiments/features/mace4d/`.  Ziyun
+`plans/mace4d/` and `plans/mace4d/experiments/`.  Ziyun
 has no push rights to this repository.

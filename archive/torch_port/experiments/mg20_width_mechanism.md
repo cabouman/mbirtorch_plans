@@ -1,7 +1,7 @@
 # mg20 run record
 
 Two runs.  The finding and its tables are in
-`plans/torch_port/active/multigpu_findings.md` §1.19; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.19; this file holds
 the run detail.
 
 ## Run of 2026-08-17, timing leg (job 15316533)
@@ -16,7 +16,7 @@ the run detail.
 * The profiler leg did not run: `ncu` was not on PATH in the batch
   environment, although the cuda module carries it.
 * Output rows:
-  `plans/experiments/torch_port/rows/mg20_width_h007_20260817_092645.jsonl`.
+  `archive/torch_port/experiments/rows/mg20_width_h007_20260817_092645.jsonl`.
 
 ## Run of 2026-08-17, counter leg (job 15316589)
 

@@ -7,7 +7,7 @@ the top level because it is still being edited and staged.  Every closed series
 is under `archive/`.
 
 The planning and findings documents for this program are in
-`plans/torch_port/`, which has its own README.
+`archive/torch_port/`, which has its own README.
 
 ## Live: the `mg` series
 
@@ -50,7 +50,7 @@ record of where each measurement was actually taken, so they are never
 rewritten.
 
 `results/` is where the harnesses write.  It is about 670 MB and git ignores it
-through the exact path `plans/experiments/torch_port/results`.  It does not
+through the exact path `archive/torch_port/experiments/results`.  It does not
 move.
 
 ## Staging conventions
@@ -79,7 +79,7 @@ reason.
 **A harness writes beside itself unless an environment variable says
 otherwise.**  Each harness sets its results directory to a `results` folder next
 to its own file.  The git ignore rule covers only
-`plans/experiments/torch_port/results`, by that exact path.  A script run from
+`archive/torch_port/experiments/results`, by that exact path.  A script run from
 inside `archive/` would therefore write into an `archive/<series>/results`
 folder that git does not ignore.  The eight `mg` harnesses accept an override
 environment variable named `MG1_RESULTS` through `MG8_RESULTS`, and their batch

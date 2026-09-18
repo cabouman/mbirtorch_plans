@@ -19,8 +19,8 @@ dimension 1.
 ```
 cd "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch" && \
 /Users/gbuzzard/miniforge3/envs/mbirtorch/bin/python \
-  "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/experiments/features/mace4d/m4d1_batched_denoiser_options.py" \
-  2>&1 | tee "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/experiments/features/mace4d/results/m4d1_batched_denoiser_options.txt"
+  "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/mace4d/experiments/m4d1_batched_denoiser_options.py" \
+  2>&1 | tee "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/mace4d/experiments/results/m4d1_batched_denoiser_options.txt"
 ```
 
 ## Environment

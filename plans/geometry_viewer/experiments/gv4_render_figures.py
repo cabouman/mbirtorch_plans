@@ -19,7 +19,7 @@ There are no command-line arguments.  The parameters are the constants below
 and, for the helical scan, the constants of ``gv4_timing.py``.
 
 Run:
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     MPLBACKEND=Agg PYTHONPATH=<mbirtorch clone> python gv4_render_figures.py
 
 The run takes about half a minute and prints the path of each figure it wrote,

@@ -97,7 +97,7 @@ Three tiers, cheapest first:
 2. **End-to-end nsi golden vs the real dataset (EPHEMERAL).** Source = the Lilly Autoinjector dataset
    (`/depot/bouman/data/Lilly/Autoinjector_HighRes_Horizontal/` on the cluster; Samba-mounted at
    `/Volumes/bouman/...` locally). Capture the current `(sino, cone_beam_params, optional_params)` once
-   (`plans/experiments/sharding/collect_nsi_golden.py`, `ds4_sv20`) and verify the refactor against it with
+   (`archive/sharding/experiments/collect_nsi_golden.py`, `ds4_sv20`) and verify the refactor against it with
    `--ref`. **The golden is NOT kept/committed** — once the new implementation is verified, the new
    implementation is the gold standard.
 3. **Multi-GPU speedup (Phase 3).** Full Lilly dataset on the cluster; confirm near-linear scaling

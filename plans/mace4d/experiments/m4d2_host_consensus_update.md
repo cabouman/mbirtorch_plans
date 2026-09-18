@@ -16,8 +16,8 @@ No file in the mbirtorch package was changed.
 ```
 cd "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch" && \
 /Users/gbuzzard/miniforge3/envs/mbirtorch/bin/python \
-  "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/experiments/features/mace4d/m4d2_host_consensus_update.py" \
-  2>&1 | tee "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/experiments/features/mace4d/results/m4d2_host_consensus_update.txt"
+  "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/mace4d/experiments/m4d2_host_consensus_update.py" \
+  2>&1 | tee "/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch_plans/plans/mace4d/experiments/results/m4d2_host_consensus_update.txt"
 ```
 
 ## Environment

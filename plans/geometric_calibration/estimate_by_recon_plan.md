@@ -6,8 +6,8 @@ the function name `estimate_geometry_from_recon` on 2026-09-05, and the two `est
 file names keep the earlier short form.  The design this plan implements is
 `estimate_by_recon.md` in this directory.  Measured numbers here were read in this session from
 the record cited beside each.  Records cited by bare name live in
-`plans/experiments/features/geometric_calibration/`, the closed campaign's under `closed/`
-there; the pages of this directory's earlier campaign are under `closed/` here.  Day figures and
+`experiments/` in this directory, the closed campaign's under `experiments/closed/`;
+the earlier campaign's findings pages are under `findings/` here.  Day figures and
 thresholds marked provisional are estimates.  Code citations refer to the
 `geometric_calibration` branch working tree of mbirtorch, which is commit `4781600` plus the
 staged Increment 6 edits.
@@ -16,7 +16,7 @@ staged Increment 6 edits.
 
 `estimate_geometry_from_recon` estimates `det_rotation`, and optionally `det_channel_offset`
 with it, by reconstructing a few slices at candidate values and scoring their quality.  It is a standalone,
-optional estimator beside the conjugate-view ones.  This plan is Increment 1 of `geometric_calibration_plan_v2.md`, so its five
+optional estimator beside the conjugate-view ones.  This plan is Increment 1 of `plans/geometric_calibration/plan.md`, so its five
 sub-increments are numbered 1.1 to 1.5, each reviewed before the next starts:
 
 - Sub-increment 1.1 runs the measurement the estimator's premise rests on, a fine sweep of
@@ -156,7 +156,7 @@ change them.
 ## The increments
 
 **Sub-increment 1.1.  The fine sweep on the real scans.  Rough estimate 1 day.**  This sub-increment adds
-one cluster experiment, `plans/experiments/features/geometric_calibration/recon_sweep_fine.py`,
+one cluster experiment, `plans/geometric_calibration/experiments/recon_sweep_fine.py`,
 with its record.  The script reconstructs the four far slices of the far-slice job, at 470 and
 752 rows on both sides of the central plane, for the no-metal and metal NSI scans.  The
 candidate rotations run from 0.10 to 0.20 degrees on the no-metal scan and 0.10 to 0.24 on the
@@ -193,7 +193,7 @@ prefers symmetric pairs about the central plane, it avoids slices holding dense 
 takes the central-plane row from the module's existing arithmetic
 (`geometry_calibration.py:980`).  The synthetic script gains a third phantom, a cylinder with no
 slab, which does not exist there today.  Tests run on the far-slab, near-slab, and no-slab
-phantoms of `plans/experiments/features/geometric_calibration/rotation_zero_point_synthetic.py`.
+phantoms of `plans/geometric_calibration/experiments/rotation_zero_point_synthetic.py`.
 It has three gates.  The score ranks the injected 1.5 degrees first on the far-slab phantom,
 where the band estimator under-reads by 24 percent (`rotation_zero_point_synthetic.md`).  The
 ranking is unchanged at a detector binning of 2 with the recon grid held fixed, so only the blur

@@ -116,7 +116,7 @@ access is granted, GPU-hour accounting) is described in `.claude/gpu-resources.m
    rarely-imported module while everything else works; treat that as "rebuild", not as a
    packaging bug.
 6. **Helper scripts, only if you use the ThinLinc recipes.**  Copy
-   `plans/experiments/remote_cluster/` to a directory of your own on scratch and run the
+   `tools/remote_cluster/` to a directory of your own on scratch and run the
    scripts from there: they locate each other through their own directory and take the
    conda env from `CONDA_ENV` (default `mbirtorch`), so nothing inside needs editing.  The
    viewer demo they run is a small mbirtorch cone-beam recon (ported 2026-09-03, not yet run
@@ -227,7 +227,7 @@ export XAUTHORITY=$(printf '%s' "$XVNC" | sed -n 's/.*-auth \([^ ]*\).*/\1/p')
 nohup srun --x11 -A bouman -p ai -N1 --gpus-per-node=1 --cpus-per-task=14 \
       -t 04:00:00 python my_viewer_script.py > /tmp/viewer.log 2>&1 &
 ```
-Working example: `plans/experiments/remote_cluster/tl_slice_viewer.sh`
+Working example: `tools/remote_cluster/tl_slice_viewer.sh`
 (+ `x11_slice_viewer_demo.py`, a small mbirtorch GPU recon + viewer) — auto-discovers the
 display, sanity-checks it, then submits.
 
@@ -255,7 +255,7 @@ the session ends only on `exit`.  So:
   this slurm's `--help` — **unverified, needs testing** if a detached persistent allocation
   is wanted.
 
-Working example of the shell-held form: `plans/experiments/remote_cluster/tl_gpu_session.sh`
+Working example of the shell-held form: `tools/remote_cluster/tl_gpu_session.sh`
 (discovers the ThinLinc display, opens `xfce4-terminal`, runs `sinteractive --x11` in it).
 Verified 2026-07-25: terminal on login01 → shell on h008, released only on `exit`.
 
@@ -311,7 +311,7 @@ only symptom was a missing `(<env>)` prefix.  Export `CONDA_ENV=<name>` before r
 `tl_*` scripts to use another env.
 
 **A terminal ON the compute node** (so work runs where the GPU is, and PyCharm/viewers can
-be started from it): `plans/experiments/remote_cluster/tl_node_terminal.sh` — run it on the
+be started from it): `tools/remote_cluster/tl_node_terminal.sh` — run it on the
 login node with `JOBID=<id>`; it opens `xfce4-terminal` on the allocated node via
 `srun --overlap`, optionally running a command first and then dropping to a shell.  Verified
 2026-07-25: terminal on h008 inside job 14201524, viewer displayed in ThinLinc.  Each such
@@ -591,14 +591,14 @@ between accounts.
 
   | filesystem | public URL | status |
   |---|---|---|
-  | `/depot/bouman/www/mbirtorch/<area>/` | `…/bouman/mbirtorch/<area>/` | the root for new pages, created 2026-09-03 with an index (source: `plans/www/mbirtorch_index.html` — add an entry there and redeploy when an area is added) |
+  | `/depot/bouman/www/mbirtorch/<area>/` | `…/bouman/mbirtorch/<area>/` | the root for new pages, created 2026-09-03 with an index (source: `www/mbirtorch_index.html` — add an entry there and redeploy when an area is added) |
   | `/depot/bouman/www/pcdrecon/` | `…/bouman/pcdrecon/` | exists (Aug 2026) |
   | `/depot/bouman/www/mbirjax/<area>/` | `…/bouman/mbirjax/<area>/` | *(legacy)* six mbirjax-era report areas from July 2026, **frozen 2026-09-03**: tree made read-only, index carries a banner pointing at the mbirtorch root; may be deleted later (`chmod -R u+w` first) |
 
   Publish only finished, shareable **HTML** here (no source, no data) — the destination
   is on the open internet.  Files need `chmod 644`, directories `chmod 755`.  The publish
   idiom is an `rsync` of `*.html` to the depot www dir; see
-  `plans/flash_remediation/publish_pages.sh` for the idiom (its `DEST` is the frozen
+  `archive/flash_remediation/publish_pages.sh` for the idiom (its `DEST` is the frozen
   `mbirjax/` tree, so as written it now fails by design — copy it and change `DEST`).
 
 ## Moving data on and off
@@ -650,7 +650,7 @@ running anything heavy in it: it shares the GPU (see `--overlap` above).
     `tooling/regression/cluster_preamble.sh.example` (the preamble listing above, since
     2026-09-03).
   - <https://github.com/cabouman/mbirtorch_plans> (this repo) — plans, findings, and the
-    experiment scripts, including `plans/experiments/remote_cluster/`.
+    experiment scripts, including `tools/remote_cluster/`.
   - `pcdrecon` (`~/PycharmProjects/pcdrecon` on Greg's account; torch + mbirtorch) — the
     photon-counting-detector reconstruction project; its pages live under
     `/depot/bouman/www/pcdrecon/`.
@@ -774,7 +774,7 @@ shadowing all fail the same way, by running code you did not think you were runn
 The nightly proves the library; nothing else watched the cluster underneath it until
 2026-09-03.  Now `cluster_probe.sh` in `mbirtorch_metrics/tooling/regression/` runs from
 Greg's scrontab every Monday at 08:00 on one GPU (a few minutes; `enable_probe.sh` /
-`disable_probe.sh`; design record in `../plans/archive/mbirtorch_metrics/cluster_probe_plan.md`).
+`disable_probe.sh`; design record in `../archive/mbirtorch_metrics/cluster_probe_plan.md`).
 
 | it catches | how |
 |---|---|
@@ -809,7 +809,7 @@ reach the nightly only once pushed):
 - `cluster_preamble.sh.example` in both metrics repos replaced with the working preamble;
   the CUDA comments in both `run_configs.env` reworded to the driver rule.
 - pcdrecon `clean_install_all.sh`: jax-era branches removed.
-- `plans/experiments/remote_cluster/`: account paths and env name parameterized, viewer
+- `tools/remote_cluster/`: account paths and env name parameterized, viewer
   demo ported to mbirtorch, `cu_check.sh` added.
 - Greg's account: the legacy venv + worktree and the hollow `mbirjax` env directory removed.
 

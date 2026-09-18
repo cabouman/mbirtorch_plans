@@ -77,14 +77,14 @@ short jax/perf tips in `claude_prompt.md`.
   concentration, and is absent with compile off (6e-7), at even splits, and for hand-written Triton
   kernels (7e-7).  Tell: uneven-count arms all ~6e-4 from each other AND from n=1, even-count pairs
   at 1e-7.  CPU is clean at every count, so only a GPU run shows it.  Full record:
-  `plans/torch_port/active/multigpu_findings.md` §1.16.
+  `archive/torch_port/active/multigpu_findings.md` §1.16.
 
 ## 3. Writing sharded / jitted code
 
 *(jax, legacy — the whole section is about jit/GSPMD/XLA.  The principles carry to mbirtorch:
 bound working memory by a fixed batch, no hidden full-shard copies, never slice a sharded axis,
 per-device local reductions, donate in-place state.  Torch-side findings live in
-`plans/torch_port/`.)*
+`archive/torch_port/`.)*
 
 - **Jit per-worker compute.**  Eager op-by-op dispatch silently kills multi-device scaling (a lost
   `@jax.jit` turned ~6.5× into ~2×) and materializes every intermediate at peak memory.
@@ -115,7 +115,7 @@ per-device local reductions, donate in-place state.  Torch-side findings live in
   yields one identical shard per device), partials combined on the host
   (`segmentation._sharded_histogram`).  `shard_map` also achieved 0 all-gathers in HLO but its SPMD
   partitioner has produced pathological lowerings here (3–5× slower fbp filter; see
-  `plans/sharding/parallel_performance/fbp_parallel_options.md`) — prefer the per-device
+  `archive/sharding/parallel_performance/fbp_parallel_options.md`) — prefer the per-device
   dispatch pattern (dispatch all work before reading any result and the devices overlap without
   threads).
 - **The device form (padded arrays) is the INTERNAL contract; crop at user boundaries.**  Internal
@@ -228,7 +228,7 @@ as suspect — and note small phantoms can never reproduce these (size-dependent
   pays.  Tell: the isolated probe and the full-path A/B disagree in SIGN.  Corollary from the
   same episode: XLA lowers scan-over-reshaped-input and scan-of-dynamic-slice to the SAME GPU
   program (byte-identical temps/outputs) — don't hand-optimize between forms XLA canonicalizes;
-  full record in `plans/projector_batching/batching_refactor_design.md`.
+  full record in `archive/projector_batching/batching_refactor_design.md`.
 - **When GPU behavior contradicts local tests, verify the BUILD first.**  Editable installs can serve
   stale compiled state (a "33 GB leak" was a stale binary); and a modern `pip install -e` registers a
   `sys.meta_path` finder that beats `PYTHONPATH` — to select code under test, install it into a
@@ -242,7 +242,7 @@ as suspect — and note small phantoms can never reproduce these (size-dependent
   (a module-level jit at 6 ms next to a per-call jit at 1,828 ms); cold ≈ warm.  Rule: hoist jits
   to module level (or cache the jitted callable) before timing anything; suspect any "expensive
   precompute" measured through a locally-constructed jit.  Full record:
-  `plans/projector_kernels/gpu_headroom_findings.md` (the composed-preview sections).
+  `archive/projector_kernels/gpu_headroom_findings.md` (the composed-preview sections).
 - *(jax/pallas; the two killers apply to triton drivers too)* **A kernel spike's speedup is NOT the driver's; the two driver killers are host syncs and
   data-dependent launch shapes.**  E4 increment 2: a kernel that spiked 2.13× gated 0.68× in the
   library because the driver (a) pulled a device array to host per view chunk (`np.asarray` — a
@@ -267,7 +267,7 @@ as suspect — and note small phantoms can never reproduce these (size-dependent
   require whole-run vs max-over-phases to agree within the model's band (the residual check that
   makes coverage a measurement instead of a claim); and re-examine every dominated-therefore-zero
   term whenever the dominant terms change, because a fix elsewhere can promote it.  Full record:
-  `plans/torch_port/closed/device_policy_findings.md` (the third-term section).
+  `archive/torch_port/closed/device_policy_findings.md` (the third-term section).
 
 ## 6. Performance expectations
 
@@ -353,7 +353,7 @@ overridable per-run via the environment (it was a hard-set '0.98' the env var co
   included (measured cross-count agreement 0 to 8.6e-9 against 1e-5 tolerances).  Rule: before
   any cluster multi-device submission, run the CPU-virtual-device equivalent; a GPU queue is a
   slow, expensive place to learn that a host-side type assumption was wrong.  Worked example:
-  `plans/experiments/torch_port/archive/nt_nightly/nt2_local_shard_check.py`.
+  `archive/torch_port/experiments/archive/nt_nightly/nt2_local_shard_check.py` (the script was removed with the archive's other scripts on 2026-09-18; it is in the git history at commit cd4aac3).
 - **uPlot's log-axis auto-tick generator can freeze on tight non-power-of-10 bounds** — pass explicit
   splits (`logTicks` in the shared `linePlot` wrapper); see the `dashboard-verify-gotchas` memory for
   the full diagnosis pattern (rAF-throttle, probe synchronously).

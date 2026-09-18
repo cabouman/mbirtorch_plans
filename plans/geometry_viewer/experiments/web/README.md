@@ -35,7 +35,7 @@ offset.
 
 Where the files come from.  Every file in this directory is a copy, made by
 ``gv5_build_web.py`` in the ``mbirtorch_plans`` repository, under
-``plans/experiments/geometry_viewer``.  The sources live one directory up from
+``plans/geometry_viewer/experiments``.  The sources live one directory up from
 the app: ``app.py``, ``requirements.txt``, and this README come from
 ``web/``, and ``geometry_defaults.py``, ``geometry_scene.py``, and
 ``geometry_viewer.py`` come from the plan directory that holds ``web/``.  Edit

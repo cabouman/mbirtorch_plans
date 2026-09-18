@@ -48,7 +48,7 @@ center row.  That row is `(num_rows - 1) / 2`, which is 939.5 on these 1880-row 
 (`recon_sweep_fine_analysis.py`, `scan_record`).  The central-plane row is 956.90 here (`tables.txt`).
 The kernel row distance of a slice is its detector row on the rotation axis minus the detector's
 center row.  The plan of record measures a slice's height from the central-plane row instead.  That
-plan is `plans/features/geometric_calibration/estimate_by_recon_plan.md`.  The two measures differ by
+plan is `plans/geometric_calibration/estimate_by_recon_plan.md`.  The two measures differ by
 a constant of 17.4 rows.  Every fit below uses the kernel row distance, and the 17.4-row difference is
 not modeled here.
 
@@ -555,7 +555,7 @@ The unblurred curves are the weakest on the depth gate.  Both scans show two int
 bilinear job's raw trimmed curve unblurred.  The Fourier job's unblurred depths are 3.56 and 2.30
 times the repeatability floor, against 13.84 and 16.75 at a blur of 2 voxels.
 
-The findings page `plans/features/geometric_calibration/increment_1_1_findings.md` states these gates
+The findings page `plans/geometric_calibration/findings/increment_1_1_findings.md` states these gates
 in the plan's words, gives the verdicts, and records the decision the sub-increment ends with.
 
 ## Limits of this evidence

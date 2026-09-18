@@ -13,10 +13,10 @@ against its sources, for reasoning, and for style, and the panel's findings were
 
 Greg chose items 1 and 2 of "Decision for Greg" on 2026-09-04, and both are done.  The real-scan
 validation grew into five cluster jobs, each with a record in
-`plans/experiments/features/geometric_calibration/`: `real_scan_validation.md`,
+`plans/geometric_calibration/experiments/`: `real_scan_validation.md`,
 `real_scan_followup.md`, `real_scan_rotation_check.md`, `real_scan_rotation_recon.md`, and
 `real_scan_leap_tilt.md`.  Increment 6 is implemented and passes its three gates, and its findings
-page is `increment_6_findings.md` in this directory.  Everything is staged in both repositories and
+page is `plans/geometric_calibration/findings/increment_6_findings.md` in this directory.  Everything is staged in both repositories and
 not committed.  Item 3, the reduced Increment 5, was not built.  Item 4's condition has been met,
 because a real short scan exists.  Item 5, stopping after Increment 6, was not taken.
 
@@ -79,7 +79,7 @@ between no rotation and the vendor's 0.167 degrees, which is larger than the cou
 "The coupling between the two estimates" and puts the offset 0.15 to 0.18 channels from the vendor's
 value at the right rotation, still inside the 0.25 channel threshold (`real_scan_rotation_check.md`).
 
-The open decisions are the five listed at the end of `increment_6_findings.md`: what to do about
+The open decisions are the five listed at the end of `plans/geometric_calibration/findings/increment_6_findings.md`: what to do about
 the rotation estimator's zero point, with a far-slice sharpness sweep now the favored remedy;
 Increment 3 for the short scan that exists, together with short-scan weighting for the direct
 reconstruction; a multi-setting rule for the direction check; the reduced Increment 5; and the two
@@ -90,8 +90,8 @@ read, and the cause of LEAP's offset difference on the NSI scans has not been te
 ## Sources and units
 
 Every number on this page was read in this session from the record cited beside it.  Two records
-are in this directory: `increment_1_findings.md` and `increment_2_findings.md`.  Five more are in
-`plans/experiments/features/geometric_calibration/`: `conjugate_offset_recovery.md`,
+are in this directory: `plans/geometric_calibration/findings/increment_1_findings.md` and `plans/geometric_calibration/findings/increment_2_findings.md`.  Five more are in
+`plans/geometric_calibration/experiments/`: `conjugate_offset_recovery.md`,
 `rotation_interpolation_bias.md`, `calibration_512_gautschi.md`, `direction_score_contrast.md`, and
 `residual_score_probe.md`.  The last of those was run for this evaluation.  Code citations refer
 to the `geometric_calibration` branch of mbirtorch at commit `4781600`.
@@ -161,10 +161,10 @@ The table gives the largest error in each record.
 
 | record | geometry | detector width, channels | full fan angle, degrees | true offsets, channels | noise | largest error, channels |
 | --- | --- | --- | --- | --- | --- | --- |
-| `increment_2_findings.md`, the tests | parallel | 64 | 0 | 1.3 and -2.2 | none, and 2 percent | 0.012 |
-| `increment_2_findings.md`, the tests | cone | 64 | 20 | 1.3 and -2.2 | none | 0.021 |
+| `plans/geometric_calibration/findings/increment_2_findings.md`, the tests | parallel | 64 | 0 | 1.3 and -2.2 | none, and 2 percent | 0.012 |
+| `plans/geometric_calibration/findings/increment_2_findings.md`, the tests | cone | 64 | 20 | 1.3 and -2.2 | none | 0.021 |
 | `conjugate_offset_recovery.md` | cone, two phantoms | 64 | 20 | -3.5 to 3.5 in seven steps | none, and 2 percent | 0.023 |
-| `increment_2_findings.md`, the tests | cone, golden-angle views | 64 | 20 | 1.3 | none | 0.009 |
+| `plans/geometric_calibration/findings/increment_2_findings.md`, the tests | cone, golden-angle views | 64 | 20 | 1.3 | none | 0.009 |
 | `calibration_512_gautschi.md` | cone | 512 | 14.6 | 0.0, 1.3, and -2.2 | none, and 2 percent | 0.004 |
 | `calibration_512_gautschi.md` | cone | 1024 | 14.6 | 0.0, 1.3, and -2.2 | none, and 2 percent | 0.001 |
 
@@ -173,7 +173,7 @@ job.  The search window was then fixed at four channels on each side of the mode
 search stopped at the edge of the window and returned 4 channels (`calibration_512_gautschi.md`).
 The window now moves to center on the edge where the coarse minimum sits.  With the moving window,
 the test suite recovers a true offset of 7.5 channels to 0.001 channels on a 64-channel detector
-(`increment_2_findings.md`).  The moving window has not been run at 512 or 1024 channels.
+(`plans/geometric_calibration/findings/increment_2_findings.md`).  The moving window has not been run at 512 or 1024 channels.
 
 The offset estimate is insensitive to noise and to the sampling choices.  Noise at 2 percent of
 the sinogram maximum changes it by less than 0.005 channels (`conjugate_offset_recovery.md`).  The
@@ -193,7 +193,7 @@ asks for more accuracy than the estimators already show.
 Computing the offset estimate takes seconds.  On one H100 node it took 0.3 to 0.7 seconds at 512
 channels and 1.9 to 4.0 seconds at 1024, on the host in numpy (`calibration_512_gautschi.md`).
 The search evaluates the score 35 times, and the second pass on cone beam doubles that
-(`increment_2_findings.md`).
+(`plans/geometric_calibration/findings/increment_2_findings.md`).
 
 ### The detector rotation
 
@@ -257,7 +257,7 @@ resamples the row band of every view with the cubic kernel.
 The offset estimate and the rotation estimate are coupled.  One synthetic case had a true offset
 of 2.3 channels and a true rotation of 2 degrees.  Before the rotation was corrected, the offset
 estimate was 2.43 channels.  The rotation estimate at that offset was 1.96 degrees.  After the
-rotation was corrected, the offset estimate was 2.31 channels (`increment_2_findings.md`, "What the
+rotation was corrected, the offset estimate was 2.31 channels (`plans/geometric_calibration/findings/increment_2_findings.md`, "What the
 figures show").  The coupling at 2 degrees was therefore 0.13 channels, measured as the uncorrected
 estimate minus the true offset.
 
@@ -287,7 +287,7 @@ zero elevation is parallel beam, and it could be accepted with a small change.
 
 Every entry point also refuses a sinogram that is already divided across several devices, through
 `_sharding.reject_shards`, and the estimators run on the host in numpy
-(`increment_2_findings.md`).  A multi-device reconstruction at production size holds its sinogram
+(`plans/geometric_calibration/findings/increment_2_findings.md`).  A multi-device reconstruction at production size holds its sinogram
 in that divided form.  Calibration on such a run therefore needs the host copy of the sinogram,
 and no increment addresses that.
 
@@ -362,7 +362,7 @@ enough rays have partners.
 
 The accuracy is uncertain, and the plan's gate of 0.1 channels is plausible.  The pairs are
 one-sided.  On a full rotation, one-sided pairing raised the first-pass error on the off-axis rod
-from 0.03 to 0.3 channels (`increment_2_findings.md`).  Two remedies are known: scoring each pair
+from 0.03 to 0.3 channels (`plans/geometric_calibration/findings/increment_2_findings.md`).  Two remedies are known: scoring each pair
 from both wedges, and interpolating the partner views with a cubic kernel along the view axis.
 Neither remedy has been measured.  A tenth of the rays is still tens of thousands of measurements
 on a real detector, so the noise floor is not the concern.  The systematic error is the concern.
@@ -489,7 +489,7 @@ The benefit is the one-call workflow the plan shows.  `calibrate_geometry(ct_mod
 a dictionary of results, and `apply_calibration` applies those results to the model and the
 sinogram.  The driver automates a three-step sequence: the offset estimate, then the rotation
 estimate, then the offset estimate again.  That sequence has been run by hand once on synthetic
-data (`estimators_in_action.py`, reported in `increment_2_findings.md`).  It recovered both
+data (`estimators_in_action.py`, reported in `plans/geometric_calibration/findings/increment_2_findings.md`).  It recovered both
 parameters, with the offset within 0.01 channels and the rotation within 0.04 degrees.  The
 offset error equals the offset search's tolerance.  The rotation error is eight times the rotation
 search's stopping width, and it is a residual of 0.045 pixels at the edge of that 128-channel
@@ -536,7 +536,7 @@ resolves a difference of that size to a few thousandths of a channel.
 The alternative is sound for parallel beam and for multiaxis at zero elevation, and it is doubtful
 for cone beam.  In cone beam the module limits its row band to the rows where opposite rays through
 the support land within one row of each other, which is 5 to 11 rows around the central plane
-(`increment_2_findings.md`).  A band 500 rows from the central plane compares rays whose heights
+(`plans/geometric_calibration/findings/increment_2_findings.md`).  A band 500 rows from the central plane compares rays whose heights
 differ by about 100 rows on a scan whose support radius is a tenth of the source distance.  That
 height mismatch is odd in the height, which is the same parity as the slope the fit reads, so on an
 object whose structure changes with height it would bias the slope.  The alternative is recorded
@@ -612,4 +612,4 @@ changed by this evaluation.
 ## Files
 
 This page is new.  `residual_score_probe.py` and `residual_score_probe.md` are new in
-`plans/experiments/features/geometric_calibration/`.  No file in mbirtorch was changed.
+`plans/geometric_calibration/experiments/`.  No file in mbirtorch was changed.

@@ -1,7 +1,7 @@
 # mg52 run record
 
 One run, after one 22-second false start.  The finding and its
-reading are in `plans/torch_port/active/multigpu_findings.md` §1.43;
+reading are in `archive/torch_port/active/multigpu_findings.md` §1.43;
 this file holds the run detail.
 
 ## mg52, the cross-framework anchor (job 15428371)

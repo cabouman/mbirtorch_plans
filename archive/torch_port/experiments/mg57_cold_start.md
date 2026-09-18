@@ -1,7 +1,7 @@
 # mg57 and mg58 run record
 
 The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.48; this file
+`archive/torch_port/active/multigpu_findings.md` §1.48; this file
 holds the run detail for both.
 
 ## mg57, the cold-start phase split (job 15449106)

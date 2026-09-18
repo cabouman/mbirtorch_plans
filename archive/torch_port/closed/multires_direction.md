@@ -1,6 +1,6 @@
 # Multi-resolution reconstruction — design notes
 
-Migrated verbatim from `plans/current_plans.md` item 12 on
+Migrated verbatim from `archive/torch_port/closed/current_plans.md` item 12 on
 2026-08-19, when `plans/open_items_v4.md` retired that file.  The
 open-items entry is H3.  Added 2026-07-10 (Greg);
 investigation-first, not for the next main.

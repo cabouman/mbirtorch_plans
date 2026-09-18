@@ -40,8 +40,8 @@ Since the bad center-slice step is injected by the coarse-subset iterations, dro
 flat-fine sequences without a coarse start are mildly worse on Lilly and catastrophic on z62
 (essentially still at the FDK start after 15 iterations at high sharpness) — large
 low-frequency initial error cannot be corrected by fine scattered subsets.  See
-`plans/slice_parity/slice_parity_plan.md`, Summary finding 3, and the 2026-07-18 addendum in
-`plans/partition_sequence/partition_sequence_plan.md`.
+`archive/cylinder_subsets/slice_parity_plan.md`, Summary finding 3, and the 2026-07-18 addendum in
+`archive/partition_sequence/partition_sequence_plan.md`.
 
 ### Possible solutions
 

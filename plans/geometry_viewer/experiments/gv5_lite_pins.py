@@ -17,7 +17,7 @@ missing from the list is installed at its newest version, as before.
 
 There are no command-line arguments.  Run:
 
-    cd plans/experiments/geometry_viewer
+    cd plans/geometry_viewer/experiments
     python gv5_lite_pins.py
 
 The script reads PyPI over the network, prints one line per package, and

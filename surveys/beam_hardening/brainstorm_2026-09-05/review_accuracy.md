@@ -1,4 +1,4 @@
-# Accuracy review of `bh_from_recon_brainstorm.md`
+# Accuracy review of `surveys/beam_hardening/survey.md`
 
 Reviewer: accuracy seat.  Date 2026-09-05.  Read-only except for this file.
 
@@ -299,13 +299,13 @@ probe, 10 percent high, errs by −1.2, +0.7, and +8.4 percent."
 
 **Source checked:** `grep -rn estimate_geometry_from_recon` over the checkout returns nothing at
 `590fea9`.  The name is the function under construction, defined in
-`mbirtorch_plans/plans/features/geometric_calibration/estimate_by_recon_plan.md:110`.
+`mbirtorch_plans/plans/geometric_calibration/estimate_by_recon_plan.md:110`.
 
 Given the page's opening ("Code citations are to the `geometric_calibration` branch of mbirtorch at
 commit `590fea9`"), a reader will look for it in the checkout.
 
 **Suggested correction.**  "…in the style of the planned `estimate_geometry_from_recon`
-(`plans/features/geometric_calibration/estimate_by_recon_plan.md`)."
+(`plans/geometric_calibration/estimate_by_recon_plan.md`)."
 
 ---
 
@@ -326,7 +326,7 @@ Numbers traced to their source and transcribed correctly:
   all match `brainstorm_pipeline.md` §2/§3 and the script; the 27 was re-derived from the double
   loop at `mar.py:501-513` (6 + 21).
 - **Slab overreach**: 5.7 degree half fan (confirmed at
-  `mbirtorch_plans/plans/experiments/features/geometric_calibration/rotation_zero_point_synthetic.md:63`,
+  `mbirtorch_plans/plans/geometric_calibration/experiments/rotation_zero_point_synthetic.md:63`,
   sid 400 / sdd 800), 0.88 slices per end for an 8-slice slab, 2.8 slices at a 15 degree half fan,
   and the widening factor (sid+r)/(sid−r) — all match `brainstorm_pipeline.md` §1 and recompute.
 - **Every physics number except the one in problem 1**: rms 0.009 (sim 0.0088) and max 0.026 with
@@ -372,7 +372,7 @@ Numbers traced to their source and transcribed correctly:
   data ill-conditioned, Sidky et al. 2005).  Authors, years, and findings all match.
 - **The geometry-estimator blur claim** ("there the blur matched the resampling count"), which is
   uncited on the page but is supported by
-  `mbirtorch_plans/plans/features/geometric_calibration/estimate_by_recon.md:76-78`: "every
+  `mbirtorch_plans/plans/geometric_calibration/estimate_by_recon.md:76-78`: "every
   comparison is made at a matched resampling count, which the blur enforces."
 
 Not verifiable in this session, and correctly attributed rather than asserted: the NSI scan

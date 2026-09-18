@@ -21,7 +21,7 @@ every unclipped voxel-view pair, in all six geometries.
 ## Run command
 
 ```
-cd plans/experiments/geometry_viewer
+cd plans/geometry_viewer/experiments
 PYTHONPATH=/home/user/cabouman/mbirtorch /home/user/gv_env/bin/python gv1_conventions_probe.py
 ```
 
@@ -205,7 +205,7 @@ the shift grows.
 
 A positive translation `t_z` also moves the object toward negative z, which
 disagrees with the model's docstring.  The disagreement is recorded in
-`../../features/geometry_viewer/geometry_conventions.md`.
+`../../../reference/geometry_conventions.md`.
 
 The multiaxis geometry does not determine which end of a ray holds the source.
 The projection is parallel, so the measurement fixes the ray direction only up

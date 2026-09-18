@@ -1,8 +1,8 @@
 # Slice-parity alternation: plan and experiment design
 
 **Started 2026-07-12** (Greg's proposal, discussed same day; branch `greg/gpu_headroom` —
-the exploratory campaign this belongs to; scripts in `plans/experiments/slice_parity/`).
-Companion background: `plans/bugs_and_artifacts/center slice noise/
+the exploratory campaign this belongs to; scripts in `archive/cylinder_subsets/experiments/`).
+Companion background: `archive/center_slice_noise/
 center_slice_preconditioner_notes.md` (the convergence diagnosis and the two z-only
 preconditioner designs this idea competes with / complements).
 
@@ -39,7 +39,7 @@ read" section explains the metrics.
    **Narrative write-up with charts:** `slice_parity_findings.html` (this directory),
    published at `/depot/bouman/www/mbirjax/slice_parity_findings/index.html` — the
    mechanism, the null control, the state-dependence, and the error-reduction trend
-   (charts by `plans/experiments/slice_parity/parity_findings_figs.py`; figures on
+   (charts by `archive/cylinder_subsets/experiments/parity_findings_figs.py`; figures on
    depot only, no PNGs in the repo).
 3. **Flat-fine sequences without a coarse start are unsafe as defaults** at
    interactive iteration budgets: flat-128 is mildly worse on Lilly and catastrophic
@@ -204,7 +204,7 @@ cross-cylinder magnitude, separability); the cone parity cost measurement (fwd w
 a masked half-slice cylinder vs full); scale-up beyond 40 slices if P1 is positive.
 
 ## P1 RESULTS (2026-07-12, local CPU run; raw data + figures in
-## `plans/experiments/slice_parity/results/`, gitignored — numbers recorded here)
+## `archive/cylinder_subsets/experiments/results/`, gitignored — numbers recorded here)
 
 Setup as designed: cone 128×40×128 cube phantom, sharpness 3.0, noiseless, flat
 sequences, 20 iterations, 100-iteration converged references; self-check passed at
@@ -370,7 +370,7 @@ slice-set-aware forward fans.
 mark; C3 is judged by the same rule (it is the §2 candidate).  Ties → prefer the
 simpler schedule.  Runs seeded per call (identical partitions/order across variants).
 
-Script: `plans/experiments/slice_parity/parity_realdata.py` (+ `.slurm`), staging
+Script: `archive/cylinder_subsets/experiments/parity_realdata.py` (+ `.slurm`), staging
 `~/parity_lilly` on gautschi.
 
 ## How to read the R1 results

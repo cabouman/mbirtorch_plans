@@ -1,7 +1,7 @@
 # mg63 run record
 
 One run, first submission.  The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.51; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.51; this file holds
 the run detail.
 
 ## mg63, the row-bound remedy measured (job 15487437)

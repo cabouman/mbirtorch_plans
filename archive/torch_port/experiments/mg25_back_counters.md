@@ -1,7 +1,7 @@
 # mg25 run record
 
 One run.  The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.24; this file holds
+`archive/torch_port/active/multigpu_findings.md` §1.24; this file holds
 the run detail.
 
 ## mg25, the counter run on the cone back kernel (job 15342576)

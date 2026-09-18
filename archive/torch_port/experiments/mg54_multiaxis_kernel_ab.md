@@ -1,7 +1,7 @@
 # mg54 run record
 
 One run, first submission.  The finding and its reading are in
-`plans/torch_port/active/multigpu_findings.md` §1.45; this file
+`archive/torch_port/active/multigpu_findings.md` §1.45; this file
 holds the run detail.
 
 ## mg54, the kernel route against the torch route (job 15432699)
