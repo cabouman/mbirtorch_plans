@@ -61,17 +61,17 @@ which about 600 form the shared module that the nn_priors program also uses.
 
 ## Status by stage
 
-| Stage | Delivers | Status |
-|---|---|---|
+| Stage | Delivers | Status                                                                                                                                                                                                                       |
+|---|---|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 0 | `denoise_stack`, the two batched functions, `auto_batch_size`, and their tests | Done 2026-09-13.  The `sigma_x` estimate moved to a subsample of whole volumes on 2026-09-14 (see the note in Section 2.1).  The check against mbirjax is recorded in `plans/mace4d/experiments/m4d4_denoise_stack_check.md` |
-| 1 | The three measurement scripts and their records | Done |
-| 2 | `construct_time_frame_models` and the device helpers, with tests | Done 2026-09-14; the pinned view slices are recorded in `plans/mace4d/experiments/m4d5_time_frames_check.md` |
-| 3 | `mbirtorch/mace.py` with its tests, and the drunet scripts moved onto it | Done 2026-09-14; the panel review and the gate result are recorded in `plans/mace4d/stage3_panel_review.md` |
-| 4 | `MACE4DModel` in `mbirtorch/mace4d.py` | Done 2026-09-14; the filter utilities moved into `mace4d.py`; the check against mbirjax is recorded in `plans/mace4d/experiments/m4d7_mace4d_check.md` |
-| 5 | `tests/test_mace4d.py`, including the one-frame equality gate | Done 2026-09-15; the gate passes at 0.45 percent after 40 iterations against a 200-iteration reference on a full-rotation frame |
-| 6 | The documentation pages and the lazy export | Not started |
-| 7 | `save_volume_as_gif` and the demo, run on the phantom dataset | Not started |
-| 8 | The H100 measurement and its record | Not started |
+| 1 | The three measurement scripts and their records | Done                                                                                                                                                                                                                         |
+| 2 | `construct_time_frame_models` and the device helpers, with tests | Done 2026-09-14; the pinned view slices are recorded in `plans/mace4d/experiments/m4d5_time_frames_check.md`                                                                                                                 |
+| 3 | `mbirtorch/mace.py` with its tests, and the drunet scripts moved onto it | Done 2026-09-14; the panel review and the gate result are recorded in `plans/mace4d/stage3_panel_review.md`                                                                                                                  |
+| 4 | `MACE4DModel` in `mbirtorch/mace4d.py` | Done 2026-09-14; the filter utilities moved into `mace4d.py`; the check against mbirjax is recorded in `plans/mace4d/experiments/m4d7_mace4d_check.md`                                                                       |
+| 5 | `tests/test_mace4d.py`, including the one-frame equality gate | Done 2026-09-15; the gate passes at 0.45 percent after 40 iterations against a 200-iteration reference on a full-rotation frame                                                                                              |
+| 6 | The documentation pages and the lazy export | 2026-09-19: see below                                                                                                                                                                                                        |
+| 7 | `save_volume_as_gif` and the demo, run on the phantom dataset | 2026-09-19: see below                                                                                                                                                                                                                  |
+| 8 | The H100 measurement and its record | 2026-09-19: see below                                                                                                                                                                                                                  |
 
 Records not in the repository, noted 2026-09-19.  The stage records
 `plans/mace4d/experiments/m4d4_denoise_stack_check.md`, `m4d5_time_frames_check.md`, and
@@ -79,6 +79,38 @@ Records not in the repository, noted 2026-09-19.  The stage records
 `stage3_panel_review_reports.md`, and `stage4_panel_review.md`, and `stage5_prompt.md` are cited
 in this plan and in `findings/progress.md`, but none was ever committed to this repository, and
 none is in its history. These will be assumed lost and not further pursued.  
+
+## Status update 2026-09-19:  
+
+
+**Stage 6.** Partly done: the page, the lazy export, the citation, and the `usr_api.rst` entry exist and build clean. 
+In the current usr_mace4d.rst and usr_api.rst, there is nothing incorrect: the frame formula, the four agents, the filter and 
+its `dejitter` switch, and every autodoc target match the code, and `usr_api.rst` lists the page in both its bullet list 
+and its toctree. Against the Stage 6 specification, these are missing:
+
+- A section on the building blocks in `mbirtorch.mace`. `MACE`, `Task`, the three agents, and the one-call `mace()` are documented nowhere; only `resolve_device_pool` appears. Slides 3 to 13 of Ziyun's deck are this content, already written.
+- The host-memory rule of plan Section 2.6: 7, 8, or 11 full-size host arrays, about 130 GB for 30 frames at 512 cubed, so a run of that size requests two GPUs on gautschi.
+- The frame-count rule of the filter: off with a warning below `frames_per_rotation` frames; eight modes removed at the default period; three frames removes every mode.
+- `denoise_stack` and `auto_batch_size` on the denoising page.
+- A 4D entry on `usr_api_overview.rst`, and `construct_time_frame_models` on the utilities page.
+- The note from `progress.md`: each denoiser's strength is estimated from its own slicing direction, where mbirjax gave XZ-t the YZ-t value.
+
+**Stage 7.** `save_volume_as_gif` exists and is documented, with no test in `tests/`. The demo does not exist; the next free number is `demo_12`. The `4dct_script` branch's `Lilly_recon_4d.py` already runs the exact sequence the plan prescribes, so the demo is that script reduced to the phantom dataset with `num_frames=3` and `downsampling=4`.
+
+**Stage 8.** The planned measurement, a synthetic batch-size sweep to set the `denoise_stack` default and calibrate `auto_batch_size`, was not run and has no record. What exists is the real-scan timing on slide 23, from the 2026-09-17 cluster run of the full-resolution Lilly phantom, 99 frames, four H100s, 10 iterations, against mbirjax:
+
+| Per iteration, steady state | mbirjax | mbirtorch |
+|---|---|---|
+| Iteration total | 387.2 s | 172.5 s |
+| Denoise, summed over workers | 421.8 s | 67.6 s |
+| Data fit, summed over workers | 202.4 s | 609.2 s |
+| GPU busy, whole iteration | 42.0% | 97.8% |
+
+Two consequences. The denoiser is not the long pole, so the batch-size sweep and the denoiser warm start lose their rationale; 
+the data fit, three times slower than mbirjax's, is the item to investigate (likely the change to use finer partitions). 
+And the measurement lives only in the slides and in `timing_log.csv` under `lilly_exp/nsi/2026/0917/logs/` on the cluster; 
+it needs a record under `plans/mace4d/experiments/` naming the commit and the run settings before Stage 8 can be marked done. 
+The slide deck itself is untracked in `plans/mace4d/findings/` and should be committed as the finding it is.
 
 ## Rule for the code
 
