@@ -63,12 +63,12 @@ which about 600 form the shared module that the nn_priors program also uses.
 
 | Stage | Delivers | Status |
 |---|---|---|
-| 0 | `denoise_stack`, the two batched functions, `auto_batch_size`, and their tests | Done 2026-09-13, awaiting review.  The `sigma_x` estimate moved to a subsample of whole volumes on 2026-09-14 (see the note in Section 2.1).  The check against mbirjax is recorded in `plans/mace4d/experiments/m4d4_denoise_stack_check.md` |
+| 0 | `denoise_stack`, the two batched functions, `auto_batch_size`, and their tests | Done 2026-09-13.  The `sigma_x` estimate moved to a subsample of whole volumes on 2026-09-14 (see the note in Section 2.1).  The check against mbirjax is recorded in `plans/mace4d/experiments/m4d4_denoise_stack_check.md` |
 | 1 | The three measurement scripts and their records | Done |
-| 2 | `construct_time_frame_models` and the device helpers, with tests | Done 2026-09-14, awaiting review; the pinned view slices are recorded in `plans/mace4d/experiments/m4d5_time_frames_check.md` |
-| 3 | `mbirtorch/mace.py` with its tests, and the drunet scripts moved onto it | Done 2026-09-14, awaiting review; the panel review and the gate result are recorded in `plans/mace4d/stage3_panel_review.md` |
-| 4 | `MACE4DModel` in `mbirtorch/mace4d.py` | Done 2026-09-14, awaiting review; the filter utilities moved into `mace4d.py`; the check against mbirjax is recorded in `plans/mace4d/experiments/m4d7_mace4d_check.md` |
-| 5 | `tests/test_mace4d.py`, including the one-frame equality gate | Done 2026-09-15, awaiting review; the gate passes at 0.45 percent after 40 iterations against a 200-iteration reference on a full-rotation frame |
+| 2 | `construct_time_frame_models` and the device helpers, with tests | Done 2026-09-14; the pinned view slices are recorded in `plans/mace4d/experiments/m4d5_time_frames_check.md` |
+| 3 | `mbirtorch/mace.py` with its tests, and the drunet scripts moved onto it | Done 2026-09-14; the panel review and the gate result are recorded in `plans/mace4d/stage3_panel_review.md` |
+| 4 | `MACE4DModel` in `mbirtorch/mace4d.py` | Done 2026-09-14; the filter utilities moved into `mace4d.py`; the check against mbirjax is recorded in `plans/mace4d/experiments/m4d7_mace4d_check.md` |
+| 5 | `tests/test_mace4d.py`, including the one-frame equality gate | Done 2026-09-15; the gate passes at 0.45 percent after 40 iterations against a 200-iteration reference on a full-rotation frame |
 | 6 | The documentation pages and the lazy export | Not started |
 | 7 | `save_volume_as_gif` and the demo, run on the phantom dataset | Not started |
 | 8 | The H100 measurement and its record | Not started |
@@ -78,8 +78,7 @@ Records not in the repository, noted 2026-09-19.  The stage records
 `m4d7_mace4d_check.md`, the panel reviews `stage0_panel_review.md`, `stage3_panel_review.md`,
 `stage3_panel_review_reports.md`, and `stage4_panel_review.md`, and `stage5_prompt.md` are cited
 in this plan and in `findings/progress.md`, but none was ever committed to this repository, and
-none is in its history.  Recover them from the checkout where the stage work ran, or rerun the
-checks and write the records again.
+none is in its history. These will be assumed lost and not further pursued.  
 
 ## Rule for the code
 
