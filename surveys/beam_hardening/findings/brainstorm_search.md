@@ -2,7 +2,7 @@
 
 Date: 2026-09-05.  Status: brainstorm, read-only.  Code citations are to the `geometric_calibration`
 branch working tree of mbirtorch at commit `590fea9`.  The three numbers computed for this report
-come from `counts_and_binning.py` in this directory.
+come from `experiments/counts_and_binning.py`.
 
 ## Answer
 

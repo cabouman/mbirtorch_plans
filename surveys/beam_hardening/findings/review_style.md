@@ -23,15 +23,15 @@ this directory: `brainstorm_score.md`, `brainstorm_search.md`, `brainstorm_physi
 `brainstorm_skeptic.md`, `brainstorm_literature.md`, and `brainstorm_pipeline.md`."
 
 **2.** "Every number below was read in this session from one of those reports or from the
-output of a script beside them (`counts_and_binning.py`, `bh_physics_sim.py`,
-`bh_physics_extra.py`), and the source is named beside it."
+output of a script beside them (`experiments/counts_and_binning.py`, `experiments/bh_physics_sim.py`,
+`experiments/bh_physics_extra.py`), and the source is named beside it."
 
 Rule: parenthetical list inside a claim; 32 words; and "beside" carries two different
 meanings in one sentence (in the same directory, and adjacent in the text).
 
 Rewrite: "Every number below was read in this session, either from one of those reports or
-from the output of a script. The scripts are `counts_and_binning.py`, `bh_physics_sim.py`,
-and `bh_physics_extra.py`, and they are in this directory. Each number names its source."
+from the output of a script. The scripts are `experiments/counts_and_binning.py`, `experiments/bh_physics_sim.py`,
+and `experiments/bh_physics_extra.py`, and they are in this directory. Each number names its source."
 
 ---
 
@@ -111,7 +111,7 @@ Rewrite: "Two cheaper deliverables come first, because neither has been measured
 **10.** "The physics report adds a stronger recommendation for the model itself: a
 three-to-five parameter physical family fits the presented data 10 to 100 times better than
 the cubic and extrapolates to thicker metal about 100 times better
-(`bh_physics_sim_output.txt`)."
+(`experiments/bh_physics_sim_output.txt`)."
 
 Rule: colon chaining two complete clauses; 37 words; "the presented data" is undefined
 jargon and "the cubic" is an undefined referent at first use.
@@ -120,7 +120,7 @@ Rewrite: "`brainstorm_physics.md` recommends changing the model itself. The exis
 a cubic polynomial in the plastic and metal path lengths. A physical family with three to
 five parameters fits the simulated attenuation 10 to 100 times more accurately than the
 cubic. It also extrapolates to thicker metal about 100 times more accurately
-(`bh_physics_sim_output.txt`)."
+(`experiments/bh_physics_sim_output.txt`)."
 
 **11.** Second paragraph of the Answer as a whole ("The design that follows from both facts
 is a hybrid." through "Which family to search is the first decision for Greg.").
@@ -314,16 +314,16 @@ within-bin variance. At a metal edge that variance is large."
 **28.** "The size of the bias when columns are instead built from binned p and m was computed
 for a quadratic model on a disk: under 0.01 percent for a disk of radius 800 pixels at bin
 4, and 0.23 percent at bin 2 and 1.09 percent at bin 4 for a disk of radius 50 pixels
-(`counts_and_binning.py`, rerun in this session)."
+(`experiments/counts_and_binning.py`, rerun in this session)."
 
 Rule: 56 words; four numbers that must be matched to two radii and two bin factors while
 reading.
 
 Rewrite: "The size of that bias was computed for a quadratic model on a disk
-(`counts_and_binning.py`, rerun in this session). For a disk of radius 800 pixels it stays
+(`experiments/counts_and_binning.py`, rerun in this session). For a disk of radius 800 pixels it stays
 under 0.01 percent at bin 4. For a disk of radius 50 pixels it is 0.23 percent at bin 2 and
 1.09 percent at bin 4." The per-radius numbers could also move to
-`counts_and_binning.py`'s companion notes, leaving the actionable statement here.
+`experiments/counts_and_binning.py`'s companion notes, leaving the actionable statement here.
 
 **29.** "Metal features are the small ones."
 
@@ -488,7 +488,7 @@ Rewrite: "The simulation used a grid of PMMA up to 8 cm and iron up to 1 cm at 2
 0.9 mm of copper, on which the attenuation reaches 4.35. The cubic in `mar.py` fits that
 grid with an rms error of 0.009 and a maximum error of 0.026 in attenuation units. A
 three-bin exponential mixture reaches a maximum error of 0.0018, and a four-bin mixture
-0.00014." The per-model errors could also move to `bh_physics_sim.py`'s companion notes,
+0.00014." The per-model errors could also move to `experiments/bh_physics_sim.py`'s companion notes,
 leaving the ratio here.
 
 **45.** "Fitted on iron up to 0.5 cm, the cubic errs by +0.69 at 1 cm of iron with no
@@ -524,13 +524,13 @@ mixture" only.
 
 **48.** "A one-knob fit against a truth made with a different detector and inherent filter
 reached a maximum error of 0.011, and a two-knob fit 0.0045
-(`bh_physics_extra_output.txt`)."
+(`experiments/bh_physics_extra_output.txt`)."
 
 Rule: informal word for a technical object ("knob"); the second clause is elliptical.
 
 Rewrite: "The physical family was also fitted against a truth generated with a different
 detector and inherent filter. A one-parameter fit reached a maximum error of 0.011, and a
-two-parameter fit reached 0.0045 (`bh_physics_extra_output.txt`)."
+two-parameter fit reached 0.0045 (`experiments/bh_physics_extra_output.txt`)."
 
 **49.** "The cost of the physical family is nonlinearity: each candidate needs one direct
 reconstruction of the reduced slab, and a Gauss-Newton step needs one per parameter for its
@@ -581,7 +581,7 @@ between them, so the ridge decides it."
 **53.** "On a probe ray whose plastic estimate is 10 percent low, which a streak through the
 plastic mask produces, the corrected plastic errs by +4.4 percent at beta 2e-4, +6.7 percent
 at the default 2e-3, and +15.4 percent at 2e-2, where exact inversion of the true model has
-no error (`bh_physics_extra_output.txt`)."
+no error (`experiments/bh_physics_extra_output.txt`)."
 
 Rule: 50 words; an aside inside the claim; a numeric list given no sentence of its own; a
 trailing qualifier. The symbol "beta" also appears here for the first time, and the reader
@@ -591,7 +591,7 @@ Rewrite: "The consequence was measured on a probe ray whose plastic estimate is 
 low, which a streak through the plastic mask produces. Exact inversion of the true model has
 no error on that ray. The existing fit's ridge strength is beta, and the corrected plastic
 errs by +4.4 percent at beta 2e-4, by +6.7 percent at the default 2e-3, and by +15.4 percent
-at 2e-2 (`bh_physics_extra_output.txt`)."
+at 2e-2 (`experiments/bh_physics_extra_output.txt`)."
 
 **54.** "The ridge strength is worth sweeping with an image score whatever else is built."
 
@@ -946,14 +946,14 @@ stop the work."
 
 **87.** "Build a thin three-dimensional case of a plastic disk with one and with two metal
 rods, one placement centered and one off center, hardened with the physical model of
-`bh_physics_sim.py` at 200 kV behind 0.9 mm of copper, with Poisson noise at the file's
+`experiments/bh_physics_sim.py` at 200 kV behind 0.9 mm of copper, with Poisson noise at the file's
 photon count and a starvation arm."
 
 Rule: 50 words; four stacked modifiers; "the file's photon count" is an undefined referent.
 
 Rewrite: "Build a thin three-dimensional case of a plastic disk with metal rods. Use one rod
 and two rods, in a centered and an off-center placement. Harden it with the physical model of
-`bh_physics_sim.py` at 200 kV behind 0.9 mm of copper. Add Poisson noise at the photon count
+`experiments/bh_physics_sim.py` at 200 kV behind 0.9 mm of copper. Add Poisson noise at the photon count
 in the NSI scan file, and include a photon-starvation case."
 
 **88.** "Compare the plastic-region rms error against the monochromatic reconstruction for:

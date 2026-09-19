@@ -304,7 +304,7 @@ appears 13 s after the page loads and a render takes about 0.4 s in the browser.
 record is the last section of `gv5_web_findings.md`.  The Space was re-uploaded from
 `web/lite/` the same day and runs, with the same times, in the headless browser; Greg's
 own browser is the acceptance check that remains.  A guide for other Thingy builders,
-with the shim to paste, is `gradio_lite_space_guide.md` in this directory.
+with the shim to paste, is `reference/gradio_lite_space_guide.md`.
 
 ## Open items from the Increment 4 review
 

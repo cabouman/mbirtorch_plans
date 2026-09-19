@@ -626,8 +626,7 @@ def test_the_static_page_holds_the_runtime_dependencies_at_fixed_versions(
 
 
 #: The guide for other Thingy builders, which carries a copy of the shim.
-GUIDE = os.path.join(HERE, '..', '..', 'features', 'geometry_viewer',
-                     'gradio_lite_space_guide.md')
+GUIDE = os.path.join(HERE, '..', '..', '..', 'reference', 'gradio_lite_space_guide.md')
 
 
 def test_the_guide_carries_the_same_shim_as_the_page():

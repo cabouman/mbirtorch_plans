@@ -1,8 +1,8 @@
 # Reasoning review of `surveys/beam_hardening/survey.md`
 
 Date: 2026-09-05.  Reviewer charge: judge the reasoning, not the prose.  Read-only except for this
-file.  Sources checked: the six brainstorm reports, `bh_physics_sim_output.txt`,
-`bh_physics_extra_output.txt`, `counts_and_binning.py`, `own_view_before_reports.md`, and the code at
+file.  Sources checked: the six brainstorm reports, `experiments/bh_physics_sim_output.txt`,
+`experiments/bh_physics_extra_output.txt`, `experiments/counts_and_binning.py`, `own_view_before_reports.md`, and the code at
 `mbirtorch/preprocess/mar.py` and `mbirtorch/preprocess/geometry_calibration.py` on
 `geometric_calibration` at 590fea9.
 
@@ -15,10 +15,10 @@ qualifiers.  Section 19 lists what survives review, so the repairs are not mista
 
 **Claim** (Answer): "The physics report adds a stronger recommendation for the model itself: a
 three-to-five parameter physical family fits the presented data 10 to 100 times better than the cubic
-and extrapolates to thicker metal about 100 times better (`bh_physics_sim_output.txt`)."
+and extrapolates to thicker metal about 100 times better (`experiments/bh_physics_sim_output.txt`)."
 
 **Problem.**  Those ratios belong to a different and much larger family.  Read from
-`bh_physics_sim_output.txt` at 200 kV / 0.9 mm Cu (lines 22-33):
+`experiments/bh_physics_sim_output.txt` at 200 kV / 0.9 mm Cu (lines 22-33):
 
 | model | free params | max abs residual |
 | --- | --- | --- |
@@ -33,10 +33,10 @@ The 10-100x figure is the free shared-bin LSE at 8 and 11 parameters (14.6x and 
 parameter count the page names, the same file shows the physical family at 3 parameters is **worse
 than the cubic** (0.0431 vs 0.0260) and at 5 parameters is 1.6x better, not 10-100x.  The one
 directly comparable measurement of the physics report's *actual* proposed family — the one- and
-two-knob spectrum fits in `bh_physics_extra_output.txt` (b) — gives max 0.0112 and 0.0045 against the
+two-knob spectrum fits in `experiments/bh_physics_extra_output.txt` (b) — gives max 0.0112 and 0.0045 against the
 cubic's 0.0219 **on the same truth**: a factor of 2 to 5, not 10 to 100.
 
-The extrapolation rows (`bh_physics_sim_output.txt` lines 32-33, 67-68, 102-103) exist only for the
+The extrapolation rows (`experiments/bh_physics_sim_output.txt` lines 32-33, 67-68, 102-103) exist only for the
 cubic and the free LSE J=3.  No extrapolation number was ever computed for a 3-5 parameter physical
 family in these files.  The nearest measurement is the misspecified one-knob fit, which errs by
 -0.0144 at (p=0, m=1 cm) against the cubic's +0.6942: 48x, and only at 200 kV.  At 150 and 100 kV the
@@ -51,7 +51,7 @@ The page merged them.
 parameter physical family fits about 2-5x better than the cubic and extrapolates roughly 50x better
 at 200 kV.  If the "which family" decision is to be put to Greg on accuracy grounds, it must be put
 on those numbers, because a 2x interpolation gain and a big extrapolation gain argue for a different
-staging than a 100x gain everywhere does.  Add one line to `bh_physics_extra.py` computing the
+staging than a 100x gain everywhere does.  Add one line to `experiments/bh_physics_extra.py` computing the
 extrapolation gate for the 3- and 5-parameter physical families, since that is the number the
 recommendation actually rests on and it does not exist yet.
 
@@ -382,7 +382,7 @@ best fit of the polynomial to the polychromatic truth on the presented set), whi
 under the truth rule and is the right target anyway.  Relabel the plastic-only trend as a
 model-adequacy check reported in the result record, not as an estimator gate.  Note also that the
 truth rule silently breaks at stage 2: when the physical family becomes the model it is also the
-truth.  The fix exists in the sources — `bh_physics_extra.py` (b) already builds a truth with "a
+truth.  The fix exists in the sources — `experiments/bh_physics_extra.py` (b) already builds a truth with "a
 different detector and inherent filter", and the physics report names `spekpy` (characteristic lines)
 and `xrayphysics` as independent generators.
 
@@ -444,7 +444,7 @@ if the model holds exactly; under the misspecification the physics report measur
 to 0.026), binned and unbinned least squares give different θ.  "Exact" is the wrong word for a
 misspecified fit.
 
-Second, the quoted bias numbers are the small ones.  The page cites `counts_and_binning.py`'s
+Second, the quoted bias numbers are the small ones.  The page cites `experiments/counts_and_binning.py`'s
 coefficient-level biases for a *smooth disk* (0.23 percent at bin 2, 1.09 percent at bin 4, radius 50
 px) directly after the sentence "at a metal edge that variance is large", and concludes "Metal
 features are the small ones."  The pipeline report's edge-level numbers — 25 percent at bin 2 and 125
@@ -521,7 +521,7 @@ family's headline advantage.
   when it has only been avoided by a choice of score that finding 2 puts in doubt.
 - **"extrapolates ... about 100 times better"** is the 200 kV case only; the same file gives 31x at
   150 kV and 27x at 100 kV.
-- **The two-knob physical fit extrapolates worse than the one-knob**: `bh_physics_extra_output.txt`
+- **The two-knob physical fit extrapolates worse than the one-knob**: `experiments/bh_physics_extra_output.txt`
   (b) gives max 0.0208 vs 0.0159 on the held-out thick-metal range.  The page reports only the
   interpolation numbers (0.011, 0.0045), where more knobs look better.
 - **"450 views for 500 channels undersample metal edges"** is framed as a reduction artifact, but the
@@ -604,4 +604,4 @@ Stated so the repairs above are not read as a rejection.
   reconstruction side.
 - **The identification of the ridge as a bias rather than a safeguard**, and the conclusion that
   sweeping beta with an image score is worth doing whatever else is built, is well supported by
-  `bh_physics_extra_output.txt` (a) and is the page's most robust product.
+  `experiments/bh_physics_extra_output.txt` (a) and is the page's most robust product.

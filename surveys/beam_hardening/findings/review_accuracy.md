@@ -3,7 +3,7 @@
 Reviewer: accuracy seat.  Date 2026-09-05.  Read-only except for this file.
 
 Every number, code citation, report attribution, and literature claim on the page was checked
-against its named source.  `counts_and_binning.py` was rerun in this session with
+against its named source.  `experiments/counts_and_binning.py` was rerun in this session with
 `/Users/gbuzzard/miniforge3/envs/mbirtorch/bin/python`.  Code was read at
 `/Users/gbuzzard/Documents/PyCharm Projects/Research/mbirtorch`, branch `geometric_calibration`,
 tip `590fea9` (confirmed).
@@ -18,9 +18,9 @@ are inherited looseness worth tightening before the page is quoted onward.
 **Page (Answer section):** "The physics report adds a stronger recommendation for the model
 itself: a three-to-five parameter physical family fits the presented data 10 to 100 times better
 than the cubic and extrapolates to thicker metal about 100 times better
-(`bh_physics_sim_output.txt`)."
+(`experiments/bh_physics_sim_output.txt`)."
 
-**Source checked:** `bh_physics_sim_output.txt` lines 21-33 (the 200 kV, 0.9 mm Cu block), and
+**Source checked:** `experiments/bh_physics_sim_output.txt` lines 21-33 (the 200 kV, 0.9 mm Cu block), and
 `brainstorm_physics.md` "Answer".
 
 **What the source actually says.**  The 10-to-100x fit and the ~100x extrapolation belong to the
@@ -39,7 +39,7 @@ The sim output's small *physical* families are worse than or barely better than 
 | free shared-bin LSE J=4 | 11 | 0.00004 | 220x better |
 
 The page's own later numbers for the family it means — the one- and two-knob spectrum fits of
-`bh_physics_extra_output.txt` — give 1.4x to 4.9x, not 10 to 100x: 1-knob rms 0.0057 / max 0.0112,
+`experiments/bh_physics_extra_output.txt` — give 1.4x to 4.9x, not 10 to 100x: 1-knob rms 0.0057 / max 0.0112,
 2-knob rms 0.0020 / max 0.0045, against "mar.py cubic on the same truth: rms 0.0077, max |r|
 0.0219" (line 11 of that file).  The extrapolation figure is likewise the free LSE's: cubic +0.6942
 against free-LSE-J=3 −0.0059 is 118x, while the one- and two-knob extrapolation errors are −0.0144
@@ -145,7 +145,7 @@ makes (`mar.py:818-824`)…"
 `brainstorm_score.md` §Multiple materials; `mar.py:764-779`.
 
 **The conflict.**  6 and 15 are the *total* column counts for one and two metals at order 3 (the
-page's table, confirmed by the rerun of `counts_and_binning.py`).  If the linear columns are held
+page's table, confirmed by the rerun of `experiments/counts_and_binning.py`).  If the linear columns are held
 fixed, the searched dimension is smaller.  The reports do not agree on how much smaller:
 `brainstorm_search.md` §(a) says "5 for one metal and 13 for two at order 3" (dropping one linear
 column for K=1 and two for K=2 — itself inconsistent); `brainstorm_score.md` says "five shape
@@ -281,7 +281,7 @@ squares in θ (`brainstorm_pipeline.md`, section 1; `brainstorm_score.md`)."
 plastic mask produces, the corrected plastic errs by +4.4 percent at beta 2e-4, +6.7 percent at the
 default 2e-3, and +15.4 percent at 2e-2…"
 
-**Source:** `bh_physics_extra_output.txt` lines 1-5.  The three numbers are exact, and the
+**Source:** `experiments/bh_physics_extra_output.txt` lines 1-5.  The three numbers are exact, and the
 condition "plastic estimate 10 percent low" matches the file's `p=0.9x`.  Two conditions are
 dropped: the probe is also at `m=0.5 of max`, and the file reports a second arm at `p=1.1x` with
 much smaller errors (−1.2, +0.7, +8.4 percent).  The page's conclusion — that the ridge strength is
@@ -314,7 +314,7 @@ commit `590fea9`"), a reader will look for it in the checkout.
 Numbers traced to their source and transcribed correctly:
 
 - **Column-count table** (1/2/3 metals × orders 2/3/4: 4, 6, 8 / 8, 15, 24 / 13, 29, 54) — exact
-  match to the rerun of `counts_and_binning.py`, and the script's rule matches
+  match to the rerun of `experiments/counts_and_binning.py`, and the script's rule matches
   `_generate_metal_exponent_list` (`mar.py:206-235`) and the column assembly at `mar.py:764-779`.
 - **Binning bias**: "under 0.01 percent for a disk of radius 800 pixels at bin 4, and 0.23 percent
   at bin 2 and 1.09 percent at bin 4 for a disk of radius 50 pixels" — the rerun prints −0.01,

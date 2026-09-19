@@ -7,13 +7,13 @@ Next step: Greg rules on the four decisions in this survey (which deliverable, w
 
 Date: 2026-09-05.  Status: brainstorm, revised once after a three-reviewer panel and once after
 Greg's request for a reorganization, not yet ruled on by Greg.  This page synthesizes six agent
-reports written in this session.  All six are in this directory: `brainstorm_score.md`,
-`brainstorm_search.md`, `brainstorm_physics.md`, `brainstorm_skeptic.md`,
-`brainstorm_literature.md`, and `brainstorm_pipeline.md`.  The three review files are
-`review_accuracy.md`, `review_reasoning.md`, and `review_style.md`, and `README.md` lists every
+reports written in this session.  All six are under `findings/`: `findings/brainstorm_score.md`,
+`findings/brainstorm_search.md`, `findings/brainstorm_physics.md`, `findings/brainstorm_skeptic.md`,
+`findings/brainstorm_literature.md`, and `findings/brainstorm_pipeline.md`.  The three review files are
+`findings/review_accuracy.md`, `findings/review_reasoning.md`, and `findings/review_style.md`, and `experiments/README.md` lists every
 file.  Every number below was read in this session, either from one of those reports or from the
-output of a script.  The scripts are `counts_and_binning.py`, `bh_physics_sim.py`, and
-`bh_physics_extra.py`, and they are in this directory with their outputs.  Each number names
+output of a script.  The scripts are `experiments/counts_and_binning.py`, `experiments/bh_physics_sim.py`, and
+`experiments/bh_physics_extra.py`, and they are under `experiments/` with their outputs.  Each number names
 its source.  Code citations are to the `geometric_calibration` branch of mbirtorch at commit
 `590fea9`, with paths from the package directory.
 
@@ -61,7 +61,7 @@ a data term.
 
 The main alternative is a physical family of three to five parameters, which fits a
 simulated attenuation 2 to 5 times more accurately than the existing cubic and extrapolates to
-thicker metal about 50 times more accurately at 200 kV (`bh_physics_extra_output.txt`).  Every
+thicker metal about 50 times more accurately at 200 kV (`experiments/bh_physics_extra_output.txt`).  Every
 proposal has an experiment with a result that would stop it, and the first experiment is a
 synthetic case with polychromatic hardening, because the repository's golden data carry no
 hardening at all.
@@ -88,7 +88,7 @@ geometry can only add artifacts, so the best-scoring geometry is the correct one
 correction can instead remove real signal.  Any score that rewards a flat image also rewards
 that removal.  The published method closest to this construction found that three image-chosen
 coefficients were robust while seven were worse than no correction under clinical noise
-(`brainstorm_literature.md`, Levi et al. 2021).  That comparison changes the material count
+(`findings/brainstorm_literature.md`, Levi et al. 2021).  That comparison changes the material count
 with the coefficient count, so it is evidence rather than a controlled ablation.
 
 The design that follows from both facts is a hybrid.  The existing fit stays.  It holds every
@@ -104,12 +104,12 @@ Two cheaper deliverables come first, because neither has been measured:
 - a sweep of the existing fit's ridge strength scored on the image, which replaces a fixed
   default with a per-scan value and measures a sensitivity that has not been measured.
 
-`brainstorm_physics.md` recommends changing the model itself, and its numbers are these.  The
+`findings/brainstorm_physics.md` recommends changing the model itself, and its numbers are these.  The
 existing model is a cubic polynomial in the plastic and metal path lengths.  A physical family
 with three to five parameters fits a simulated attenuation about 2 to 5 times more accurately
 than the cubic.  It extrapolates to thicker metal about 50 times more accurately at 200 kV
-(`bh_physics_extra_output.txt`).  A mixture of exponentials with free bins and 8 to 11
-parameters fits 15 to 190 times more accurately (`bh_physics_sim_output.txt`).  Which family to
+(`experiments/bh_physics_extra_output.txt`).  A mixture of exponentials with free bins and 8 to 11
+parameters fits 15 to 190 times more accurately (`experiments/bh_physics_sim_output.txt`).  Which family to
 search, and which of three deliverables is wanted, are the first decisions for Greg.
 
 ## The existing routines
@@ -153,23 +153,23 @@ the defaults on real data is recorded.  The MBIR passes can take the MAR weights
 Three facts about this code shape everything below.
 
 The model has no plastic-only nonlinear column.  p enters only linearly (`mar.py:764-779`), and
-on a ray with no metal the correction returns y unchanged (`brainstorm_skeptic.md`, attack 1).
+on a ray with no metal the correction returns y unchanged (`findings/brainstorm_skeptic.md`, attack 1).
 The plastic's own cupping is therefore outside the model today.  At the NSI scans' setting of
 200 kV behind 0.9 mm of copper, a PMMA-like plastic is linear to one percent over 10 cm.  The
 missing column therefore costs nothing at that setting.  At 100 to 150 kV with light
 filtration, the plastic's attenuation per centimeter falls 13 to 15 percent over 8 cm.  No
-coefficient in the present model can correct that fall (`brainstorm_physics.md`, section 3).
+coefficient in the present model can correct that fall (`findings/brainstorm_physics.md`, section 3).
 
 The fit's memory is the production-scale problem.  This is true of the existing fit alone,
 before any image score is added.  The columns are full-size sinograms.  At 1800 by 2000 by 2000
 each column is 28.8 GB.  The fit holds the measured sinogram, p, and each m_k at once, which is
 86.4 GB for one metal.  Its normal equations rebuild 27 columns two at a time
-(`brainstorm_pipeline.md`, section 2).
+(`findings/brainstorm_pipeline.md`, section 2).
 
 There is no measured baseline.  The golden MAR sinogram is a linear forward projection of a
 two-level phantom with no hardening (`tests/generate_preprocess_goldens.py:166-169`).  Those
 tests therefore establish parity with mbirjax and say nothing about correction quality
-(`brainstorm_skeptic.md`, attack 11).  Any claim that a modified or replaced fit is better or
+(`findings/brainstorm_skeptic.md`, attack 11).  Any claim that a modified or replaced fit is better or
 worse than the existing one needs a synthetic case with a polychromatic truth first.  That case
 is experiment 1 below, and every other experiment depends on it.
 
@@ -183,20 +183,20 @@ nonlinear coefficients are chosen.  Each ends with its supporting experiments.
 
 The proposal is to fit the coefficients on a reduced sinogram and apply them to the full one.
 A 48-row window at view stride 4 and detector bin 2 brings a column from 28.8 GB to 86 MB
-(`brainstorm_pipeline.md`, section 2).  Four parts of the geometry estimator's machinery
+(`findings/brainstorm_pipeline.md`, section 2).  Four parts of the geometry estimator's machinery
 transfer as they are.  The view stride of `reduce_sinogram` changes no pixel value, so it is
 exact.  The one-dimensional search of `_search_minimum` serves any scalar hyperparameter, and it
 brings a coarse grid, a golden-section refinement, and its notes about edge minima and multiple
 minima.  The undecided verdict transfers, with a noise floor from the even-view and odd-view
 split.  And the result shape of `CalibrationResult` extends to a vector-valued answer
-(`brainstorm_pipeline.md`, section 5).
+(`findings/brainstorm_pipeline.md`, section 5).
 
 Three parts do not transfer, and each needs a change.
 
 The slab does not transfer.  In cone beam the rays through a slab's detector rows cross voxels
 outside the slab.  The geometry of the rotation experiments has a 5.7 degree half fan.  There
 an 8-slice slab's rays reach 0.88 slices past each end of the slab.  At a 15 degree half fan
-they reach 2.8 slices (`brainstorm_pipeline.md`, section 1).  Thickening the slab widens the
+they reach 2.8 slices (`findings/brainstorm_pipeline.md`, section 1).  Thickening the slab widens the
 row window by the factor (sid + r) / (sid − r).  That factor always exceeds one.  No finite slab
 is therefore self-contained, and the columns p and m_k for the window rows must be projections
 of the full class volumes.  Those projections can still be cheap.  The rays through the window
@@ -214,26 +214,26 @@ exceeds the square of the mean by the within-bin variance, and at a metal edge t
 large.  Two sizes of that bias were computed.  The first size is per pixel at a silhouette edge,
 where m runs from zero to its full value across one or two pixels.  There a quadratic column
 built from binned m is biased by about 25 percent at bin 2 and 125 percent at bin 4, and a
-cubic column by 75 percent at bin 2 (`brainstorm_pipeline.md`, section 1).  The second size is
-the bias of the fitted coefficient of a quadratic model on a disk (`counts_and_binning.py`,
+cubic column by 75 percent at bin 2 (`findings/brainstorm_pipeline.md`, section 1).  The second size is
+the bias of the fitted coefficient of a quadratic model on a disk (`experiments/counts_and_binning.py`,
 rerun in this session).  For a disk of radius 800 pixels it stays under 0.01 percent at bin 4.
 For a disk of radius 50 pixels it is 0.23 percent at bin 2 and 1.09 percent at bin 4.  Metal
 features are small, so the larger biases apply to them.  Because the fit is linear in the
 coefficients, the remedy is to build each column at full resolution inside the view-batch loop
 and bin afterward.  That leaves the reduced problem a correctly binned linear least-squares
-problem in the coefficients (`brainstorm_pipeline.md`, section 1, and `brainstorm_score.md`).
+problem in the coefficients (`findings/brainstorm_pipeline.md`, section 1, and `findings/brainstorm_score.md`).
 It is not the same problem as the unbinned fit, because the within-bin residual is discarded.
-`brainstorm_pipeline.md` recommends leaving the channel bin factor at 1 instead.  This page
+`findings/brainstorm_pipeline.md` recommends leaving the channel bin factor at 1 instead.  This page
 overrides that recommendation for the cost figures, and the bin ablation below is the gate for
 the override.
 
 The per-slice agreement rule transfers only for physical parameters.  Hardening parameters are
 set by the spectrum and the materials, so they are the same in every slice, while structure is
-not (`brainstorm_score.md`).  The polynomial's coefficients are not physical parameters.  They
+not (`findings/brainstorm_score.md`).  The polynomial's coefficients are not physical parameters.  They
 are a least-squares approximation to the true curve over the set of path-length pairs the
 object's rays present.  This page calls that set the presented set.  The presented set differs
 between a slice through the middle of the metal and a slice near its end, so the coefficients
-may legitimately differ (`review_reasoning.md`, finding 7).  The agreement rule must therefore
+may legitimately differ (`findings/review_reasoning.md`, finding 7).  The agreement rule must therefore
 compare a slice-invariant quantity: the corrected attenuation at probe path-length pairs that
 every scored slice presents.
 
@@ -243,12 +243,12 @@ run view batch by view batch as `BH_correction` does, with one host output and n
 full-size sinogram.  The batch kernel needs p and m_k for its own views.  No public entry point
 projects a subset of views today.  The per-view-batch body already exists
 (`mbirtorch/cone_beam.py:161`), and until a public entry exists a model copy carrying the
-batch's angles is the way to reach it (`brainstorm_pipeline.md`, section 3;
-`brainstorm_search.md`).  The class volumes are the remaining memory question.  One float mask
+batch's angles is the way to reach it (`findings/brainstorm_pipeline.md`, section 3;
+`findings/brainstorm_search.md`).  The class volumes are the remaining memory question.  One float mask
 per class costs 32 GB each at 2K.  A single label volume would cost 8 GB, but only if the
 projector could accept a label volume and a class value.  That substitution also changes the
 metal columns, which today project the reconstruction's own values inside the mask rather than a
-constant (`review_accuracy.md`, problem 2).
+constant (`findings/review_accuracy.md`, problem 2).
 
 The reduced problem also changes what the alternation costs.  Today it is one direct
 reconstruction plus `num_BH_iterations` times a fit and a full MBIR.  With the reduced problem it
@@ -274,13 +274,13 @@ The proposal is a one-dimensional search over the existing fit's ridge strength 
 optionally its floor `gamma`, scored on a reduced reconstruction, which replaces the fixed
 default with a per-scan value.  The routine runs with its defaults and without intervention
 today, and the sensitivity of its result to `beta` has not been measured on real data
-(`brainstorm_skeptic.md`).  `brainstorm_search.md` describes this sweep as replacing tuning by
+(`findings/brainstorm_skeptic.md`).  `findings/brainstorm_search.md` describes this sweep as replacing tuning by
 eye, but nothing in the code or the docs records per-scan tuning, so that description is not
-used here.  `brainstorm_physics.md` ranks this above any coefficient search, and
-`brainstorm_search.md` and `brainstorm_pipeline.md` call it the cheapest useful step.  Each
+used here.  `findings/brainstorm_physics.md` ranks this above any coefficient search, and
+`findings/brainstorm_search.md` and `findings/brainstorm_pipeline.md` call it the cheapest useful step.  Each
 candidate costs one solve of the fit's small normal equations, one active-set pass, one
 elementwise correction, and one direct reconstruction of the reduced slab.  A golden-section
-search at `_search_minimum`'s defaults spends about 24 evaluations (`brainstorm_search.md`).
+search at `_search_minimum`'s defaults spends about 24 evaluations (`findings/brainstorm_search.md`).
 
 The ridge strength is a bias rather than a safeguard, which is why the sweep is worth doing
 whatever else is built.  Consider a rod centered in a plastic disk.  Every ray through the rod
@@ -291,7 +291,7 @@ half the maximum metal path whose plastic estimate is 10 percent low, which a st
 the plastic mask produces.  Exact inversion of the true model has no error on that ray.  With the
 existing fit's ridge strength β, the corrected plastic errs by +4.4 percent at β of 2e-4, by
 +6.7 percent at the default 2e-3, and by +15.4 percent at 2e-2.  The opposite probe, 10 percent
-high, errs by −1.2, +0.7, and +8.4 percent (`bh_physics_extra_output.txt`).  The image is
+high, errs by −1.2, +0.7, and +8.4 percent (`experiments/bh_physics_extra_output.txt`).  The image is
 sensitive to that division only through rays whose path lengths differ from the ones the fit
 saw, which occur at edges and along streaks.  Those rays are few, so the image constrains only
 weakly what the data leave undetermined.
@@ -300,7 +300,7 @@ What the sweep cannot fix is also known.  It cannot add columns, so plastic cupp
 reach.  It cannot change the ridge's direction, only its strength.  It cannot repair a
 segmentation error, which changes p and m themselves.  And `num_metal` cannot be compared by a
 fixed-mask score, because each value defines a different mask and so a different score
-(`brainstorm_search.md`, approach c; `brainstorm_skeptic.md`, attack 10).  `beta` is scaled by
+(`findings/brainstorm_search.md`, approach c; `findings/brainstorm_skeptic.md`, attack 10).  `beta` is scaled by
 the trace of the normal matrix (`mar.py:526-527`), so a value found on binned data transfers
 only approximately and the fine level should confirm it.
 
@@ -315,7 +315,7 @@ edge of least regularization, which is the signal-removal trap of modification 4
 ### Modification 3: an image-score warning inside the alternation
 
 The proposal is one score call after each pass of `recon_plastic_metal`, which warns when the
-score gets worse (`brainstorm_pipeline.md`, section 4).  It is the smallest change of the four.
+score gets worse (`findings/brainstorm_pipeline.md`, section 4).  It is the smallest change of the four.
 It catches two failures the code already anticipates and never checks against the image: a
 non-solved OSQP status that keeps the previous coefficients (`mar.py:620-627`), and a negative
 mean of the plastic coefficient (`mar.py:707-708`).  It also catches wrong fixed points of the
@@ -324,7 +324,7 @@ so with `num_metal` of 2 Otsu can assign the plastic's bright rim to a metal cla
 then projected, subtracted, and re-added as metal, and the next reconstruction shows the same
 rim.  The metal's value is a second fixed point, because the added-back metal is the
 reconstruction's own projected level, inherited from the direct reconstruction and never
-corrected (`brainstorm_skeptic.md`, attack 2).
+corrected (`findings/brainstorm_skeptic.md`, attack 2).
 
 Supporting experiment, which takes minutes.  Segment the direct reconstruction of the NSI metal
 scan at `num_metal` of 1 and 2, count the plastic voxels labeled metal, run three passes of the
@@ -346,10 +346,10 @@ and R(y) is one more reconstruction on the same reduced model.  Every candidate 
 linear combination of small images.  Three search methods are therefore free of projector
 calls: a grid search, a golden-section refinement, and a closed-form solve.  At two metals and
 order 3 the stack holds one reconstruction of y plus 15 basis images.  Sixteen images of an
-8-slice slab at 500 by 500 occupy 128 MB, at 8 MB per image (`brainstorm_pipeline.md`, section
+8-slice slab at 500 by 500 occupy 128 MB, at 8 MB per image (`findings/brainstorm_pipeline.md`, section
 2).  This is the construction used by empirical beam-hardening correction (Kyriakou et al. 2010)
 and by the later automated methods that build on it (Levi et al. 2019, 2021), applied here to
-mbirtorch's reduced problem (`brainstorm_literature.md`).
+mbirtorch's reduced problem (`findings/brainstorm_literature.md`).
 
 The metal's level needs a stated convention, because the subtraction form differs from the
 division form there.  With no add-back, the metal's level on a corrected ray is the one the
@@ -357,7 +357,7 @@ fitted linear coefficient gives, and θ = 0 is the measured sinogram itself.  Th
 convention this page adopts for the search, because it makes the uncorrected sinogram a member
 of the family.  The division form instead sets the metal to its own reconstructed level
 (`mar.py:818-824`).  The two conventions differ by the term Σ_k (ρ_k − θ_k,lin) m_k, with ρ_k the
-reconstruction's metal level (`brainstorm_search.md`).  That term is fixed once the linear
+reconstruction's metal level (`findings/brainstorm_search.md`).  That term is fixed once the linear
 coefficients are fixed, so it can be applied after the search as one fixed image.
 
 The subtraction form is a stated replacement for the division form, not an approximation of it.
@@ -366,7 +366,7 @@ subtraction form drops the clamp at zero and the floor.  The clamp matters for t
 reason.  A large metal coefficient drives thick-metal rays negative, and the clamp sets those
 rays to zero.  The added-back metal then fills them with a smooth projection.  That step is
 inpainting.  It deletes streaks and plastic signal together and leaves a dark band, and a
-gradient or total-variation score prefers that result (`brainstorm_skeptic.md`, attack 1).
+gradient or total-variation score prefers that result (`findings/brainstorm_skeptic.md`, attack 1).
 
 **The objective.**  With a score S(x) = xᵀQx that is quadratic in the image for a fixed mask and
 blur, S(θ) is quadratic in θ.  The joint objective is
@@ -381,12 +381,12 @@ the denominator positive and one on the metal-only block.  The subtraction form 
 family, y − Σ_j θ_j h_j ≥ 0 over all nonlinear columns, so the row assembly changes while the
 solver does not.  The loop adds at most `num_constraint_update_iter` most-violated pixels per
 family, so it is an approximate guard rather than a guarantee.  The convexity is a property of
-this quadratic score.  The published local minima (`brainstorm_literature.md`, Levi et al.)
+this quadratic score.  The published local minima (`findings/brainstorm_literature.md`, Levi et al.)
 arose with a thresholded total-variation score and a simplex optimizer, so they are avoided
 here by the choice of score, not dissolved.
 
-The data term is what addresses the objection in `brainstorm_skeptic.md` and the failure in
-`brainstorm_literature.md`.  Two kinds of direction in θ are invisible to the score: those
+The data term is what addresses the objection in `findings/brainstorm_skeptic.md` and the failure in
+`findings/brainstorm_literature.md`.  Two kinds of direction in θ are invisible to the score: those
 whose basis images are nearly collinear on the scored region, and those in the null space of
 Q.  The data term and the ridge fix those directions, so noise cannot move them.  The condition
 number of the masked Gram matrix of the basis images is the identifiability diagnostic.  A
@@ -403,8 +403,8 @@ minimum.  The discrepancy rule takes the smallest λ at which the sinogram resid
 reduced data stays within its noise level.  Experiment 1 tests both against the λ an oracle
 would choose on the synthetic case.  Three limiting values of λ are the three positions the
 reports take.  At λ → ∞ the estimate is the existing fit, which is the position of
-`brainstorm_skeptic.md`.  At λ → 0 it is the pure image fit, which the skeptic, the literature,
-and `brainstorm_physics.md` all reject.  The rule chooses between them.
+`findings/brainstorm_skeptic.md`.  At λ → 0 it is the pure image fit, which the skeptic, the literature,
+and `findings/brainstorm_physics.md` all reject.  The rule chooses between them.
 
 The overall image scale is fixed, for a reason stronger than the gauge argument of the reports.
 The correction is the identity on metal-free rays, so the rescale of `_estimate_plastic_scaling`
@@ -412,7 +412,7 @@ The correction is the identity on metal-free rays, so the rescale of `_estimate_
 cannot move.  The metal's level can, in one case.  When the metal is thin its column m is
 nearly binary, m² and m³ are nearly equal to m, and R(m²) is nearly parallel to R(m).  A large
 coefficient on a nonlinear column then erases the metal and every streak with it, which is
-attack 12 of `brainstorm_skeptic.md`.  Excluding the linear columns does not close that route.
+attack 12 of `findings/brainstorm_skeptic.md`.  Excluding the linear columns does not close that route.
 The scale is therefore fixed to the extent that the nonlinear basis images are not collinear
 with R(m_k) on the scored region.  The per-scan measure of that collinearity is the angle between
 R(m_k) and the span of the nonlinear basis images on the mask, reported beside the condition
@@ -425,7 +425,7 @@ metal beyond the edge margin.  The far plastic is the plastic beyond a few metal
 metal.  The contrasts are the mean of the corridor minus the mean of the far plastic, and the
 mean of each annulus minus the mean of the far plastic.  Each contrast is linear in the image,
 crosses zero at the right correction, and has one root, so a one-parameter search on it is a
-bracketed root-finding problem with no local minima (`brainstorm_score.md`).  These contrasts
+bracketed root-finding problem with no local minima (`findings/brainstorm_score.md`).  These contrasts
 are primary because they lie where the searched columns act.  Every searched column carries a
 factor of m, so the correction changes only rays through metal, and its basis images are streak
 and band patterns near the metal.
@@ -434,10 +434,10 @@ The second part is the low-frequency deviation of the plastic class from its own
 mask eroded away from every edge and every metal.  It measures cupping.  Under the subtraction
 form with the existing columns, cupping in the far plastic cannot change.  This part is
 therefore a diagnostic of the model rather than a target of the search
-(`review_reasoning.md`, finding 2).  It detects the plastic's own hardening and scatter, both
+(`findings/review_reasoning.md`, finding 2).  It detects the plastic's own hardening and scatter, both
 outside the model.  It becomes a target only if a plastic-only column or the physical family is
 adopted.  Its expected size on the NSI scans is small, because the plastic there is linear to
-one percent (`brainstorm_physics.md`).  The blur width and the erosion margins are specified in
+one percent (`findings/brainstorm_physics.md`).  The blur width and the erosion margins are specified in
 ALU, the package's arbitrary length units, so they do not change with voxel size.  Both are
 swept rather than guessed.
 
@@ -446,15 +446,15 @@ round uniform object, the hardened sinogram is still the projection of some imag
 cupped one.  The reprojection residual is therefore insensitive to cupping.  Gradient energy is
 nearly insensitive to it too.  For a disk, the cupping term is about 0.007 σ/R of the edge term,
 where σ is the blur width and R the radius.  It is under one part in a thousand for blurs below
-about a seventh of the radius (`brainstorm_score.md`).  Only a flatness measure inside a mask is
+about a seventh of the radius (`findings/brainstorm_score.md`).  Only a flatness measure inside a mask is
 sensitive to cupping.  Streaks and bands between separated dense parts are inconsistent with any
-image, and the residual is sensitive to those (`brainstorm_physics.md`, section 4).
+image, and the residual is sensitive to those (`findings/brainstorm_physics.md`, section 4).
 
 The slices to score are chosen by the opposite criterion from the geometry estimator's.  The
 metal terms are measured on the slices that contain the metal, and the two-metal cross columns
 on slices that contain both metals.  The cupping diagnostic is measured on slices near the
 central plane with the largest plastic cross-section.  There the chords are longest and FDK's
-own shading is smallest (`brainstorm_score.md`).  The slice-selection step must therefore select
+own shading is smallest (`findings/brainstorm_score.md`).  The slice-selection step must therefore select
 slices with dense features, where the geometry estimator's slice selection avoided them.  The
 scored set is therefore several row windows, not one slab.
 
@@ -465,13 +465,13 @@ scored set is therefore several row windows, not one slab.
 - Every candidate, including θ = 0, goes through the same code path and the same reduction.
 - The noise floor is measured by scoring the difference between the even-view and odd-view
   reconstructions, and it must bound two opposite biases.  A stronger correction amplifies
-  long-path noise, so a variance score prefers weak corrections (`brainstorm_score.md`).  A
+  long-path noise, so a variance score prefers weak corrections (`findings/brainstorm_score.md`).  A
   corrected candidate under the division form's convention is also partly denoised on metal
   rays, because the added-back metal is a smooth projection, so a noise-sensitive score prefers
-  strong corrections (`brainstorm_skeptic.md`, attack 1).
+  strong corrections (`findings/brainstorm_skeptic.md`, attack 1).
 - A systematic floor is measured beside the noise floor: the score change from moving the
   segmentation threshold by one histogram bin, which is the smallest realistic systematic
-  perturbation (`review_reasoning.md`, finding 10).
+  perturbation (`findings/review_reasoning.md`, finding 10).
 - The estimate must agree across slices, across blur widths, and across erosion margins.
   Agreement means the corrected attenuation at common probe path-length pairs falls within
   half the width of the score minimum.  Otherwise the verdict is undecided.
@@ -479,20 +479,20 @@ scored set is therefore several row windows, not one slab.
 A score built on within-class variance can be self-fulfilling.  Within-class variance is Otsu's
 own objective (`mbirtorch/preprocess/segmentation.py:222-226`).  Minimizing it over θ with a
 mask, then re-segmenting, is one minimization over mask and correction whose optimum is a
-piecewise-constant image regardless of physics (`brainstorm_skeptic.md`, attack 2).  Two
+piecewise-constant image regardless of physics (`findings/brainstorm_skeptic.md`, attack 2).  Two
 things limit the damage.  The fixed mask with erosion breaks the alternation within one
 estimate.  The few coefficients can remove only what lies in the span of the basis images, so
 texture moves the estimate only in proportion to its correlation with those images.  One case
 is not limited at all.  A radial density gradient in a round object matches the cupping basis
 image exactly, and no single-spectrum measurement can distinguish the two
-(`brainstorm_score.md`).  The NSI phantom scanned without its insert is the reference for that
+(`findings/brainstorm_score.md`).  The NSI phantom scanned without its insert is the reference for that
 case.  The plastic is the same object in both scans, so its real structure is measured rather
 than assumed, once a registration and an intensity convention between the two scans are
 defined.
 
 **Multiple metals.**  Two metals are the hardest case, and a two-metal synthetic case is
 required to test it.  The counts of H's columns, from `_generate_metal_exponent_list`'s rule,
-are these (`counts_and_binning.py`):
+are these (`experiments/counts_and_binning.py`):
 
 | metals | order 2 | order 3 | order 4 |
 | --- | --- | --- | --- |
@@ -502,18 +502,18 @@ are these (`counts_and_binning.py`):
 
 The searched count excludes the linear columns p and each m_k, so it is 4 at one metal and 12
 at two metals at order 3.  The reports quote 5 and 13 or 14 for the same quantity
-(`brainstorm_search.md`, `brainstorm_score.md`).  The two-metal count is above the seven that
+(`findings/brainstorm_search.md`, `findings/brainstorm_score.md`).  The two-metal count is above the seven that
 failed in Levi et al., which is why the data term and the effective-degrees-of-freedom
 diagnostic matter.  The polynomial's cross columns of two metals, m_0 m_1 and their higher
 forms, are supported only on rays through both metals.  They are decided by few rays and few
 slices, so the scoring slab must contain both metals or those columns are dropped
-(`brainstorm_search.md`).  The region structure separates the materials, so that each region is
+(`findings/brainstorm_search.md`).  The region structure separates the materials, so that each region is
 sensitive to one group of terms.  The annulus around metal k is sensitive to its metal-only
 terms.  The corridors between metal k and the plastic are sensitive to its cross terms.  The
-corridor between metals j and k is sensitive to their joint term (`brainstorm_score.md`).  The
+corridor between metals j and k is sensitive to their joint term (`findings/brainstorm_score.md`).  The
 real scans limit what can be tested.  The NSI phantom has one insert of one material.  The bga
 scan's solder balls are the thin-metal case, where the monomial columns become nearly collinear
-(`brainstorm_skeptic.md`, attacks 3 and 11).  The two-metal synthetic case should include the
+(`findings/brainstorm_skeptic.md`, attacks 3 and 11).  The two-metal synthetic case should include the
 centered placement, which is the one that makes the columns collinear, and a thin-metal
 placement.
 
@@ -532,7 +532,7 @@ remedy, and an experiment that settles whether the remedy works:
 | aliasing from metal edges | 1800 views for 2000 channels undersample metal edges, and aliasing streaks radiate as hardening streaks do | score unhardened data at view stride 1 and 4, which tests only whether the reduction adds to the acquisition's own aliasing | the stride check of modification 1 |
 
 **Supporting experiments.**  Four experiments support this modification, and they are the gates
-`brainstorm_skeptic.md` set, revised by the reasoning review.
+`findings/brainstorm_skeptic.md` set, revised by the reasoning review.
 
 Experiment 1 is the synthetic truth and the score curves, on CPU in under an hour per case.
 Build a thin three-dimensional case of a PMMA disk with iron and aluminum rods.  Harden it with
@@ -597,7 +597,7 @@ the plastic's own hardening and scatter.
 ## Other techniques that could replace the existing fit
 
 Five techniques from the reports would replace the polynomial fit rather than modify it.  The
-first is the one `brainstorm_physics.md` recommends, and the page's staging puts it after
+first is the one `findings/brainstorm_physics.md` recommends, and the page's staging puts it after
 modification 4 for one reason: the closed-form image fit of modification 4 reuses the existing
 fit, constraints, and correction, and it is the simplest test of whether an image score can
 decide coefficients at all.  Whatever family is searched, the physical family is the synthetic
@@ -610,16 +610,16 @@ from one or two parameters and whose attenuation curves come from tables.  Its u
 three groups: one or two spectrum parameters, which are the copper-equivalent filter thickness
 and optionally the voltage; one density scale per material; and optionally one scatter
 constant.  That is 3 to 5 parameters for one metal, and one more per added metal
-(`brainstorm_physics.md`, section 1).  The correction is exact inversion: solve y = f(p, m̂) for
+(`findings/brainstorm_physics.md`, section 1).  The correction is exact inversion: solve y = f(p, m̂) for
 p on each ray by bisection or Newton's method, since f is increasing in p, and output the
 monochromatic value at a reference energy.  The inversion is elementwise, so it streams by view
 batch like the existing correction.  For starved rays no inversion recovers p, and the right
 output there is the model's own prediction from the mask with a weight near zero, which is
-sinogram replacement made explicit (`brainstorm_physics.md`, section 6).
+sinogram replacement made explicit (`findings/brainstorm_physics.md`, section 6).
 
 The physics report simulated the NSI setting with a Kramers spectrum from a tungsten source,
 Elam attenuation tables through the `xraydb` package, and an energy-integrating CsI detector
-(`brainstorm_physics.md`; `bh_physics_sim_output.txt`).  The simulation used a grid of PMMA up
+(`findings/brainstorm_physics.md`; `experiments/bh_physics_sim_output.txt`).  The simulation used a grid of PMMA up
 to 8 cm and iron up to 1 cm at 200 kV behind 0.9 mm of copper, on which the attenuation reaches
 4.35.  The cubic in `mar.py` fits that grid with an rms error of 0.009 and a maximum error of
 0.026 in attenuation units.  The cubic's metal curve has an inflection inside the fitted range,
@@ -632,30 +632,30 @@ The physical family's accuracy was measured against a truth generated with a dif
 and inherent filter.  A one-parameter fit reached a maximum error of 0.0112 and a two-parameter
 fit 0.0045, where the cubic on the same truth reached 0.0219.  On the extrapolation test the
 one-parameter fit erred by −0.0144 and the two-parameter fit by +0.0140 at 1 cm of iron, against
-the cubic's +0.69 (`bh_physics_extra_output.txt`).  The gain in fit is therefore 2 to 5 times,
+the cubic's +0.69 (`experiments/bh_physics_extra_output.txt`).  The gain in fit is therefore 2 to 5 times,
 and the gain in extrapolation about 50 times at 200 kV.  A family with fixed bins and free
-weights only is worse than the cubic at 3 parameters (`bh_physics_sim_output.txt`), so the
+weights only is worse than the cubic at 3 parameters (`experiments/bh_physics_sim_output.txt`), so the
 spectrum parameters are what make the small family work.
 
 The family costs a projector call per candidate when scored on the image, because it is
 nonlinear in its parameters.  Each candidate needs one direct reconstruction of the reduced
 slab.  A Gauss-Newton step needs one more per parameter for its Jacobian, which is the
-basis-image construction applied once per iteration (`brainstorm_search.md`, approach b).  With
+basis-image construction applied once per iteration (`findings/brainstorm_search.md`, approach b).  With
 3 to 5 parameters a coarse grid and a one-dimensional polish per parameter through
 `_search_minimum` are affordable at reduced scale, and the per-slice agreement rule applies to
-the parameters themselves.  `brainstorm_physics.md` proposes fitting the family on the
+the parameters themselves.  `findings/brainstorm_physics.md` proposes fitting the family on the
 sinogram by nonlinear least squares and using the image score as the check, which needs no
 projector call per candidate at all.
 
 The family has three known weaknesses.  Recovering a spectrum from transmission data is
-ill-conditioned, which `brainstorm_literature.md` reports for spectrum estimation methods
+ill-conditioned, which `findings/brainstorm_literature.md` reports for spectrum estimation methods
 (question 3).  Fixing the bin energies and fitting only one or two spectrum parameters avoids
 that problem.  Tungsten and tin have a K-edge inside the spectrum, which breaks the two-basis
 attenuation form used when the materials are unknown; steel, aluminum, and titanium have no
-K-edge there, so the form holds for them (`brainstorm_search.md`).  And scatter and
+K-edge there, so the form holds for them (`findings/brainstorm_search.md`).  And scatter and
 extrapolation are in tension.  A constant transmission offset lowers y most where y is largest,
 as hardening does.  A four-bin mixture absorbs a 0.5 to 2 percent offset to within 0.002 to
-0.007 rms over 8 cm of plastic (`brainstorm_physics.md`, section 4).  When the goal is
+0.007 rms over 8 cm of plastic (`findings/brainstorm_physics.md`, section 4).  When the goal is
 artifact-free plastic on the presented set, absorbing scatter is acceptable, and the fitted
 coefficients must not be read as physics.  When the argument for the family is extrapolation,
 the fitted parameters must be physics, so scatter must be fitted as its own zero-attenuation bin
@@ -669,8 +669,8 @@ thicker half; the polynomial's extrapolation error in simulation was 25 percent 
 attenuation at 200 kV, and the family's was about 50 times smaller.  Stop if the family's
 residual on the metal rays is not below the polynomial's.  On the synthetic case, the family is
 one of the four estimators of experiment 1, and when it becomes the model the truth must come
-from an independent generator, such as the different-detector truth of `bh_physics_extra.py` or
-the `spekpy` and `xrayphysics` packages that `brainstorm_physics.md` names.
+from an independent generator, such as the different-detector truth of `experiments/bh_physics_extra.py` or
+the `spekpy` and `xrayphysics` packages that `findings/brainstorm_physics.md` names.
 
 ### Technique 2: a mixture of exponentials with free bins, for unknown materials
 
@@ -678,11 +678,11 @@ When the materials are not named, the family f(p, m) = −log Σ_j w_j exp(−a_
 free shared bins has 3J − 1 parameters, 8 at three bins and 11 at four.  It fits the simulated
 grid to a maximum error of 0.0018 at three bins and 0.00014 at four, and its extrapolation error
 at 1 cm of iron is −0.006 at 200 kV and +0.20 and +0.31 at 150 and 100 kV
-(`bh_physics_sim_output.txt`).  It is concave by construction.  Its parameter count is the
-polynomial's, so the estimability warning of Levi et al. applies, and `brainstorm_physics.md`
+(`experiments/bh_physics_sim_output.txt`).  It is concave by construction.  Its parameter count is the
+polynomial's, so the estimability warning of Levi et al. applies, and `findings/brainstorm_physics.md`
 recommends tying a_j and b_j to the photoelectric and Compton basis curves to stop overfitting.
 The known failure is collapse to one bin, because the weights are seen only through the
-curvature of the curve along each material's axis (`brainstorm_search.md`, approach b).
+curvature of the curve along each material's axis (`findings/brainstorm_search.md`, approach b).
 
 Supporting experiment.  The same fit-and-predict test as technique 1, with the free family
 initialized from the polynomial fit, watching for a collapse to one bin.
@@ -691,7 +691,7 @@ initialized from the polynomial fit, watching for a collapse to one bin.
 
 Abdurahman and colleagues (2018) estimate the same kind of polynomial coefficients by minimizing
 the inconsistency of projection pairs under Grangeat's relation, with no image regions, no
-spectrum, and no calibration (`brainstorm_literature.md`).  It is the main alternative to an
+spectrum, and no calibration (`findings/brainstorm_literature.md`).  It is the main alternative to an
 image-domain criterion: the same parameter vector with a projection-domain objective.  Its blind
 spot is the one the reprojection residual has.  Cupping of a round object is consistent data, so
 the criterion is sensitive to streaks and bands and not to cupping.
@@ -704,7 +704,7 @@ image fit's and with the oracle's, on the selection and confirmation sets.
 Schüller and colleagues (2015) replace the hard segmentation with a nonlinear histogram
 deformation of the reconstruction, forward project the original and the deformed volumes,
 combine the projections monomially, and combine the resulting basis images by the same image
-flatness criterion (`brainstorm_literature.md`).  This keeps the structure of modification 4 and
+flatness criterion (`findings/brainstorm_literature.md`).  This keeps the structure of modification 4 and
 removes its dependence on `segment_plastic_metal`, which matters where metals and plastic
 segment badly, as on the bga scan.
 
@@ -715,7 +715,7 @@ thin-rod synthetic case, and compare the score curves and the collinearity angle
 
 Polyenergetic statistical reconstruction (Elbakri and Fessler 2002 and 2003; O'Sullivan and
 Benac 2007) makes the attenuation at a reference energy the unknown and puts the spectrum in the
-forward model, so no sinogram correction exists (`brainstorm_literature.md`).  It is the analog
+forward model, so no sinogram correction exists (`findings/brainstorm_literature.md`).  It is the analog
 of the `det_rotation` inside the projectors that the geometry plan defers: the parameter becomes
 part of the reconstruction.  It needs a spectrum and attenuation tables, its cost is the
 reconstruction's, and it is outside the scope of this brainstorm.  It is recorded here because
@@ -726,7 +726,7 @@ technique 1 supplies exactly the spectrum and tables it would need.
 The steps below are ordered by cost, and each names the section that defines it.
 
 - Step 0, minutes.  Read the NSI scan's metadata and file names to learn whether the export
-  already carries a vendor hardening correction; `brainstorm_physics.md` reports a file name
+  already carries a vendor hardening correction; `findings/brainstorm_physics.md` reports a file name
   containing "0.5BH", and every real-scan experiment runs on that scan.  Run the fixed-point
   count of modification 3.  Compute the condition number of HᵀH on the NSI metal scan and on the
   bga scan at reduced size.
@@ -756,7 +756,7 @@ The steps below are ordered by cost, and each names the section that defines it.
   partly corrected, the metal scan's residual hardening is smaller than assumed and the real-scan
   gates must say so.
 - Do the MAR weights in the final MBIR make the metal-only coefficients irrelevant to the
-  delivered image?  If so, the search shrinks to the cross terms (`brainstorm_score.md`).
+  delivered image?  If so, the search shrinks to the cross terms (`findings/brainstorm_score.md`).
 - Is a view-subset forward projection an acceptable addition to the projector API?  Without it
   the correction cannot stream at production scale, whichever estimator is built.
 - Is the NSI phantom's plastic uniform enough that the no-metal scan can serve as the texture

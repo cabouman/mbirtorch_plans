@@ -1,5 +1,10 @@
 # Building a Thingy as a Gradio-Lite page: read this first
 
+Status: ACTIVE
+Updated: 2026-09-19
+Code: the static Space gbuzzard/mbirtorch-geometry-viewer, built from plans/geometry_viewer/experiments/web/lite/ by gv5_build_web.py in that experiments folder
+Next step: Re-check the fifteen pins against plans/geometry_viewer/experiments/web/lite_pins.txt when the Space is next rebuilt.
+
 Date: 2026-09-10.  Written after the mbirtorch geometry viewer's static Space
 failed on its first upload, for the reasons below, and cost a day of debugging.
 Give this file to the Claude session that builds your page, and read the first

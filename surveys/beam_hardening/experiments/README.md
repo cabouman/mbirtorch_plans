@@ -1,31 +1,32 @@
 # Beam hardening from reconstruction quality: brainstorm of 2026-09-05
 
-This directory holds one brainstorming session's records.  The page to read is
-`../survey.md`.  Everything else is the material it was built from.
+This survey folder holds one brainstorming session's records: the reports and reviews under
+`findings/`, and the scripts with their outputs here under `experiments/`.  The page to read
+is `surveys/beam_hardening/survey.md`.  Everything else is the material it was built from.
 
 The synthesis:
 
-- `../survey.md`: the page.  Executive summary, answer, the existing routines,
+- `surveys/beam_hardening/survey.md`: the page.  Executive summary, answer, the existing routines,
   the proposed modifications with their experiments, the alternative techniques with their
   experiments, the run order, and the open questions.
 
 The six agent reports, one per charge:
 
-- `brainstorm_score.md`: which image-domain measures see hardening artifacts, and what makes a
+- `findings/brainstorm_score.md`: which image-domain measures see hardening artifacts, and what makes a
   score safe to search on.
-- `brainstorm_search.md`: how to make a search over 6 to 15 coefficients tractable, and the
+- `findings/brainstorm_search.md`: how to make a search over 6 to 15 coefficients tractable, and the
   candidate parametrizations.
-- `brainstorm_physics.md`: the polychromatic forward model, the accuracy of the polynomial and
+- `findings/brainstorm_physics.md`: the polychromatic forward model, the accuracy of the polynomial and
   the mixture-of-exponentials families, and what one scan identifies.
-- `brainstorm_skeptic.md`: the case against the premise, with the experiments that would settle
+- `findings/brainstorm_skeptic.md`: the case against the premise, with the experiments that would settle
   each objection.
-- `brainstorm_literature.md`: the published methods, with verified citations.
-- `brainstorm_pipeline.md`: how an estimator would fit the mbirtorch code, with file and line
+- `findings/brainstorm_literature.md`: the published methods, with verified citations.
+- `findings/brainstorm_pipeline.md`: how an estimator would fit the mbirtorch code, with file and line
   pointers.
 
 The three panel reviews of the page's first draft, whose findings the page applies:
 
-- `review_accuracy.md`, `review_reasoning.md`, `review_style.md`.
+- `findings/review_accuracy.md`, `findings/review_reasoning.md`, `findings/review_style.md`.
 
 The scripts whose outputs the page cites.  They are records of the agents' runs and keep the
 command-line arguments those runs used:
@@ -43,5 +44,5 @@ command-line arguments those runs used:
 
 One note of process:
 
-- `own_view_before_reports.md`: the session's own view, written before any agent report was
+- `findings/own_view_before_reports.md`: the session's own view, written before any agent report was
   read, so that the reports could be judged against it rather than absorbed.
