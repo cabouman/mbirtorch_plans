@@ -1,9 +1,9 @@
 # Geometry viewer, plan of record
 
 Status: COMPLETE
-Updated: 2026-09-18
+Updated: 2026-09-19
 Code: mbirtorch prerelease d90fd69 holds Increments 1 to 7 (d9882d2, cde72a0, e662d27, 41fca86, all 2026-09-12)
-Next step: Correct the stale status lines and the pre-move module paths in this plan and in the gv8 and gv9 records, then move the folder to archive/.
+Next step: Correct the stale status lines and the pre-move module paths in this plan and in the gv8 and gv9 records, then move the folder to archive/, moving experiments/web/ and the two gv5 build scripts to tools/ instead of deleting them.
 
 Date: 2026-09-09.  Status: APPROVED direction (Greg, 2026-09-09).  Increment 1 is
 done (2026-09-09): `reference/geometry_conventions.md` records the confirmed conventions, and
@@ -37,7 +37,7 @@ Citations.  mbirtorch file paths are given from the package directory, so
 repository.  Experiment scripts live in `plans/geometry_viewer/experiments/` and are
 cited by bare name.  The comparison studies cited are
 `surveys/tigre_comparison/survey.md` and
-`surveys/leap_comparison/leap_comparison.md`.
+`surveys/leap_comparison/leap_comparison.md` (version 1, deleted 2026-09-18; `git show cd4aac3:plans/features/leap_comparison/leap_comparison.md`).
 
 ## Purpose
 
@@ -392,7 +392,8 @@ with the shim to paste, is `reference/gradio_lite_space_guide.md`.
   view may need its own scale, or a range indicator in place of a to-scale drawing.
 - **The experiment directory.**  The initial prompt places scripts in
   `plans/geometry_viewer/experiments/`.  The other feature studies use
-  `plans/experiments/features/<name>/`.  This plan follows the initial prompt.
+  `plans/experiments/features/<name>/`.  This plan follows the initial prompt.  (The layout of
+  the time; since 2026-09-18 every plan uses `plans/<name>/experiments/`.)
 
 ## Terms
 

@@ -145,7 +145,7 @@ cards with twice the memory.
 
 The central axial slices of the two reconstructions agree to 5.7 percent
 NRMSE once the LEAP slice is rotated by a half turn and flipped to
-mbirtorch's orientation.  The figure `results/central_slices_full.png` shows
+mbirtorch's orientation.  The figure `experiments/ornl/results/central_slices_full.png` shows
 the two slices and their difference.  The difference is streaks along the
 sample's edges and the corners outside the field of view, where the two
 regularizers differ.
@@ -343,7 +343,8 @@ time cost, for example through `PYTORCH_CUDA_ALLOC_CONF`, is a measurement
 this page does not make.
 
 The host-resident reconstruction plan in
-`plans/device_memory_tiers/host_resident_layout_plan.md` keeps the
+`plans/device_memory_tiers/host_resident_layout_plan.md` (deleted 2026-09-19;
+`git show 8d2bb50:plans/device_memory_tiers/host_resident_layout_plan.md`) keeps the
 reconstruction-shaped arrays in host memory and moves rows per subset.  For
 this scan those arrays are 4.5 GiB of the 15.3 GiB persistent set per card
 on four devices, because the sinogram is 2.4 times the volume.  The larger

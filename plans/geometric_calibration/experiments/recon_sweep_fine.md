@@ -108,7 +108,7 @@ degrees.
 Neither fitted value is one of the two candidates the sweep was run to separate.  The vendor's
 recorded tilt is 0.16717 degrees (`tables.txt`).  A second earlier estimate comes from the
 conjugate-view method applied to a tall detector band, and it gives 0.1299 degrees on the no-metal
-scan (`closed/real_scan_band_reach.md`).  That estimate is called the tall-band answer below.
+scan (`experiments/closed/real_scan_band_reach.md`).  That estimate is called the tall-band answer below.
 
 The bilinear kernel does not measure that rotation.  With it the four slices' score minima disagree,
 and each one is within 0.007 degrees of the lattice angle of its own row (`analysis.txt`, PART 1).
@@ -158,13 +158,13 @@ kernel was tried, so no second method confirms the 0.150 degrees.
 Each job swept the detector rotation on the two NSI scans and scored four reconstructed slices per
 scan.  The scans are the NSI artifact phantom without and with a metal insert, 1800 views each.  They
 were read with the vendor's tilt held out of the sinogram, as the earlier jobs read them
-(`closed/real_scan_validation.md`).  Both jobs report four scan values: a vendor tilt of 0.16717
+(`experiments/closed/real_scan_validation.md`).  Both jobs report four scan values: a vendor tilt of 0.16717
 degrees, a vendor offset of -14.125 channels, a central-plane row of 956.90, and an angular coverage
 of 359.80 degrees (`tables.txt`).  The reconstruction shape is 1496 by 1496 by 1880 voxels, at a
 `delta_voxel` of 0.03645 and a `voxel_row_aspect` of 1.0.
 
 `parameter_sweep` does the reconstruction, as it did in the four-candidate job
-(`closed/real_scan_rotation_recon.md`).  For one slice it crops the detector to the rows that slice
+(`experiments/closed/real_scan_rotation_recon.md`).  For one slice it crops the detector to the rows that slice
 needs, rotates that band of every view by the candidate angle, and reconstructs the slice directly.
 The score is the gradient energy of the blurred slice divided by that slice's mean square.  The score
 is negated, so a lower score is better.  Every candidate is resampled, because the candidate grids
@@ -220,7 +220,7 @@ The slice at 751.5 rows below the central plane holds no object.  On the no-meta
 at the vendor candidate is 3.208e-07, against 3.474e-05 on the slice at 751.5 rows above the plane
 (`tables.txt`).  The empty slice's mean square is therefore smaller by a factor of 108.  On the metal
 scan the same two figures are 3.138e-07 and 2.543e-05, a factor of 81.  The four-candidate job
-reported the same slice as lying below the phantom (`closed/real_scan_rotation_recon.md`).
+reported the same slice as lying below the phantom (`experiments/closed/real_scan_rotation_recon.md`).
 
 The analysis leaves that slice out of the fits and the combined structure curves.  The rule is this: a
 slice is treated as holding no object when its mean square is below five percent of the largest
@@ -473,7 +473,7 @@ and one offset error.
 The second fitted parameter behaves as the model's offset error, and its magnitude is a fraction of a
 channel on both scans.  One comparison is with the conjugate-view offset, estimated at the vendor's
 rotation of 0.167 degrees.  That offset differs from the vendor's offset by -0.1498 channels on the
-no-metal scan and by -0.0526 channels on the metal scan (`closed/real_scan_rotation_check.md`).  The
+no-metal scan and by -0.0526 channels on the metal scan (`experiments/closed/real_scan_rotation_check.md`).  The
 fitted offset error here is -0.192 channels on the no-metal scan and -0.168 channels on the metal
 scan.  Only the magnitudes are being compared.  The two quantities are close on the no-metal scan and
 differ by a factor of three on the metal scan.  Neither the sign convention nor the reference point has
@@ -573,7 +573,7 @@ Twelve limits apply.
 4. Any height dependence that is linear in the kernel row distance shifts the fitted rotation and
    leaves no residual.  This fit therefore cannot tell an in-plane rotation from such an effect.  The
    recorded out-of-plane lean of the rotation axis, 0.07885 degrees, is one such candidate
-   (`closed/real_scan_band_height.md`).  A LEAP simulation of that lean moved the in-plane estimate by
+   (`experiments/closed/real_scan_band_height.md`).  A LEAP simulation of that lean moved the in-plane estimate by
    up to 0.0110 degrees (`leap_axis_tilt.md`).  That is comparable to the 0.0165-degree difference
    between the fitted rotation and the vendor's tilt.  This record does not decide the question.
 5. The Fourier kernel applies the rotation as two shears.  That composition reproduces the rotation

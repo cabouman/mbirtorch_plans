@@ -5,9 +5,9 @@ Updated: 2026-09-18
 Code: mbirtorch prerelease d90fd69; the MACE loop is in mbirtorch/mace.py (42e0991), and the drunet scripts in the mbirtorch repository import it
 Next step: Move the remaining proof-of-concept functionality from experiments/drunet in the mbirtorch repository into the package, then the follow-ups of the findings page: the sigma_prox and rho sweeps and the divided-device exchange at 3D.
 
-Status: ACTIVE 2026-08-27.  Code lives in the `mbirtorch` repo at
+History: started 2026-08-27.  Code lives in the mbirtorch repository at
 `experiments/drunet/` (starting point: `cone_beam_2d.py`, the 2D noisy cone-beam
-problem).  Background survey: `surveys/denoisers/survey.md` beside this plan.
+problem).  Background survey: `surveys/denoisers/survey.md`.
 
 ## Goal
 
@@ -108,9 +108,9 @@ Status (updated as work proceeds):
 | 1 | Loop, agents, qGGMRF gate | done 2026-08-27; gate PASS at NRMSE 0.0065 vs the standard recon (consensus spread 8.5e-6); matched-sigma sweep at 0.5x/2x lands at 0.0027/0.0087, so inexact-prox drift is under 1%; from-zero descends monotonically to 0.027 at 30 iterations; the run surfaced library change 3; records in `experiments/drunet/output/qggmrf_gate.npz` |
 | 2 | DRUNet agent and sweep | done 2026-08-27; standard recon 0.385, best postprocessing 0.124 (sigma_scaled 0.10), best MACE prior 0.112 (sigma_scaled 0.075, 60 iterations, spread 6.2e-4); deepinv 0.4.1 added to the miniforge test env; records in `experiments/drunet/output/drunet_sweep.npz` |
 | 3 | Findings and follow-ups | done 2026-08-27; `plans/mace_poc/findings/mace_poc_findings.md`, with the follow-up queue carried there; the first queued item is planned in `plans/multi_slice_fusion/plan.md` |
-| 4 | Parameter sandbox (added at Greg's direction) | done 2026-08-27; `experiments/drunet/sandbox.py` compares the standard recon, DRUNet postprocessing, and the DRUNet MACE recon side by side, editing constants at the top of the file, with the standard recon cached across runs; the "standard recon" naming rule was adopted here and in the runner scripts' output ("direct recon" is reserved for the FDK-style `recon_direct`) |
+| 4 | Parameter sandbox (added at Greg's direction) | done 2026-08-27; mbirtorch's `experiments/drunet/sandbox.py` compares the standard recon, DRUNet postprocessing, and the DRUNet MACE recon side by side, editing constants at the top of the file, with the standard recon cached across runs; the "standard recon" naming rule was adopted here and in the runner scripts' output ("direct recon" is reserved for the FDK-style `recon_direct`) |
 
-**Increment 1: loop, agents, gate.**  `experiments/drunet/mace.py` (the loop plus
+**Increment 1: loop, agents, gate.**  mbirtorch's `experiments/drunet/mace.py` (the loop plus
 per-iteration traces: consensus spread max_i ||X_i - x_bar|| / ||x_bar||, and NRMSE
 vs phantom), `agents.py`, and `run_qggmrf_gate.py` reusing the data setup from
 `cone_beam_2d.py`.  Includes the library changes above.  Exit: both gates run and the
@@ -121,7 +121,7 @@ DRUNetAgent: grayscale weights; fixed intensity scale c chosen once from the ini
 recon, applied as D(c v, c sigma)/c; pad/crop to multiples of 8 (128 already is).
 Sweep sigma_noise with sigma_prox fixed.  Compare {standard qGGMRF recon, DRUNet
 postprocessing of that recon, MACE-DRUNet} by NRMSE and side-by-side viewer.  Exit:
-sweep table and best-sigma comparison saved under `experiments/drunet/output/`.
+sweep table and best-sigma comparison saved under mbirtorch's `experiments/drunet/output/`.
 
 **Increment 3: findings and follow-ups.**  Short findings doc here (numbers quoted
 from the run records), with the follow-up queue: multi-slice fusion (N=4 agents), 3D

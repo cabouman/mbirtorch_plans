@@ -7,18 +7,21 @@ Next step: Decide how to estimate the detector rotation robustly. The conjugate-
 
 Date: 2026-09-05.  Status: APPROVED by Greg on 2026-09-05.  A panel of three reviewed the
 first draft, and this version applies their findings.  This plan supersedes
-`closed/geometric_calibration_plan.md`, called v1 below.  The estimator this plan builds first
+`geometric_calibration_plan.md`, called v1 below and deleted on 2026-09-18
+(`git show cd4aac3:plans/features/geometric_calibration/closed/geometric_calibration_plan.md`).  The estimator this plan builds first
 has its own detailed plan, `estimate_by_recon_plan.md` in this directory, whose increments are
-numbered 1.1 to 1.5 here.  The current evidence is summarized in
-`executive_summary_2026-09-05.md`.
+numbered 1.1 to 1.5 here.  The evidence as of 2026-09-05 was summarized in
+`executive_summary_2026-09-05.md`, deleted on 2026-09-18
+(`git show cd4aac3:plans/features/geometric_calibration/executive_summary_2026-09-05.md`).
 
-Citations.  Pages of this directory's closed campaign were cited as `closed/NAME.md`; the
-increment findings are now under `findings/` in this directory, and the superseded v1 plan and
-the status snapshot of 2026-09-05 were deleted on 2026-09-18 and remain in the git history.
-Experiment records are cited by bare name and live in `experiments/` in this directory,
-the closed campaign's in the `experiments/closed/` subdirectory.  mbirtorch file paths are given from
-the package directory, so `mbirtorch/cone_beam.py` means `mbirtorch/mbirtorch/cone_beam.py` in
-the sibling repository.  Measured numbers were read in this session from the cited records.
+Citations.  Pages of this directory's closed campaign are cited as `experiments/closed/NAME.md`
+and the increment findings as `findings/NAME.md`, both relative to this directory.  The
+superseded v1 plan and the status snapshot `status_2026-09-05.md` were deleted on 2026-09-18 and
+remain in the git history (`git show cd4aac3:plans/features/geometric_calibration/closed/status_2026-09-05.md`
+for the snapshot).  Experiment records are cited by bare name and live in `experiments/` in this
+directory.  mbirtorch file paths are given from the root of the mbirtorch repository, so
+`mbirtorch/cone_beam.py` is the module in the sibling repository's package directory.  Measured
+numbers were read in this session from the cited records.
 
 ## Terms and scans
 
@@ -32,7 +35,7 @@ about half the object and a full rotation covers all of it; the displacement enl
 of view.  Four real scans carry the evidence.  Three are one NSI artifact phantom: `nsi_small` at 200
 views, `nsi_no_metal` at 1800, and `nsi_metal` at 1800 with a metal insert; the 200-view file
 holds every ninth frame of the 1800-view acquisition, exactly
-(`closed/real_scan_band_height.md`).  The fourth is `bga`, a Zeiss scan of a ball grid array.  A
+(`experiments/closed/real_scan_band_height.md`).  The fourth is `bga`, a Zeiss scan of a ball grid array.  A
 fifth scan, `z62`, is a Zeiss short scan of 218 degrees that the conjugate-view method refuses.
 
 The calibration sequence is the recommended order of calls: `estimate_det_channel_offset`; then
@@ -48,17 +51,17 @@ The feature lets mbirtorch estimate its own scan geometry from the sinogram.  Th
 is built and validated on real scans.  v1's Increments 1 and 2 are committed as `550b5d3` and
 `4781600`, and v1's Increment 6 set, the docs, the Zeiss `det_rotation` argument, and the demo,
 is implemented, staged, and uncommitted, with its gates recorded in
-`closed/increment_6_findings.md`.
+`findings/increment_6_findings.md`.
 
 The direction changes in one way.  Geometry estimation no longer rests on view-pair comparisons
 alone, and reconstruction quality becomes the primary evidence for the rotation.  Three
 measurements forced the change.  The band estimator returned a wrong angle, with a deep score
 minimum and no warning, on an object whose in-plane structure across the band is weak
-(`closed/real_scan_validation.md`, `closed/real_scan_rotation_recon.md`).  Widening its band
+(`experiments/closed/real_scan_validation.md`, `experiments/closed/real_scan_rotation_recon.md`).  Widening its band
 moved the estimate from 0.047 only to 0.130 degrees against the vendor's 0.167, at 21 to 43
-minutes and up to 139 GB per estimate (`closed/real_scan_band_reach.md`).  Reconstructing far
+minutes and up to 139 GB per estimate (`experiments/closed/real_scan_band_reach.md`).  Reconstructing far
 slices at candidate angles ranked the vendor's value first among four candidates on the same
-object (`closed/real_scan_rotation_recon.md`).  The new estimator,
+object (`experiments/closed/real_scan_rotation_recon.md`).  The new estimator,
 `estimate_geometry_from_recon`, makes that reconstruction scoring automatic.  It also serves
 helical and multiaxis scans, and, once short-scan weighting exists, short scans.
 
@@ -87,7 +90,7 @@ helical and translation geometries are out of its scope.  Tests go in
 worked around, because the gate scan itself violates one of them: `recon_fdk` assumes equally
 spaced views over a full rotation (`mbirtorch/cone_beam.py:806`), and the textbook short-scan
 weights assume an extent of exactly 180 degrees plus the fan angle, while `z62` covers 218.0
-degrees against a short-scan extent of 207.9 (`closed/real_scan_validation.md`).  The weighting
+degrees against a short-scan extent of 207.9 (`experiments/closed/real_scan_validation.md`).  The weighting
 is therefore the general form: for each measured ray, a smooth weight normalized over all of
 that ray's measured conjugate copies within the scan's actual angles, and the backprojection
 takes a per-view angular width, so irregular spacing, over-scans, and multi-turn scans are
@@ -103,7 +106,7 @@ relative, which tests the multiplicity normalization and the per-view width toge
 synthetic short scan the weighted direct reconstruction's error against the full-rotation
 reconstruction is at most half the unweighted error.  On `z62` the direct-residual score's rise
 two channels from its minimum at least doubles the recorded 1.5 to 1.8 percent, written to a
-new findings page (`closed/real_scan_followup.md`).
+new findings page (`experiments/closed/real_scan_followup.md`).
 
 **Increment 3.  The direction-check rule.  Rough estimate 1 day.**  This increment makes
 `check_rotation_direction` in `mbirtorch/preprocess/geometry_calibration.py` score both
@@ -111,13 +114,13 @@ directions at several filter widths and return a direction only when every width
 margin gives the same answer, and undecided otherwise, with tests in
 `tests/test_geometry_calibration.py`.  The filter width is the varied setting rather than the
 bin factor, because changing the bin factor changed the 200-view scan's answer while width
-changes moved only the margin (`closed/real_scan_followup.md`); the widths are already arguments
+changes moved only the margin (`experiments/closed/real_scan_followup.md`); the widths are already arguments
 of `sino_high_pass_filtering`.  The check's docstring and warning drop the advice to raise the
-bin factor, which the findings called unsound (`closed/increment_6_findings.md`).  It has three
+bin factor, which the findings called unsound (`findings/increment_6_findings.md`).  It has three
 gates.  On `nsi_small` the check returns undecided or the readers' direction, not the wrong
 direction.  On the other three measured scans the answers are unchanged.  The cost is recorded,
 and it stays below one default run on `nsi_small` and below four default runs on `bga`, the
-bounds the measured width costs imply (`closed/real_scan_followup.md`).
+bounds the measured width costs imply (`experiments/closed/real_scan_followup.md`).
 
 **Increment 4.  The driver.  Rough estimate 1 day.**  This increment adds `calibrate_geometry`
 to `mbirtorch/preprocess/geometry_calibration.py`, running the calibration sequence read-only,
@@ -138,7 +141,7 @@ short-scan refusal, and records what the result decides.  It has two gates.  The
 offset on `z62` agrees with the two independent estimates already recorded, LEAP's -0.802 and
 the direct-residual score's -0.806 channels, within the mode's documented resolution of about
 half a channel, with the vendor's -0.928 recorded as a sanity comparison only
-(`closed/real_scan_followup.md`).  The rotation result's curve passes the estimator's own
+(`experiments/closed/real_scan_followup.md`).  The rotation result's curve passes the estimator's own
 undecided rules.  If both gates pass, the short-scan conjugate method of v1's Increment 3 is
 retired, resting on this one scan because the retirement is reversible and the depot inventory
 stays parked; the residual method of v1's Increment 4 is retired on coverage grounds, because
@@ -150,7 +153,7 @@ gains an increment chosen on that evidence.
 is v1's Increments 7 and 8, unchanged: the runtime detector offsets, and the parameter-table
 review with `ParamDict`, the flag rename, and the name-coordination test.  Their full
 statements, files, tests, and gates are v1's increment blocks
-(`closed/geometric_calibration_plan.md`, "Increments", Increments 7 and 8), with the design in
+(v1, "Increments", Increments 7 and 8), with the design in
 that plan's "Parameter system" section and the prototype in
 `findings/runtime_offsets_findings.md`.
 
@@ -161,7 +164,7 @@ that plan's "Parameter system" section and the prototype in
 - v1 Increment 4, the residual method: retirement decided by Increment 5 here.
 - v1 Increment 5, the driver: Increment 4 here, without the joint five-by-five grid, which is
   dropped; the one hand-run joint case ended within the search tolerance
-  (`closed/increment_3_evaluation.md`).
+  (`findings/increment_3_evaluation.md`).
 - The derivative-filter method: dropped by Greg's decision of 2026-09-04, recorded in v1's
   corrections list.
 - The `method='auto'` short-scan fallback of v1: superseded by the refusal message and, after
@@ -170,7 +173,7 @@ that plan's "Parameter system" section and the prototype in
   reasons.
 - Offset scans, whose detector is displaced by hundreds of channels: still not served, as the
   module docstring says; v1's v3 change list said otherwise and lapses with v1.
-- Decision 5's four working-copy edits (`closed/status_2026-09-05.md`): lapse with v1, except
+- Decision 5's four working-copy edits (`status_2026-09-05.md`): lapse with v1, except
   the offset-scan line, which the bullet above restates.
 - v1 Increments 7 and 8: Increment 6 here.
 
@@ -182,17 +185,17 @@ Device use follows the split the preprocessing already uses.  The data-reduction
 candidate reconstruction of the new estimator run on the devices, through `reduce_sinogram`'s
 batch pipeline and the model, while the pairing, scoring, and search arithmetic stays on the
 host, where its measured cost is seconds against the reconstruction's minutes
-(`closed/calibration_512_gautschi.md`).  Every entry point refuses a sinogram in the divided
+(`experiments/closed/calibration_512_gautschi.md`).  Every entry point refuses a sinogram in the divided
 device form the multi-GPU projectors produce, so a caller holding one gathers it explicitly.
 The refusal keeps that full-size host allocation visible instead of hiding it inside an
 estimator, and calibration runs before reconstruction in the workflow, where the sinogram is a
-host array in any case (`closed/increment_3_evaluation.md`).
+host array in any case (`findings/increment_3_evaluation.md`).
 
 Offset scans are not served.  An offset scan's view and its opposite overlap only in part, and
 the conjugate comparison is not built for partial overlap; the direct reconstruction also lacks
 the lateral redundancy weighting such a scan needs, which the LEAP comparison lists as its own
 feature, so the new estimator cannot score one either
-(`closed/geometric_calibration_plan.md`, "Ordering, scope, and deferred work").
+(v1, "Ordering, scope, and deferred work").
 
 The band estimator keeps its current form behind its warning: the failure detector and the
 widened-band remedy of decision 1 were not built, because the new estimator covers their
@@ -206,8 +209,8 @@ Each parked item names the evidence that would activate it.
 - The depot's remaining Zeiss scans have unread angular ranges; reading them would say how
   common short scans are in the collection.
 - LEAP's `find_centerCol` reads 0.21 to 0.98 channels above the module on the NSI scans
-  (`closed/real_scan_validation.md`); the two ablations of decision 7 fit inside any future
-  cluster job (`closed/status_2026-09-05.md`).
+  (`experiments/closed/real_scan_validation.md`); the two ablations of decision 7 fit inside any future
+  cluster job (`status_2026-09-05.md`).
 - A `det_rotation` inside the projectors would remove candidate resampling, make the
   reconstruction score differentiable, and allow the version in which geometry is one more
   parameter of an iterative reconstruction.  A scan the new estimator cannot serve would
@@ -215,7 +218,7 @@ Each parked item names the evidence that would activate it.
 - The rotation axis's out-of-plane lean, 0.079 degrees on the NSI scans, needs no correction on
   the evidence: simulating it moved the in-plane estimate by at most 0.011 degrees, and the
   metal scan carries the same lean while the band estimator's answer there stayed near its
-  bracket (`leap_axis_tilt.md`, `closed/real_scan_band_height.md`).
+  bracket (`leap_axis_tilt.md`, `experiments/closed/real_scan_band_height.md`).
 
 ## Constraints carried forward
 
@@ -233,7 +236,7 @@ authorization.
 Three rules from the closed campaign govern new evidence.  A synthetic rotation is injected
 either at four times the detector resolution or through LEAP's modular-beam projector, never by
 resampling at the detector's own resolution with the kernel under test
-(`closed/rotation_kernel_conventions.md`, `leap_axis_tilt.md`).  Real-scan gates use quantities
+(`experiments/closed/rotation_kernel_conventions.md`, `leap_axis_tilt.md`).  Real-scan gates use quantities
 that need no ground truth where possible: rolls, rotations added in place, agreement between
 independent methods, and reconstruction quality.  A deep score minimum is never taken as a right
 answer without one of those checks, which is the lesson of the band estimator's zero point.

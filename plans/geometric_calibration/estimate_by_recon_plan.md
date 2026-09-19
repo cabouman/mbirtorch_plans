@@ -7,7 +7,8 @@ file names keep the earlier short form.  The design this plan implements is
 `estimate_by_recon.md` in this directory.  Measured numbers here were read in this session from
 the record cited beside each.  Records cited by bare name live in
 `experiments/` in this directory, the closed campaign's under `experiments/closed/`;
-the earlier campaign's findings pages are under `findings/` here.  Day figures and
+the earlier campaign's findings pages are under `findings/` here.  The status snapshot
+`status_2026-09-05.md` was deleted on 2026-09-18 (`git show cd4aac3:plans/features/geometric_calibration/closed/status_2026-09-05.md`).  Day figures and
 thresholds marked provisional are estimates.  Code citations refer to the
 `geometric_calibration` branch working tree of mbirtorch, which is commit `4781600` plus the
 staged Increment 6 edits.
@@ -162,7 +163,7 @@ with its record.  The script reconstructs the four far slices of the far-slice j
 candidate rotations run from 0.10 to 0.20 degrees on the no-metal scan and 0.10 to 0.24 on the
 metal scan, in 0.005-degree steps, with the two named candidates, 0.130 and 0.1672 degrees,
 added to the grid explicitly, because a 0.005-degree grid from 0.10 does not contain 0.1672
-(`real_scan_band_reach.md`, `closed/real_scan_followup.md`).  Each slice is scored at four blur widths spanning one to four
+(`real_scan_band_reach.md`, `experiments/closed/real_scan_followup.md`).  Each slice is scored at four blur widths spanning one to four
 voxels, which costs only rescoring, so the blur default is chosen from data.  A quadratic fit
 near each trimmed curve's minimum gives its location and its half width, and the even-odd view
 split gives the repeatability floor, all three as defined under "Units and terms".  It has
@@ -246,7 +247,7 @@ warnings.  No existing module test is modified.  The deliverables beside the gat
 `estimate_geometry_from_recon` entry in the calibration section of
 `docs/source/usr_preprocess.rst` with the use cases relative to the existing estimators, and one
 sentence stating how the future driver calls the rotation mode when a reader supplies no vendor
-tilt, which is what decision 4 of `closed/status_2026-09-05.md` waits on.
+tilt, which is what decision 4 of `status_2026-09-05.md` waits on.
 
 ## Expected run time
 

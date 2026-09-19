@@ -73,6 +73,14 @@ which about 600 form the shared module that the nn_priors program also uses.
 | 7 | `save_volume_as_gif` and the demo, run on the phantom dataset | Not started |
 | 8 | The H100 measurement and its record | Not started |
 
+Records not in the repository, noted 2026-09-19.  The stage records
+`plans/mace4d/experiments/m4d4_denoise_stack_check.md`, `m4d5_time_frames_check.md`, and
+`m4d7_mace4d_check.md`, the panel reviews `stage0_panel_review.md`, `stage3_panel_review.md`,
+`stage3_panel_review_reports.md`, and `stage4_panel_review.md`, and `stage5_prompt.md` are cited
+in this plan and in `findings/progress.md`, but none was ever committed to this repository, and
+none is in its history.  Recover them from the checkout where the stage work ran, or rerun the
+checks and write the records again.
+
 ## Rule for the code
 
 Nothing from this plan goes into the code.  Docstrings, comments, and
@@ -333,7 +341,7 @@ start.
 
 `ForwardProxAgent(model, sinogram, weights=None, sigma_prox=None,
 inner_iterations=3, init_recon=None, device=None, partition_advance=1.0,
-use_warm_start=True)` is the class in `experiments/drunet/agents.py` with
+use_warm_start=True)` is the class in mbirtorch's `experiments/drunet/agents.py` with
 three additions.  When `device` is given, the agent pins the model to it
 with `configure_devices` and places the sinogram and weights on it once
 through `prepare_sino_for_devices`.  A call at MACE iteration `i` runs
@@ -613,7 +621,7 @@ Stage 2 ends when these tests pass.
 
 ### Stage 3: the shared module
 
-Files: a new `mbirtorch/mace.py`, `mbirtorch/__init__.py`, a new
+Files, in the mbirtorch repository: a new `mbirtorch/mace.py`, `mbirtorch/__init__.py`, a new
 `tests/test_mace.py`, and `experiments/drunet/`.
 
 Write the agent protocol, the `MACE` class with `step`, `run`,
@@ -622,7 +630,7 @@ the hybrid scheduling inside it, the one-line `mace` wrapper, the pool
 resolution, `ForwardProxAgent`, `QGGMRFDenoiserAgent`, `HyperplaneAgent`,
 and `temporal_filter_matrix`, as Sections 2.2 to 2.5 specify.  Export the public names through the lazy loader, with the
 matching lines in the `TYPE_CHECKING` block that the export test enforces.
-Then make `experiments/drunet/mace.py` and `agents.py` import from the
+Then make mbirtorch's `experiments/drunet/mace.py` and `agents.py` import from the
 package, and confirm that `run_qggmrf_gate.py` still passes its 2D gate.
 
 Tests, in `tests/test_mace.py`:

@@ -14,7 +14,7 @@ written to be drawable and each is confirmed by measurement.  The measurement is
 `plans/geometry_viewer/experiments/gv1_conventions_probe.py`, which
 forward-projects single voxels and compares the footprint centroid on the
 detector with a prediction written from the statements below.  The numbers of
-that run are in `gv1_conventions_probe.md` in the same directory.  Every
+that run are in `plans/geometry_viewer/experiments/gv1_conventions_probe.md`.  Every
 statement below agrees with the projector to within 0.12 detector pixel.
 
 Distances are in ALU, the arbitrary length unit that every model parameter uses.
@@ -239,7 +239,7 @@ drawing with -z up shows the volume the way its array is indexed.
 This is a presentation rule and not a geometry rule.  The object frame above stays
 right-handed with +z along increasing slice index, every statement in this record
 stands, and the scene computes nothing differently.  The viewer inverts the axes
-of its panels, and one constant, `Z_UP_SIGN` in `geometry_viewer.py`, holds the
+of its panels, and one constant, `Z_UP_SIGN` in `plans/geometry_viewer/experiments/geometry_viewer.py`, holds the
 choice.
 
 The group's reference picture fixes the rest of the orientation.  The slide

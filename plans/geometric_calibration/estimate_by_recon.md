@@ -4,8 +4,9 @@ Date: 2026-09-05.  Status: the design behind `estimate_by_recon_plan.md`, which 
 review shaped; this outline itself was not separately panel-reviewed.  Greg chose the function
 name `estimate_geometry_from_recon` on 2026-09-05, and this file keeps its earlier short name.
 Every number cited here was read in this session from the record named beside it, in this
-directory or in `plans/geometric_calibration/experiments/`; records of the closed
-campaign now live under `closed/` in each of those two directories.
+directory or in `plans/geometric_calibration/experiments/`; the closed campaign's records
+are under `experiments/closed/` and its findings pages under `findings/`, and its status snapshot
+`status_2026-09-05.md` was deleted on 2026-09-18 (`git show cd4aac3:plans/features/geometric_calibration/closed/status_2026-09-05.md`).
 
 `estimate_geometry_from_recon` estimates scan geometry by reconstructing slices at candidate values and
 scoring their quality.  A wrong offset doubles edges and draws rings, and a wrong rotation blurs
@@ -25,7 +26,7 @@ The estimator has a rotation-only mode and a joint mode:
   offset estimator on full rotations.  Use it when the reader supplies no vendor tilt, or to check
   one, because the band estimator's zero point (the angle that minimizes the score
   over candidate angles) depends on the object and was wrong by 0.12 degrees
-  on a real scan (`closed/increment_6_findings.md`).
+  on a real scan (`findings/increment_6_findings.md`).
 - Joint.  Both `det_channel_offset` and the rotation are searched, by block coordinate descent
   over the same machinery.  This is the fallback for scans the conjugate method refuses: the short
   scan `z62`, and any scan where an independent cross-check of both values is wanted.
@@ -130,7 +131,7 @@ quality wants (`real_scan_rotation_recon.md`).
 ## Relation to the open decisions
 
 This estimator is the far-slice remedy of the rotation zero-point decision, generalized to both
-parameters (`closed/status_2026-09-05.md`, decision 1).  The reach job has since run: a band of
+parameters (`status_2026-09-05.md`, decision 1).  The reach job has since run: a band of
 hundreds of rows recovers the conjugate estimate to 0.130 degrees against the vendor's 0.167, at
 21 to 43 minutes and up to 139 GB of host memory per estimate (`real_scan_band_reach.md`).  The
 tall band is therefore a partial and expensive repair, this estimator is the remedy, and its

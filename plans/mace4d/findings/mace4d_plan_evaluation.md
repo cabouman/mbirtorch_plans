@@ -166,7 +166,7 @@ statistics every time, so this is wasted work.  The coarse-to-fine schedule
 restarting every iteration also means the agent is never a fixed operator.
 
 The nn_priors MACE work settled the better convention, recorded in
-`experiments/drunet/agents.py`: initialize once per frame model, pass the
+mbirtorch's `experiments/drunet/agents.py`: initialize once per frame model, pass the
 cumulative iteration count as `first_iteration` so the partition sequence
 walks coarse to fine once and then stays fine, and warm start each call
 from the agent's own previous output.  `prox_map` gained the
@@ -273,7 +273,7 @@ sinogram and weights placed on that device once.  The agent calls
 only, the cumulative iteration count as `first_iteration`, `max_iterations`
 equal to that count plus the per-call iteration count, and the agent's own
 previous output as `init_recon`.  This is `ForwardProxAgent`
-in `experiments/drunet/agents.py` with a device argument, and the port can
+in mbirtorch's `experiments/drunet/agents.py` with a device argument, and the port can
 move that class into `mace4d.py` or a small agents module.
 
 ### 3.3 The consensus loop
@@ -612,7 +612,7 @@ DECIDED at review: the folding update, with this section as its record.
 
 ### 8.3 Shared code with the nn_priors work
 
-The loop and the agents in `experiments/drunet/` are the same objects
+The loop and the agents in mbirtorch's `experiments/drunet/` are the same objects
 MACE4D needs, so they should move into a package module, for example
 `mbirtorch/mace.py`, and MACE4D should be built on it.  The module holds
 five things.  The agent protocol: a callable from an array to an array of

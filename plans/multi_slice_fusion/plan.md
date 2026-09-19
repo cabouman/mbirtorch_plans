@@ -16,7 +16,7 @@ in the mbirtorch repo; documentation lands beside this plan.
 ## Executive summary
 
 The proof of concept left this program cheap to build.  The MACE loop in
-`experiments/drunet/mace.py` already takes any number of agents with
+mbirtorch's `experiments/drunet/mace.py` already takes any number of agents with
 weights, so fusion is a parameter change, not a rewrite; the forward-prox
 and DRUNet agents are validated; `prox_map` and `denoise` are natively 3D
 with warm starts; and the equality-gate method (MACE with the qGGMRF agent
@@ -117,7 +117,7 @@ Addendum 2026-09-15 — second real-data run, at production scale: multi-slice f
 the ORNL Inconel scan (2132 views of 1456 x 1840, reconstruction (1360, 1360, 1296)
 float32, 8.9 GiB), on four gautschi H100s, via
 `surveys/leap_comparison/experiments/ornl/msf_ornl.py`.  The run record
-`msf_ornl.md` beside the script holds the settings, the timeline, and the traces.  What is
+`surveys/leap_comparison/experiments/ornl/msf_ornl.md`, beside the script, holds the settings, the timeline, and the traces.  What is
 new in the script is where the state lives.  The consensus state is nine host volumes, the
 proximal agent hands host arrays to `prox_map` on four cards, and each DRUNet agent streams
 slice batches through one card, so the loop runs on a volume with thirteen times the
@@ -152,7 +152,7 @@ Baselines on the 3D problem, each over a strength sweep: DRUNet
 postprocessing of the standard recon slice-wise along one axis; the
 three-orientation-average postprocessing; and MACE with a single-orientation
 DRUNet prior.  Exit: baseline table and volumes saved under
-`experiments/drunet/output/`.
+mbirtorch's `experiments/drunet/output/`.
 
 **Increment 3: multi-slice fusion runs and sweeps (recorded comparisons).**
 N=4 MACE at the default weights over the strength sweep; compare against

@@ -9,7 +9,7 @@ Date: 2026-09-14.  Versions compared: LEAP v1.26 at commit `0c8846f4`, mbirtorch
 `efeca90` on branch `greg_dev`, the 4D reconstruction work at commit `8304b25` on branch
 `mace_4d_dev`, and the ORNL `leapMBIR` scripts at commit `044f38a`.
 
-This version supersedes `leap_comparison.md` of 2026-09-02.  Four things changed since that version.
+This version supersedes `leap_comparison.md` of 2026-09-02, deleted on 2026-09-18 (`git show cd4aac3:plans/features/leap_comparison/leap_comparison.md`).  Four things changed since that version.
 mbirtorch gained geometry calibration, a geometry viewer, a 4D reconstruction branch, and lower GPU
 memory.  New measurements corrected what the first version said about LEAP's adjoint pair.  A
 reproduction of an ORNL comparison measured both packages on a real scan on four GPUs.  The LEAP
@@ -96,7 +96,7 @@ mbirtorch and 22.2 GiB for that loop, and peak host memory was 72.6 GiB against 
 committed on 2026-09-14 lowered mbirtorch's combined GPU figure from 156.32 GiB to 124.65 GiB in
 runs that pinned four GPUs.  The quality result is one phantom at one noise level, and the ORNL
 result is one scan.  The records are `surveys/leap_comparison/findings/quality_results.md`, `surveys/leap_comparison/findings/ornl_reproduction.md`, and
-`dm1_record.md`, whose paths are in Sources.
+`plans/device_memory_tiers/experiments/dm1_record.md`, whose paths are in Sources.
 
 ## Scope and versions
 
@@ -136,7 +136,7 @@ below used a cluster build of the pinned commit.
   is formed in place, the sinogram reductions are chunked, the initial scale is computed without
   sinogram-sized temporaries, and `get_memory_stats` reports the allocator pool.
 - The shard gather rebuilt, in commit `efeca90`, and a 4D reconstruction branch, `mace_4d_dev`.
-- A multi-slice fusion prototype with a network denoiser.  It lives in `experiments/drunet/` and in
+- A multi-slice fusion prototype with a network denoiser.  It lives in mbirtorch's `experiments/drunet/` and in
   `mbirtorch_applications/nsi/msf_recon.py`, and it is not in the package on `greg_dev`.  On
   `mace_4d_dev` the loop and the agents are in the package as `mbirtorch/mace.py`.
 
@@ -162,7 +162,8 @@ GPU memory at about the same time per iteration.
 Two inventory files are cited by abbreviation below:
 
 - `LEAP-inv` = `surveys/leap_comparison/leap_inventory.md`.
-- `MT-inv` = `surveys/leap_comparison/mbirtorch_inventory.md`, which
+- `MT-inv` = `surveys/leap_comparison/mbirtorch_inventory.md`, deleted on 2026-09-18 and
+  readable with `git show cd4aac3:plans/features/leap_comparison/leap_comparison_sources/mbirtorch_inventory.md`, which
   describes mbirtorch at commit `26bd0ea`.
 
 ### Geometries
@@ -362,7 +363,7 @@ than a traced graph.  A comment in LEAP's source marks its FBP backward as needi
 | Automatic chunking below GPU memory | yes, a halving loop | no, a manual band split today, made automatic by a later increment of the device memory tiers plan | [src/tomographic_models.cpp#L779-L787](https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/src/tomographic_models.cpp#L779-L787); `recon_split_sino` in [mbirtorch/tomography_model.py](https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/mbirtorch/tomography_model.py) |
 | Detector-row and slice range calculators | yes | no | [src/leapctype.py#L2962](https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/src/leapctype.py#L2962) |
 | Memory cost computed before allocation | yes, an error message | yes, a memory ledger, and `get_memory_stats` now reports the allocator pool's peak and its unused part | [src/projectors.cpp#L66-L70](https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/src/projectors.cpp#L66-L70); [mbirtorch/_memory_ledger.py](https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/mbirtorch/_memory_ledger.py) and [mbirtorch/memory_stats.py](https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/mbirtorch/memory_stats.py) |
-| GPU memory on four GPUs, ORNL scan | 22.2 GiB combined | 156.32 GiB combined before the September changes and 124.65 GiB after, or 116.68 GiB with the allocator setting | `surveys/leap_comparison/findings/ornl_reproduction.md`; `dm1_record.md` |
+| GPU memory on four GPUs, ORNL scan | 22.2 GiB combined | 156.32 GiB combined before the September changes and 124.65 GiB after, or 116.68 GiB with the allocator setting | `surveys/leap_comparison/findings/ornl_reproduction.md`; `plans/device_memory_tiers/experiments/dm1_record.md` |
 | Host memory on the same run | 175.4 GiB | 72.6 GiB | `surveys/leap_comparison/findings/ornl_reproduction.md` |
 | Reduced precision, multi-node | no | no | `LEAP-inv` sections 4.5 and 10.5; [docs/source/usr_multi_gpu.rst](https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/docs/source/usr_multi_gpu.rst) |
 
@@ -581,7 +582,7 @@ gradient, and the host arithmetic, which on four H100s took 17.0 s, 10.8 s, 3.4 
 and the 52.0 s excludes the first iteration, which took 58.1 s.  An mbirtorch iteration updates
 every voxel through its subsets, and the 41.3 s average includes the compilation, the error
 sinogram, and the Hessian diagonal.  In a pinned 30-iteration run mbirtorch's steady-state cost was
-35.8 s per iteration, with about 31 s of one-time cost (`dm1_record.md`).  mbirtorch's stop rule did
+35.8 s per iteration, with about 31 s of one-time cost (`plans/device_memory_tiers/experiments/dm1_record.md`).  mbirtorch's stop rule did
 not fire on this scan, because the relative change was 0.84 percent after fifteen iterations against
 the 0.2 percent threshold.  What an iteration achieves is a separate question.  This record does not
 answer it.
@@ -594,7 +595,7 @@ The GPU memory mbirtorch reports has three layers, and only the first is the arr
 | 2 | 5 | 30.4 GiB | 57.9 GiB | 69.8 GiB | 71.1 GiB |
 
 Changes committed on 2026-09-14 lowered the peak of arrays in use at no time cost.  The next table
-is from `dm1_record.md`, section "Verification after the changes", with mbirtorch at commit
+is from `plans/device_memory_tiers/experiments/dm1_record.md`, section "Verification after the changes", with mbirtorch at commit
 `23c4a43`.  The runs in this table pin the GPU count to four and disable the stop rule, so their
 15-iteration time of 567.6 s is 51 s below the 619.0 s of the reproduction, which chose its GPUs by
 its own search.
@@ -1034,9 +1035,9 @@ Neither state is evidence about long-term support.
 
 The following sources support every claim above:
 
-1. `surveys/leap_comparison/leap_comparison.md`, version 1 of this comparison
+1. `surveys/leap_comparison/leap_comparison.md`, version 1 of this comparison; deleted 2026-09-18 (`git show cd4aac3:plans/features/leap_comparison/leap_comparison.md`)
 2. `surveys/leap_comparison/leap_inventory.md`
-3. `surveys/leap_comparison/mbirtorch_inventory.md`, at `26bd0ea`
+3. `surveys/leap_comparison/mbirtorch_inventory.md`, at `26bd0ea`; deleted 2026-09-18 (`git show cd4aac3:plans/features/leap_comparison/leap_comparison_sources/mbirtorch_inventory.md`)
 4. `https://github.com/LLNL/LEAP/blob/0c8846f42b2e59340d5559fc1271d590a292f9a0/` , the LEAP base URL
 5. `https://github.com/cabouman/mbirtorch/blob/efeca90ff0aa2aaf5326617ab899ad794af9db67/` , the mbirtorch base URL
 6. `https://github.com/cabouman/mbirtorch/blob/8304b25ec4f1877a236946b809312779fae38917/` , the 4D branch base URL
@@ -1058,7 +1059,7 @@ The following sources support every claim above:
 20. `plans/device_memory_tiers/plan.md`
 21. `plans/geometric_calibration/experiments/closed/calibration_512_gautschi.md`
 22. `plans/geometric_calibration/experiments/closed/real_scan_leap_tilt.md`
-23. `plans/geometric_calibration/executive_summary_2026-09-05.md`
+23. `plans/geometric_calibration/executive_summary_2026-09-05.md`; deleted 2026-09-18 (`git show cd4aac3:plans/features/geometric_calibration/executive_summary_2026-09-05.md`)
 24. `plans/geometric_calibration/findings/increment_1_1_findings.md`
 25. `plans/geometric_calibration/plan.md`
 26. `plans/multi_slice_fusion/plan.md` and `plans/multi_slice_fusion/findings/multi_slice_fusion_findings.md`

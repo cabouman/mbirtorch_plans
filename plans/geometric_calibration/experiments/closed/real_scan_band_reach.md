@@ -32,7 +32,7 @@ far-slice job tested only the candidates 0, 0.044, 0.167, and 0.19 degrees, and 
 that it ranks those four and does not locate the optimum between them
 (`real_scan_rotation_recon.md`).  A fine sweep of reconstructed far slices over roughly 0.10 to
 0.20 degrees would settle it, and it is the same computation the proposed reconstruction
-estimator makes (`estimate_by_recon.md`).
+estimator makes (`plans/geometric_calibration/estimate_by_recon.md`).
 
 ## The measurements
 

@@ -53,7 +53,7 @@ The evidence has three parts: a sourced TIGRE inventory prepared in this session
 
 The TIGRE version is the master branch at commit `51ae1a02e070888c8aca481e41157d54b20f692f`, dated 2026-09-02. That commit is 77 commits past the last release tag, v3.1.3 (2026-03-06), and its `pyproject.toml` still declares version 3.1.3. The tip was compared rather than the tag because TIGRE's development lands on master continuously, and the tip includes recent work such as the automatic FISTA step-size estimate.
 
-The mbirtorch version is 0.0.2, at commit `26bd0ea`, dated 2026-08-27, on branch `greg_dev`. This is the same mbirtorch pin as the LEAP comparison (`surveys/leap_comparison/leap_comparison.md`), so the mbirtorch columns of the two documents describe the same code.
+The mbirtorch version is 0.0.2, at commit `26bd0ea`, dated 2026-08-27, on branch `greg_dev`. This is the same mbirtorch pin as the LEAP comparison (`surveys/leap_comparison/leap_comparison.md`, version 1, now in git history; see Sources), so the mbirtorch columns of the two documents describe the same code.
 
 TIGRE has two language front ends over one CUDA core. The comparison target here is the Python package, pytigre. Capabilities that exist only on the MATLAB side are marked, because a Python user does not get them.
 
@@ -66,7 +66,7 @@ References in this section are written against two pinned commits and two invent
 - TIGRE file references link under `https://github.com/CERN/TIGRE/blob/51ae1a02e070888c8aca481e41157d54b20f692f/`.
 - mbirtorch file references link under `https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/`.
 - `TG-inv` = `surveys/tigre_comparison/tigre_comparison_sources/tigre_inventory.md`.
-- `MT-inv` = `surveys/leap_comparison/mbirtorch_inventory.md`.
+- `MT-inv` = `surveys/leap_comparison/mbirtorch_inventory.md`, now in git history; see Sources.
 
 ### Geometries
 
@@ -266,7 +266,7 @@ mbirtorch's latest regression run is on NVIDIA H100 80GB HBM3 GPUs, recorded in 
 | cone | VCD, 3 iterations | 1024x1008x992 | 59,178.1 ms | 31,038.9 ms | 17,344.2 ms |
 | cone | forward | 512x448x384 | 307.4 ms | 154.5 ms | 78.3 ms |
 
-The caveats on these rows are recorded in the LEAP comparison and are not repeated here: the 1024-view rows are single trials, and some parallel-beam rows in the same file carry a thermal-throttle flag (`surveys/leap_comparison/leap_comparison.md`, "mbirtorch's recorded numbers").
+The caveats on these rows are recorded in the LEAP comparison and are not repeated here: the 1024-view rows are single trials, and some parallel-beam rows in the same file carry a thermal-throttle flag (`surveys/leap_comparison/leap_comparison.md`, version 1, now in git history, "mbirtorch's recorded numbers").
 
 ### No head-to-head has been run
 
@@ -433,12 +433,12 @@ TIGRE is a mature, active, community-maintained project. It has ten years of rel
 The following sources support every claim above:
 
 1. `surveys/tigre_comparison/tigre_comparison_sources/tigre_inventory.md`, the sourced TIGRE inventory prepared for this comparison
-2. `surveys/leap_comparison/mbirtorch_inventory.md`, the sourced mbirtorch inventory, shared with the LEAP comparison
+2. `surveys/leap_comparison/mbirtorch_inventory.md`, the sourced mbirtorch inventory, shared with the LEAP comparison; deleted 2026-09-18 (`git show cd4aac3:plans/features/leap_comparison/leap_comparison_sources/mbirtorch_inventory.md`)
 3. https://github.com/CERN/TIGRE/tree/51ae1a02e070888c8aca481e41157d54b20f692f , the TIGRE tree that every TIGRE reference above is pinned to
 4. `https://github.com/CERN/TIGRE/blob/51ae1a02e070888c8aca481e41157d54b20f692f/` , the base URL that TIGRE file references are written against
 5. `https://github.com/cabouman/mbirtorch/blob/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2/` , the base URL that mbirtorch file references are written against
 6. https://github.com/cabouman/mbirtorch/tree/26bd0ea988bd83e99e8e4cbe2fa8223ac4d104d2 , the mbirtorch source at the compared commit
-7. `surveys/leap_comparison/leap_comparison.md`, whose mbirtorch columns share this document's mbirtorch pin
+7. `surveys/leap_comparison/leap_comparison.md`, whose mbirtorch columns share this document's mbirtorch pin; version 1, deleted 2026-09-18 (`git show cd4aac3:plans/features/leap_comparison/leap_comparison.md`)
 8. Biguri, Dosanjh, Hancock, Soleimani, "TIGRE: a MATLAB-GPU toolbox for CBCT image reconstruction", Biomedical Physics & Engineering Express 2(5) 055010, 2016, https://iopscience.iop.org/article/10.1088/2057-1976/2/5/055010
 9. Biguri and coauthors, "Arbitrarily large iterative tomographic reconstruction on multiple GPUs using the TIGRE toolbox", Journal of Parallel and Distributed Computing, 2020, https://arxiv.org/abs/1905.03748
 10. Biguri and coauthors, "TIGRE v3: Efficient and easy to use iterative computed tomographic reconstruction toolbox for real datasets", Engineering Research Express 7, 015011, 2025, https://arxiv.org/abs/2412.10129

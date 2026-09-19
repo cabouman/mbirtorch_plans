@@ -8,6 +8,10 @@ made on the way, and which decisions are still open.  The detailed records
 it points to are beside this page and in
 `plans/mace4d/experiments/`.
 
+Note of 2026-09-19: the m4d4, m4d5, and m4d7 records and the stage 0, 3, and 4 panel reviews
+cited below were never committed to this repository; see the note under "Status by stage" in
+`plans/mace4d/plan.md`.
+
 ## Where the work stands
 
 Stages 0 through 5 of the nine are done.  Stage 1 was done before the

@@ -69,7 +69,7 @@ one-parameter plastic search; the second is a band score once cupping is taken o
 real density gradient whose shape matches the dome.
 
 **Total variation.**  Reads streaks and edges, and cupping only weakly.  Dominated by pixel-scale
-noise unless blurred, the lesson of `real_scan_rotation_recon.md`.  Gamed by shrinking and by
+noise unless blurred, the lesson of `plans/geometric_calibration/experiments/closed/real_scan_rotation_recon.md`.  Gamed by shrinking and by
 smoothing.  Not quadratic.
 
 **Histogram entropy and Otsu separability.**  Cupping widens the plastic peak, so the entropy of the
@@ -108,7 +108,7 @@ code and the same reduction, because the current path has a clamp at `mar.py:682
 `mar.py:703-718` that a raw reconstruction never passes.  And the noise is matched, which
 processing alone cannot do: a stronger correction amplifies long-path noise, so a variance score
 prefers weak corrections for a reason unrelated to hardening.  The even/odd split of
-`recon_sweep_fine.py` gives the floor.  Score the difference of the even-view and odd-view images
+`plans/geometric_calibration/experiments/recon_sweep_fine.py` gives the floor.  Score the difference of the even-view and odd-view images
 at each candidate, and require the score's range across candidates to exceed it.
 
 The uncorrected sinogram is a candidate, and in the linear form it is the point `a = 0` on one
@@ -176,7 +176,7 @@ fourteen.
 The reprojection residual is blind to cupping.  For a round object the hardened sinogram is still
 in the range of the projector, so `_direct_residual_score` (`geometry_calibration.py:544-584`)
 cannot see the artifact the image score reads best.  It does see the inconsistency that bands and
-streaks come from, and on real data its minimum was 1.5 percent deep (`real_scan_followup.md`).
+streaks come from, and on real data its minimum was 1.5 percent deep (`plans/geometric_calibration/experiments/closed/real_scan_followup.md`).
 It pairs with the corridor and annulus measures as a check, not with cupping.
 
 The check that pairs with cupping is the plastic-only ray trend: bin the corrected residual

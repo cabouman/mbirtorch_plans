@@ -1,7 +1,7 @@
 # Geometric calibration, sub-increment 1.1: the fine sweep on the real scans
 
 Date: 2026-09-05.  Status: measured, texts revised and staged, awaiting Greg's review.  The plan of
-record is `estimate_by_recon_plan.md` in this directory.  Greg approved it on 2026-09-05.  The
+record is `plans/geometric_calibration/estimate_by_recon_plan.md`.  Greg approved it on 2026-09-05.  The
 experiment record is `plans/geometric_calibration/experiments/recon_sweep_fine.md`, and every
 number below was read from it or from the sources it cites.  That record's "Units and terms" defines
 the raw and normalized trimmed curves, the structure curve, the half width, and the repeatability
@@ -23,7 +23,7 @@ degrees on the metal scan, from the structure curves.
 Neither figure is one of the two candidates the sweep was run to separate.  The vendor's recorded tilt
 is 0.16717 degrees.  A conjugate-view estimate over a tall detector band gives 0.1299 degrees on the
 no-metal scan, and that estimate is called the tall-band answer below.  It is recorded in
-`closed/real_scan_band_reach.md`, under the experiments directory.  The fitted rotation is 0.0165
+`experiments/closed/real_scan_band_reach.md`.  The fitted rotation is 0.0165
 degrees below the vendor's value on the no-metal scan and 0.0077 degrees below it on the metal scan.
 It is 0.0208 and 0.0296 degrees above the tall-band answer.  That tall-band answer was measured on the
 no-metal scan alone, so the second of those two differences compares two scans.

@@ -556,9 +556,9 @@ lead device.
 
 8. **This document was moved while this study was running.**  Another session
    relocated it from
-   `surveys/leap_comparison/experiments/results/quality_results.md` to
-   `surveys/leap_comparison/findings/quality_results.md` and committed it there
-   (commit 0da862f).  The warm-process and image sections were written into the
+   `plans/experiments/features/leap_comparison/results/quality_results.md` to
+   `plans/features/leap_comparison/quality_results.md` and committed it there
+   (commit 0da862f; the file is now `surveys/leap_comparison/findings/quality_results.md`).  The warm-process and image sections were written into the
    relocated copy rather than the old path, so there is one document, not two.
    The JSON files, figures and slices all remain under
    `surveys/leap_comparison/experiments/results/`.
