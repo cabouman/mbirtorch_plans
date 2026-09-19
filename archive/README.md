@@ -7,6 +7,12 @@ the git history at commit `cd4aac3`, for example
 `git show cd4aac3:plans/experiments/archive/torch_port/README.md`.  Paths cited inside these
 documents are the paths of their time, before the moves of 2026-09-12 and 2026-09-18.
 
+Three more files left the archive on 2026-09-19 and are in the history at commit `8d2bb50`:
+`flash_remediation/publish_pages.sh`, the script that published the phase pages to the depot;
+`sharding/_file_index.md`, an index whose first entries were the deleted v1 and v2 sharding
+plans; and `sharding/preprocessing_pipeline_refactor_plan.md`, the 2026-06-29 version of the
+plan whose record is `preprocessing/preprocessing_pipeline_refactor_plan.md`.
+
 | Folder | What it was | When |
 |---|---|---|
 | `center_slice_noise/` | The center-slice noise investigation and the preconditioner notes from the mbirjax era.  The per-slice DC damping in mbirtorch's `cone_beam.py` is the fix of the kind the notes propose. | 2026 (undated) |

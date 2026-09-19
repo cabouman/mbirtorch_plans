@@ -5,16 +5,19 @@ Updated: 2026-09-18
 Code: mbirtorch prerelease d90fd69 holds Increments 1 and 2 and the pool statistics of Increment 3 (a225319, 3101e93, 23c4a43, merged 2026-09-18)
 Next step: Finish Increment 3 (the allocator setting in the docs, the preflight hint line, the opt-in call, the run-log line), then Increment 4, the automatic split mode.
 
-Status: DRAFT, written 2026-09-14 and revised the same day after a
+History: written 2026-09-14 as a draft and revised the same day after a
 three-reviewer panel (accuracy, reasoning, style).  Greg took all seven decisions on 2026-09-14.  This plan supersedes
-the host-resident plan at
-`plans/device_memory_tiers/host_resident_layout_plan.md` as the
-plan of record.  That plan's design becomes Tier 2 here, and its measured
-numbers are cited from that file rather than repeated.  The new numbers come
+the host-resident plan, `host_resident_layout_plan.md`, which was deleted from this
+directory on 2026-09-19 and is readable with
+`git show 8d2bb50:plans/device_memory_tiers/host_resident_layout_plan.md`.
+That plan's design is Tier 2 here; its measured numbers are in
+`plans/device_memory_tiers/experiments/hr1_ledger_residents.md` and
+`surveys/leap_comparison/experiments/results/leap_benchmark_results.md`, which it cited.
+The new numbers come
 from the reproduction of the ORNL comparison at
 `surveys/leap_comparison/findings/ornl_reproduction.md` and from the ledger
 pricing recorded in Section 1.  File paths are given from the root of the
-mbirtorch repository unless a path starts with `plans/`.
+mbirtorch repository unless a path starts with `plans/` or `surveys/`.
 
 ## Executive summary
 
@@ -598,7 +601,7 @@ recommendation.
 ## 10. Files
 
 - This plan.
-- The host-resident plan: `plans/device_memory_tiers/host_resident_layout_plan.md`.
+- The host-resident plan, deleted 2026-09-19: `git show 8d2bb50:plans/device_memory_tiers/host_resident_layout_plan.md`.
 - The ORNL reproduction: `surveys/leap_comparison/findings/ornl_reproduction.md`
   and the harness under `surveys/leap_comparison/experiments/ornl/`.
 - The Increment 1 scripts and their record under

@@ -598,7 +598,8 @@ between accounts.
   Publish only finished, shareable **HTML** here (no source, no data) — the destination
   is on the open internet.  Files need `chmod 644`, directories `chmod 755`.  The publish
   idiom is an `rsync` of `*.html` to the depot www dir; see
-  `archive/flash_remediation/publish_pages.sh` for the idiom (its `DEST` is the frozen
+  `git show 8d2bb50:archive/flash_remediation/publish_pages.sh` for the idiom (the script was
+  deleted from the tree on 2026-09-19; its `DEST` is the frozen
   `mbirjax/` tree, so as written it now fails by design — copy it and change `DEST`).
 
 ## Moving data on and off
