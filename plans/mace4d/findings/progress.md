@@ -26,15 +26,15 @@ gate of the geometry viewer, which fails under the load of eight workers
 and passes when run alone.  Greg has reviewed none of the stages yet, and
 Stage 5 waits for that review.
 
-| Stage | Delivers | State | mbirtorch commits |
-| --- | --- | --- | --- |
-| 0 | `denoise_stack`, the batched qGGMRF sweep, `auto_batch_size`, and the volume-subsample statistics | pushed | `79d5321`, `b80f6f5` |
-| 1 | The three measurement scripts | done before the port | none |
-| 2 | `construct_time_frame_models` and the device helpers | pushed | `3c6236a` |
-| 3 | `mbirtorch/mace.py`: the `MACE` class, the agents, the filter matrix; the drunet scripts moved onto it | pushed | `42e0991`, and `2763640` for the `denoise_stack` compile key |
-| 4 | `mbirtorch/mace4d.py`: `MACE4DModel`, the data-fit agent, the filter utilities moved in; the first tests | pushed | `7893f22` (the filter move), `8304b25` (the class), `d7112b8` (the fixes after the panel) |
-| 5 | `tests/test_mace4d.py` completed: the unit groups and the one-frame equality gate | pushed | `ef13956` |
-| 6 to 8 | The documentation, the demo, the H100 measurement | not started | |
+| Stage | Delivers | State                                   | mbirtorch commits |
+| --- | --- |-----------------------------------------| --- |
+| 0 | `denoise_stack`, the batched qGGMRF sweep, `auto_batch_size`, and the volume-subsample statistics | pushed                                  | `79d5321`, `b80f6f5` |
+| 1 | The three measurement scripts | done before the port                    | none |
+| 2 | `construct_time_frame_models` and the device helpers | pushed                                  | `3c6236a` |
+| 3 | `mbirtorch/mace.py`: the `MACE` class, the agents, the filter matrix; the drunet scripts moved onto it | pushed                                  | `42e0991`, and `2763640` for the `denoise_stack` compile key |
+| 4 | `mbirtorch/mace4d.py`: `MACE4DModel`, the data-fit agent, the filter utilities moved in; the first tests | pushed                                  | `7893f22` (the filter move), `8304b25` (the class), `d7112b8` (the fixes after the panel) |
+| 5 | `tests/test_mace4d.py` completed: the unit groups and the one-frame equality gate | pushed                                  | `ef13956` |
+| 6 to 8 | The documentation, the demo, the H100 measurement | see `../decisions.md` and `../plans.md` | |
 
 No CUDA device was available for any of this work.  Every result below is
 from the CPU and from MPS on one Mac.  The CUDA paths of `auto_batch_size`

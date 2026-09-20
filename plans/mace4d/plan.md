@@ -1,9 +1,9 @@
 # MACE4D in mbirtorch: migration plan, version 2
 
 Status: ACTIVE
-Updated: 2026-09-18
-Code: mbirtorch prerelease d90fd69 holds Stages 0 to 6 (79d5321 through 140e518) and the GIF writer of Stage 7 (051e3d4)
-Next step: Land decisions 13 and 17 of decisions.md (one pixel partition per run; reproducible seeded runs on several workers), write the demo, and record the H100 measurement of Stage 8.
+Updated: 2026-09-19
+Code: mbirtorch version 0.1.0, `main` and `prerelease` at 69d4972.
+Next step: land decisions 13 and 17, rerun the phantom with `prox_partition_advance=0.0` to explain the slow data-fit step, finish the documentation, and record the timing.
 
 This plan replaces the plan of 2026-09-11, `mace4d_migration_plan.md`, which was
 deleted from the tree on 2026-09-18 and remains in the git history.  The first plan describes what the mbirjax
@@ -70,7 +70,7 @@ which about 600 form the shared module that the nn_priors program also uses.
 | 4 | `MACE4DModel` in `mbirtorch/mace4d.py` | Done 2026-09-14; the filter utilities moved into `mace4d.py`; the check against mbirjax is recorded in `plans/mace4d/experiments/m4d7_mace4d_check.md`                                                                       |
 | 5 | `tests/test_mace4d.py`, including the one-frame equality gate | Done 2026-09-15; the gate passes at 0.45 percent after 40 iterations against a 200-iteration reference on a full-rotation frame                                                                                              |
 | 6 | The documentation pages and the lazy export | 2026-09-19: see below                                                                                                                                                                                                        |
-| 7 | `save_volume_as_gif` and the demo, run on the phantom dataset | 2026-09-19: see below                                                                                                                                                                                                                  |
+| 7 | `save_volume_as_gif` and the demo | The GIF writer is done (051e3d4).  The demo was cancelled on 2026-09-19; a 4D extension of the slice viewer replaces it, as separate work |
 | 8 | The H100 measurement and its record | 2026-09-19: see below                                                                                                                                                                                                                  |
 
 Records not in the repository, noted 2026-09-19.  The stage records
@@ -80,37 +80,77 @@ Records not in the repository, noted 2026-09-19.  The stage records
 in this plan and in `findings/progress.md`, but none was ever committed to this repository, and
 none is in its history. These will be assumed lost and not further pursued.  
 
-## Status update 2026-09-19:  
+## Status update 2026-09-19
 
+The 4D reconstruction is in mbirtorch version 0.1.0, on `main` and
+`prerelease` at 69d4972.  Stages 0 to 5 are done.  The decisions of
+2026-09-15 are in the code, except decisions 13 and 17.  What remains is
+listed below, most important first.
 
-**Stage 6.** Partly done: the page, the lazy export, the citation, and the `usr_api.rst` entry exist and build clean. 
-In the current usr_mace4d.rst and usr_api.rst, there is nothing incorrect: the frame formula, the four agents, the filter and 
-its `dejitter` switch, and every autodoc target match the code, and `usr_api.rst` lists the page in both its bullet list 
-and its toctree. Against the Stage 6 specification, these are missing:
+**Code.**
 
-- A section on the building blocks in `mbirtorch.mace`. `MACE`, `Task`, the three agents, and the one-call `mace()` are documented nowhere; only `resolve_device_pool` appears. Slides 3 to 13 of Ziyun's deck are this content, already written.
-- The host-memory rule of plan Section 2.6: 7, 8, or 11 full-size host arrays, about 130 GB for 30 frames at 512 cubed, so a run of that size requests two GPUs on gautschi.
-- The frame-count rule of the filter: off with a warning below `frames_per_rotation` frames; eight modes removed at the default period; three frames removes every mode.
-- `denoise_stack` and `auto_batch_size` on the denoising page.
-- A 4D entry on `usr_api_overview.rst`, and `construct_time_frame_models` on the utilities page.
-- The note from `progress.md`: each denoiser's strength is estimated from its own slicing direction, where mbirjax gave XZ-t the YZ-t value.
+- Decision 13: draw each denoiser's pixel partition once per run instead
+  of on every call.  Until this lands, the reconstruction is verified only
+  at one subset per hyperplane volume, and at production size it cannot
+  settle below the change the redraw causes.
+- Decision 17: draw each frame's partition in the main thread before the
+  first iteration, so that a seeded run gives the same result on any
+  number of workers.
+- The three duplications in the denoiser listed under "Related refactors"
+  in `decisions.md`.
+- The data-fit step is slow.  On the full-resolution phantom (99 frames,
+  four H100s, 10 iterations) the whole loop runs 2.6 times faster than
+  mbirjax and the denoising 6 times faster, but the data-fit step runs 3
+  times slower and sets the time of each iteration.  The likely cause is
+  the partition schedule: from iteration 3 on, each data-fit call runs 128
+  subsets where mbirjax ran 4, 16, and 64, and the per-subset work grows
+  with the subset count.  The test is one rerun on the same data with
+  `prox_partition_advance=0.0`, which reproduces mbirjax's schedule.  If
+  the data-fit time drops and the result is equivalent, the default
+  changes.
 
-**Stage 7.** `save_volume_as_gif` exists and is documented, with no test in `tests/`. The demo does not exist; the next free number is `demo_12`. The `4dct_script` branch's `Lilly_recon_4d.py` already runs the exact sequence the plan prescribes, so the demo is that script reduced to the phantom dataset with `num_frames=3` and `downsampling=4`.
+**Tests.**  The release trim of 2026-09-18 and 19 kept, of this port's
+tests, the consensus update, the two-worker queue, the hyperplane agent,
+the MACE-against-`recon` check, the stack denoiser against a loop of single
+volumes, the filter matrix, and the end-to-end runs.  It removed the
+one-frame check of the whole 4D loop against `recon`, which now exists only
+in the history at ef13956.  Decide whether it returns as an optional slow
+test.
 
-**Stage 8.** The planned measurement, a synthetic batch-size sweep to set the `denoise_stack` default and calibrate `auto_batch_size`, was not run and has no record. What exists is the real-scan timing on slide 23, from the 2026-09-17 cluster run of the full-resolution Lilly phantom, 99 frames, four H100s, 10 iterations, against mbirjax:
+**Documentation (Stage 6).**  The 4D page exists and is correct.  Still to
+add:
 
-| Per iteration, steady state | mbirjax | mbirtorch |
-|---|---|---|
-| Iteration total | 387.2 s | 172.5 s |
-| Denoise, summed over workers | 421.8 s | 67.6 s |
-| Data fit, summed over workers | 202.4 s | 609.2 s |
-| GPU busy, whole iteration | 42.0% | 97.8% |
+- a page or section on the building blocks in `mbirtorch.mace`: the loop,
+  the task, the three agents, and the one-call function, for which slides
+  3 to 13 of Ziyun's deck are the text;
+- how much host memory a run needs, so that a user can size a cluster
+  job: the loop keeps seven full-size copies of the 4D volume in host
+  memory, eight with the temporal filter on (the default), and eleven
+  with the denoiser warm start on; at 30 frames of a 512-cubed volume
+  each copy is 16 GB, about 130 GB in all, and on gautschi host memory
+  comes at about 126 GB per GPU requested, so a run of that size must
+  request at least two GPUs;
+- the filter's frame-count rule: off with a warning below
+  `frames_per_rotation` frames, and three frames removes every mode;
+- `denoise_stack` and `auto_batch_size` on the denoising page,
+  `construct_time_frame_models` on the utilities page, and a 4D entry in
+  the API overview;
+- a paragraph on the denoiser strength: one `sigma_noise`, one `sigma_x`,
+  and one `sharpness` serve all three orientations, and `nbr_weight_time`
+  weights a frame neighbor against a spatial one.
 
-Two consequences. The denoiser is not the long pole, so the batch-size sweep and the denoiser warm start lose their rationale; 
-the data fit, three times slower than mbirjax's, is the item to investigate (likely the change to use finer partitions). 
-And the measurement lives only in the slides and in `timing_log.csv` under `lilly_exp/nsi/2026/0917/logs/` on the cluster; 
-it needs a record under `plans/mace4d/experiments/` naming the commit and the run settings before Stage 8 can be marked done. 
-The slide deck itself is untracked in `plans/mace4d/findings/` and should be committed as the finding it is.
+**Demo (Stage 7).**  Cancelled on 2026-09-19.  A 4D extension of the slice
+viewer replaces it, as separate work outside this plan.
+`save_volume_as_gif` exists and is documented, with no test.
+
+**Measurement (Stage 8).**  The batch-size sweep this plan asked for is no
+longer needed, because the slabs are now sized by a byte budget and the
+denoiser is not the slow step.  The timing above lives only in slide 23 of
+Ziyun's deck and in `timing_log.csv` under `lilly_exp/nsi/2026/0917/logs/`
+on the cluster.  It needs a record under `plans/mace4d/experiments/` that
+names the commit and the run settings, and the deck should be committed
+under `findings/`.  After the data-fit rerun above, the same record takes
+its result.
 
 ## Rule for the code
 
@@ -761,6 +801,9 @@ Stage 6 ends when the documentation builds without warnings and
 
 ### Stage 7: `save_volume_as_gif` and the demo
 
+The demo part of this stage was cancelled on 2026-09-19.  A 4D extension of
+the slice viewer replaces it, as separate work.  The GIF writer part is done.
+
 Files: `mbirtorch/utilities.py`, `tests/test_utilities.py`, a new
 `demo/demo_10_mace4d.py`.
 
@@ -871,7 +914,7 @@ where it moved the denoised result by 2.8e-4.
 | 4 | `MACE4DModel` | 450 lines |
 | 5 | Tests for `MACE4DModel` | 300 lines |
 | 6 | Documentation and registration | 100 lines of reStructuredText |
-| 7 | `save_volume_as_gif` and the demo | 350 lines |
+| 7 | `save_volume_as_gif`; the demo is cancelled | 160 lines |
 | 8 | The H100 measurement | A script, an sbatch file, and a record |
 
 The total is about 2,000 lines.  Stages 0 and 2 are independent and come
