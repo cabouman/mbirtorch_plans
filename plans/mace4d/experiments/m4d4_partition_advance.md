@@ -1,6 +1,6 @@
 # m4d4: the data-fit step against `prox_partition_advance`
 
-Status: submitted 2026-09-20, results pending.
+Status: done 2026-09-20.  All three jobs completed ten iterations.
 
 ## Question
 
@@ -58,4 +58,57 @@ data-fit step and the reconstructions.
 
 ## Results
 
-Pending.
+The files under `results/m4d4/` are the source of every number here:
+`timing_summary.csv` (per iteration and sums), `timing_log_adv_<v>.csv`
+and `run_info_adv_<v>.txt` (each run's own log and settings),
+`recon_differences.csv`, and `middle_slices.png`.
+
+**The subset counts of the three data-fit calls of each iteration**, from
+the default granularity and partition sequence:
+
+| advance | it 1 | it 2 | it 3 | it 4 | it 5 | it 6 | it 7 | it 8 | it 9 | it 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0.0 | 4/16/64 | 4/16/64 | 4/16/64 | 4/16/64 | 4/16/64 | 4/16/64 | 4/16/64 | 4/16/64 | 4/16/64 | 4/16/64 |
+| 0.5 | 4/16/64 | 4/16/64 | 16/64/128 | 16/64/128 | 64/128/128 | 64/128/128 | 128/128/128 | 128/128/128 | 128/128/128 | 128/128/128 |
+| 1.0 | 4/16/64 | 16/64/128 | 64/128/128 | 128/128/128 | 128/128/128 | 128/128/128 | 128/128/128 | 128/128/128 | 128/128/128 | 128/128/128 |
+
+**Time over the ten iterations (seconds, sums over the four workers except
+the wall columns):**
+
+| advance | data fit | denoise | wall of the parallel part | wall per iteration total | whole run |
+|---|---|---|---|---|---|
+| 0.0 | 4119 | 2283 | 3094 | 3328 | 1.24 h |
+| 0.5 | 6334 | 2050 | 3453 | 3663 | 1.32 h |
+| 1.0 | 7171 | 2064 | 3673 | 3894 | 1.39 h |
+
+The whole run includes the initial image, about 18 minutes in every run.
+From iteration 4 on, one iteration's data fit takes 382 to 449 s at 0.0 and
+780 to 792 s at 1.0; at 0.5 it climbs from 531 s to 781 s as the calls
+reach the 128-subset entries.  The denoising time does not depend on the
+advance.  The wall time gains less than the data fit does, because the four
+workers also take the denoise slabs while the data fit runs.  Every denoised
+volume ran the full 15 iterations in every run, so the denoiser's 0.05
+percent stop rule never fired.
+
+**The reconstructions.**  The consensus change at iteration 10 is 0.90
+percent (0.0), 0.94 percent (0.5), and 0.99 percent (1.0), so no run had
+reached the usual 0.2 percent stop, and the coarse schedule was not behind.
+The three results differ pairwise by 0.63 to 0.69 percent in relative RMS,
+less than one iteration's own change, with per-frame NRMSE between 0.54 and
+1.7 percent.  The relative maximum difference is large, 0.34 to 0.36, so
+single voxels differ a lot while the volumes agree; the middle slice of the
+middle frame looks the same in all three (`middle_slices.png`).
+
+## Conclusion
+
+The slow data-fit step is the partition schedule.  With the default advance
+of 1.0 every data-fit call runs at 128 subsets from the fourth iteration on,
+and the data fit costs 1.7 times what it costs when the calls stay at 4, 16,
+and 64 subsets.  After ten iterations the three schedules give
+reconstructions that differ by less than one iteration's change, and the
+coarse schedule is not converging more slowly.
+
+Open for Greg: whether the default `prox_partition_advance` becomes 0.0,
+which is the schedule mbirjax used, or a small value such as 0.25.  This
+experiment stops at ten iterations; it does not say which schedule reaches
+the lowest cost at convergence.

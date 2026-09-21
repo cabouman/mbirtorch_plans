@@ -3,7 +3,7 @@
 Status: ACTIVE
 Updated: 2026-09-19
 Code: mbirtorch version 0.1.0, `main` and `prerelease` at 69d4972.
-Next step: commit the staged change for decisions 13 and 17, read the phantom reruns at `prox_partition_advance` 0.0, 0.5, and 1.0 (submitted 2026-09-20, record `experiments/m4d4_partition_advance.md`) to explain the slow data-fit step, finish the documentation, and record the timing.
+Next step: commit the staged change for decisions 13 and 17, decide the default `prox_partition_advance` from `experiments/m4d4_partition_advance.md`, finish the documentation, and record the timing.
 
 This plan replaces the plan of 2026-09-11, `mace4d_migration_plan.md`, which was
 deleted from the tree on 2026-09-18 and remains in the git history.  The first plan describes what the mbirjax
@@ -96,16 +96,18 @@ listed below, most important first.
   observed test values are in `decisions.md`.
 - The three duplications in the denoiser listed under "Related refactors"
   in `decisions.md`.
-- The data-fit step is slow.  On the full-resolution phantom (99 frames,
-  four H100s, 10 iterations) the whole loop runs 2.6 times faster than
-  mbirjax and the denoising 6 times faster, but the data-fit step runs 3
-  times slower and sets the time of each iteration.  The likely cause is
-  the partition schedule: from iteration 3 on, each data-fit call runs 128
-  subsets where mbirjax ran 4, 16, and 64, and the per-subset work grows
-  with the subset count.  The test is one rerun on the same data with
-  `prox_partition_advance=0.0`, which reproduces mbirjax's schedule.  If
-  the data-fit time drops and the result is equivalent, the default
-  changes.
+- The data-fit step is slow, and the cause is now known: the partition
+  schedule.  On the full-resolution phantom (99 frames, four H100s, 10
+  iterations) the whole loop runs 2.6 times faster than mbirjax and the
+  denoising 6 times faster, but the data-fit step runs 3 times slower.
+  The reruns of 2026-09-20 (`experiments/m4d4_partition_advance.md`)
+  show that with the default `prox_partition_advance=1.0` every data-fit
+  call runs 128 subsets from the fourth iteration on, and the data fit
+  costs 1.7 times what it costs at `prox_partition_advance=0.0`, where
+  the calls stay at 4, 16, and 64 subsets as in mbirjax.  After ten
+  iterations the reconstructions differ by less than one iteration's own
+  change, and the coarse schedule converges no more slowly.  Open for
+  Greg: change the default to 0.0, or to a small value such as 0.25.
 
 **Tests.**  The release trim of 2026-09-18 and 19 kept, of this port's
 tests, the consensus update, the two-worker queue, the hyperplane agent,
