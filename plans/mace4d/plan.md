@@ -3,7 +3,7 @@
 Status: ACTIVE
 Updated: 2026-09-19
 Code: mbirtorch version 0.1.0, `main` and `prerelease` at 69d4972.
-Next step: land decisions 13 and 17, rerun the phantom with `prox_partition_advance=0.0` to explain the slow data-fit step, finish the documentation, and record the timing.
+Next step: commit the staged change for decisions 13 and 17, read the phantom reruns at `prox_partition_advance` 0.0, 0.5, and 1.0 (submitted 2026-09-20, record `experiments/m4d4_partition_advance.md`) to explain the slow data-fit step, finish the documentation, and record the timing.
 
 This plan replaces the plan of 2026-09-11, `mace4d_migration_plan.md`, which was
 deleted from the tree on 2026-09-18 and remains in the git history.  The first plan describes what the mbirjax
@@ -89,13 +89,11 @@ listed below, most important first.
 
 **Code.**
 
-- Decision 13: draw each denoiser's pixel partition once per run instead
-  of on every call.  Until this lands, the reconstruction is verified only
-  at one subset per hyperplane volume, and at production size it cannot
-  settle below the change the redraw causes.
-- Decision 17: draw each frame's partition in the main thread before the
-  first iteration, so that a seeded run gives the same result on any
-  number of workers.
+- Decisions 13 and 17: done on 2026-09-20 and staged, awaiting review
+  and commit.  Each denoiser's pixel partition is drawn once per run,
+  and every random draw of a run comes from a seed, so a seeded run
+  gives the same result on any number of workers.  The plans and the
+  observed test values are in `decisions.md`.
 - The three duplications in the denoiser listed under "Related refactors"
   in `decisions.md`.
 - The data-fit step is slow.  On the full-resolution phantom (99 frames,
@@ -138,6 +136,11 @@ add:
 - a paragraph on the denoiser strength: one `sigma_noise`, one `sigma_x`,
   and one `sharpness` serve all three orientations, and `nbr_weight_time`
   weights a frame neighbor against a spatial one.
+- the figures: six annotated figures of the model and its parameters
+  (frames, one frame's data-fit agent, the three denoisers, the consensus
+  loop, where each parameter comes from, where the work runs) are drafted
+  at `plans/mace4d/figures/` as TikZ sources with a build script and a
+  beamer deck; the Sphinx page takes their SVGs.
 
 **Demo (Stage 7).**  Cancelled on 2026-09-19.  A 4D extension of the slice
 viewer replaces it, as separate work outside this plan.

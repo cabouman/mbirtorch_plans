@@ -36,86 +36,201 @@ the Stage 4 fixes table.
 
 ### Group 1 plans
 
-Both questions have the same cause: something that should be drawn or
-computed once per run is drawn on every call, and on whichever thread runs
-the call.  The fix for both is to initialize once, explicitly, in the main
-thread, following the pattern `prox_map` already uses with
-`do_initialization` and its cached `prox_data`.  The plans below were
-written on 2026-09-15 and are proposals for review.  No code has changed.
+Revised on 2026-09-19 against mbirtorch `main` at 69d4972 (version 0.1.0),
+and revised again the same day after a three-reviewer panel.  Nothing of
+the earlier plans is in the code: `denoise_stack` still draws its pixel
+partition inside every call, `MACE4DModel` neither draws nor passes one,
+and `ForwardProxAgent` still initializes `prox_map` on the worker that
+runs iteration 0.  The related refactors listed at the end are deferred.
 
-**Plan for 13: initialize the denoiser once.**  `QGGMRFDenoiser` gains a
-method `initialize_denoiser(image, sigma_noise=None, partition=None)` and
-a cache, `denoise_data`, that mirrors `prox_data`.  The method computes and
-stores everything that depends on the image or on a random draw: the noise
-estimate when `sigma_noise` is None; the regularization parameters when
-`auto_regularize_flag` is on, from a row subsample of a 3D image or from
-the whole-volume subsample of a 4D stack, as Stage 0 found necessary; the
-pixel partition, drawn from the global generator or taken from the
-`partition` argument, and placed on the device; and the batch size for a
-stack.  `denoise` and `denoise_stack` gain `do_initialization=True`.  The
-default keeps today's behavior for a user who denoises a different volume
-on every call.  With `False` the cached data is reused, so the denoiser is
-a fixed operator across calls, which is what a MACE agent needs.
+Both questions have the same cause: something that should be drawn once
+per run is drawn on every call, or on whichever thread runs the call.  Two
+mechanisms fix them.  The denoiser gets an explicit initialization with a
+cache, following `prox_map` and its `prox_data`.  Every random draw a
+data-fit agent or a denoiser makes is derived from a seed and a name, so
+the thread that makes the draw and the moment it makes it no longer
+matter.
 
-Three rules say when the cache is rebuilt.  The caller's flag is the
-primary control, and a cache that does not exist yet is built whatever the
-flag says, as `prox_map` does.  The scalar constants, `fm_constant` from
-`sigma_noise` and the qGGMRF parameter tuple, are rederived on every call,
-so a strength schedule that changes `sigma_noise` between calls costs
-nothing.  The cache carries a signature of the parameters the partition was
-built from, `granularity`, `partition_sequence`, `use_ror_mask`, and the
-device, and a `False` call whose signature no longer matches redraws the
-partition and logs it.  The device-layout invalidation that clears
-`prox_data` clears this cache too.  The statistics are never recomputed
-unless initialization is requested.
+**Plan for 13: initialize the denoiser once.**
 
-The `partition` argument is the reason the cache alone is not enough.  A
-hyperplane agent holds one denoiser per worker device, and the shared queue
-may send a slab to a different device on the next iteration, so every copy
-of one orientation must use the same partition.  `MACE4DModel` draws each
-orientation's partition once, in the main thread, when it configures that
-orientation from the initial image, and hands it to every per-device copy
-through `initialize_denoiser`.  This is Ziyun's rolled-back argument moved
-from `denoise_stack`, where it would be passed on every call, to the
-initialization, where it is passed once and recorded.
+`QGGMRFDenoiser` gains `initialize_denoiser(image=None, sigma_noise=None,
+partition=None, rng=None)` and a cache, `denoise_data`, that mirrors
+`prox_data`.  The method first settles the device layout, as `denoise`
+does, so that nothing settled later can discard what it stores.  It then
+computes and stores everything that depends on the image or on a random
+draw.
 
-What changes where.  `denoising.py`: the method, the cache, the flag on
-both public methods, and the two openings shrink to a validation, an
-optional initialization, and the sweep.  `mace4d.py`:
-`_configure_orientation` becomes one `initialize_denoiser` call after the
-subset count is set, and the stack-denoiser factory passes the partition
-and calls `denoise_stack` with `do_initialization=False`.  Tests: nine
-calls of a three-iteration run receive one partition per orientation, which
-is the test Ziyun wrote and rolled back; a `False` call on a never
-initialized denoiser initializes; a `False` call after a change of
-`granularity` redraws once; and a repeated call of one denoiser on one
-input gives a difference of zero.  The end-to-end check against mbirjax
-stays at one subset per volume (question 10), because mbirjax redraws its
-own partitions on every proximal map and no setting on our side removes
-that.  The Stage 4 verification then extends from one subset to the
-production count.
+- The noise level: `sigma_noise` when given, else estimated from `image`,
+  else the model's current value.  `sigma_y` is set equal to it.  A fresh
+  model with none of the three raises `ValueError`.
+- The regularization parameters: when `auto_regularize_flag` is on they
+  are estimated from `image`, and `image` is then required, or
+  `ValueError`.  A 3D image, or a `Shards` image, takes the row-subsampled
+  path `denoise` uses, with `_volume_shape` deciding the case.  A 4D stack
+  takes `auto_set_regularization_params_from_stack`, which refuses shards.
+  When the flag is off the current parameters are read.
+- The partition: `partition` when given, else drawn over the image shape
+  at `granularity[partition_sequence[0]]` with the model's own
+  `use_ror_mask`, from `rng` when given and from the global generator
+  otherwise.  A supplied partition is copied to a contiguous int64 tensor
+  on the model's device, and validated: two dimensions, integer values in
+  range, no index twice within a row, and the union of the rows equal to
+  the pixel set the mask allows.  Repeats across rows are legal, since a
+  drawn partition pads its last rows that way.
 
-**Plan for 17: draw the frame partitions in the main thread.**  Each
-`ForwardProxAgent` gains an `initialize` method that runs the model's
-`initialize_recon` and stores its result as the model's `prox_data`,
-exactly as `prox_map` does on its first call.  The data-fit agent calls
-`initialize` on its frame agents in frame order, in the main thread,
-before it dispatches the tasks of iteration 0, and every task then calls
-`prox_map` with `do_initialization=False`.  The draws from the global
-generator now happen in one thread in a fixed order, so a seeded run
-reproduces itself on any number of workers.  The denoiser partitions are
-already drawn in the main thread under the plan for 13.  No new argument
-on `prox_map` is needed, and no per-frame seeding.  The cost is `T`
-sequential initializations at iteration 0, each a partition draw and a
-statistics subsample of one frame's sinogram, which is small beside one
-proximal map.  Test: two workers against one at the default partitions
-give a difference of zero, where the measurement of 2026-09-15 gave 0.89
-on the small problem.  The existing one-subset test then returns to the
-default partitions.
+The cache holds the partition, the regularization parameters, the noise
+level, and a signature: `recon_shape`, `granularity`, `partition_sequence`,
+`use_ror_mask`, and the device.  Whether the partition was supplied is
+kept on the model outside the cache.
 
-**Related refactors, not Group 1 questions.**  Three duplications were
-noticed while reading the denoiser for these plans.  They are separate
-increments and none blocks the two plans above.
+`denoise` and `denoise_stack` gain `do_initialization=True`.  True, the
+default, calls `initialize_denoiser` with the call's image and
+`sigma_noise`, so a user who denoises a different volume on every call
+sees the same draws and the same values as before.  False reuses the
+cache.  A cache that does not exist yet is built whatever the flag says,
+as `prox_map` does, except when a supplied partition was discarded by a
+device-layout change, which raises and names `initialize_denoiser`.  On a
+False call a `sigma_noise` given to the call replaces the cached one,
+because `fm_constant` is a scalar that costs nothing to rederive, and the
+reported parameters carry the value used.  A False call whose signature no
+longer matches the cache redraws the partition and logs it when the cached
+partition was drawn, and raises when it was supplied.  The statistics are
+never recomputed on a False call.  `denoise`'s `use_ror_mask` argument
+becomes `None` by default, meaning the model's current value, so a False
+call does not change the signature by accident.  The sharded path of
+`denoise` keeps making its per-device copies from the cached partition.
+
+Two facts of the parameter machinery must be handled or the cache is a
+no-op.  Every parameter registered through the `no_warning` path carries
+the recompile flag, and `sigma_noise` is one of them, so every
+`set_params(sigma_noise=...)`, which both methods make on every call, runs
+`refresh_device_bindings` and clears the model's caches.  The denoiser
+therefore registers `sigma_noise` without the recompile flag at
+construction.  And `_invalidate_device_caches`, which a real layout change
+still calls, clears `denoise_data` as it clears `prox_data`.  A difference
+from `prox_map` is documented in both places: the denoiser's cache notices
+a change of `granularity`, `partition_sequence`, or `use_ror_mask`;
+`prox_data` does not.
+
+The compiled instance of the stack sweep is keyed by a counter assigned at
+construction rather than by `id(self)`, so a freed denoiser's compiled
+artifact is never handed to a later object at the same address.
+
+`QGGMRFDenoiserAgent` in `mace.py` gains `seed=None`.  On a call whose
+model has no cache it calls `initialize_denoiser` with the call's image,
+its `sigma_noise`, and a generator derived from the seed when one is
+given.  Every call then passes `do_initialization=False`.  The 3D agent
+becomes a fixed operator, and with a seed its partition no longer depends
+on the worker that draws it.  With `seed=None` the draw comes from the
+global generator, as the whole agent does today, so no existing script's
+draws move.  The one existing test whose values move is
+`test_mace_reproduces_the_standard_reconstruction`, because its agent
+stops redrawing.  It is a 1 percent gate, and its new trace is recorded.
+
+In `mace4d.py`, `_configure_orientation` draws the orientation's partition
+once, with `use_ror_mask=False` and the subset count it already computes,
+from a generator derived from the run's seed and the orientation's name,
+and returns it beside the parameters.  The stack-denoiser factory hands it
+to every per-device denoiser through `initialize_denoiser(partition=...)`,
+with the parameters already set and `auto_regularize_flag` off, so no
+image is needed there, and every call passes `do_initialization=False`.
+Every worker's copy of one orientation then sweeps with one partition,
+which the shared queue requires.  The run settings record that the
+partitions were drawn once.
+
+**Plan for 17: draws derived from a seed.**
+
+Main-thread initialization does not make a run reproducible, because the
+VCD loop draws the order in which it visits the subsets from the global
+generator on every iteration, on the worker, in the public method
+`vcd_partition_iterator`, and the per-frame reconstruction that
+initializes the run draws its partitions and orders there too.  Nor does
+saving a generator's stream position make a resumed run identical, because
+a fresh process has an empty `prox_data` and draws its partitions again
+from wherever the stream stands.  The plan therefore derives every draw
+from a seed and a name, `np.random.default_rng([seed, name])`, so that a
+draw depends on neither the thread nor the moment.
+
+- `gen_pixel_partition` and `gen_set_of_pixel_partitions` in
+  `vcd_utils.py` gain `rng=None`.  None draws from `np.random` exactly as
+  now.  A `numpy.random.Generator` draws from it with the same call
+  sequence.  The module docstring stops saying that the generators always
+  use the global state.
+- `vcd_partition_iterator`, `_vcd_recon`, `initialize_recon`, `recon`, and
+  `prox_map` in `tomography_model.py` gain `rng=None` and pass it through.
+  `TomographyModel` gains `initialize_prox(...)`, the initialization
+  `prox_map` performs on its first call, moved into a method that stores
+  `prox_data`, so an agent can initialize with one generator and sweep
+  with another.  Every default is None, so every existing test and golden
+  sees the same draws as before.
+- `ForwardProxAgent` gains `seed=None`.  With a seed, a call whose model
+  has no `prox_data` first runs `initialize_prox` with the generator named
+  `init`, and every call sweeps with the generator named by its iteration;
+  the per-frame initialization reconstruction in `_compute_init_recon`
+  uses the generator named `initial image`.  With `seed=None` every
+  generator is None and the agent draws from the global generator as it
+  does today.  `state_dict` saves the seed, and `load_state_dict` restores
+  it only when the key is present, because the data-fit agent passes a
+  partial dict on every frame to install the warm start.  A resumed run
+  in a new process therefore makes the same draws as the original.
+- `MACE4DModel.recon` gains `seed=None`.  None draws one integer from the
+  global generator at the start of the call, so `np.random.seed(k)` before
+  `recon` fixes the run.  An integer is used as given.  Each frame agent
+  gets the seed named by its frame index, each orientation partition is
+  drawn from the seed named by its orientation, and the run settings
+  record the seed.  Nothing else in `recon` draws.
+
+Two runs of one seed on the same pool of identical devices then differ
+only where the folding update adds task outputs in a different order,
+which is float rounding, and where a rounding difference crosses the
+line-search clamp or a stopping threshold, which the loop can amplify.
+Ten consensus iterations were measured to turn a rounding kick into a
+few 1e-6 relative.  The gate below allows for it.
+
+**Tests.**  Few, fast, and on the CPU where they compare float
+trajectories.
+
+- `tests/test_denoiser.py`, extending the stack-versus-loop test at 16
+  subsets: two `do_initialization=False` sweeps on one denoiser agree to a
+  relative maximum difference of 1e-6, two `do_initialization=True` sweeps
+  without reseeding differ by more than 1e-3, the cache survives a False
+  call that passes `sigma_noise`, and a supplied partition is the one the
+  cache holds.
+- `tests/test_prox_map.py`: two calls with a fresh generator of one seed
+  agree to 1e-6, and one with another seed differs by more than 1e-6.
+- `tests/test_mace.py`, extending the two-worker test with stub agents that
+  record the draws of a generator named by seed and iteration: the
+  recorded sequences are equal between the inline run and the two-worker
+  run; and a resume check, four steps against two steps, save, rebuild,
+  load, two more, with equal draw sequences and averages within 1e-6.
+- `tests/test_mace4d.py`, extending the end-to-end test on the CPU only,
+  two iterations, stop threshold zero: two CPU workers against one agree
+  to a relative maximum difference of 1e-4, where the defect measured 0.69
+  to 0.80 on this problem and the rounding noise a few 1e-6.
+
+**Rule for the implementer.**  Docstrings and comments describe what the
+code does.  None of this section's history, names, dates, measurements,
+or "today" goes into them.  The three refactors below stay out.
+
+**Size.**  About 110 lines in `denoising.py`, 45 in `tomography_model.py`
+and `vcd_utils.py`, 40 in `mace.py`, 25 in `mace4d.py`, and 90 of tests.
+
+**Status, 2026-09-20.**  Both plans are implemented and staged in the
+mbirtorch checkout on `prerelease`, in nine files, awaiting Greg's review
+and commit.  The five test files give 33 passed, the goldens 8 passed, and
+the whole suite 169 passed with 92 skipped and no failure.  The new tests
+observed, on the CPU: two reused initializations of the stack sweep differ
+by 0, two fresh draws by 1.5e-2; `prox_map` with one seed twice differs by
+1.2e-7 and with another seed by 1.1e-2; seeded draws on two workers equal
+the inline draws, with the averages 1.4e-7 apart, and a resumed run matches
+to 0; two CPU workers against one on a seeded four-frame run differ by
+6.0e-8 against the gate of 1e-4.  One reading of the plan was settled by
+the implementer: a seed sequence accepts integers only, so a string name is
+read as an integer before the generator is built.
+
+**Related refactors, deferred.**  Three duplications were noticed while
+reading the denoiser.  They are separate increments and none is part of the
+plans above.
 
 - The single-image and the batched forms of the subset update and of the
   qGGMRF gradient and Hessian can each become one function, because the
@@ -125,8 +240,7 @@ increments and none blocks the two plans above.
   `active` and the halos optional.  The single-device path of `denoise`
   then runs the stack sweep on `image[None]`, and its own loop goes away.
   The m4d1 record shows the one-volume batch equal to the 2D path bit for
-  bit in eager mode on the CPU and within 6e-8 under compilation on MPS,
-  so the existing goldens gate the change.  About a hundred lines leave.
+  bit in eager mode on the CPU and within 6e-8 under compilation on MPS.
 - `denoise_stack` clips a `batch_size` larger than the stack, so the agent
   factory in `mace4d.py` pads a short slab itself to keep one compiled
   shape.  If `denoise_stack` pads instead of clipping, the factory's copy
@@ -137,15 +251,7 @@ increments and none blocks the two plans above.
   applies a given step, with the single-device update as a compiled
   wrapper around both, removes the last copy of the formulas.  This
   touches every reconstruction's prior path and belongs in its own
-  increment with a bitwise gate, best done when the retire_jax baselines
-  are regenerated.
-
-**Order and size.**  The plan for 13 first, since the port is verified
-only at one subset per volume until it lands.  About 120 lines are moved or
-added in `denoising.py` and `mace4d.py` and about 60 lines of tests.  The
-plan for 17 with it, about 30 lines.  Then the first two refactors as one
-increment, and the third when the baselines are regenerated.  All of this
-comes before Stage 6.
+  increment with a bitwise gate.
 
 ### Group 2: design choices where the torch version and mbirjax differ
 

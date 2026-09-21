@@ -1,0 +1,111 @@
+\documentclass[tikz,border=6pt]{standalone}
+\input{figpreamble}
+
+\begin{document}
+% Keep words whole in the wrapped notes.
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+
+\begin{tikzpicture}[x=1cm, y=1cm]
+
+% ------------------------------------------------------------------ title
+\node[title, anchor=west] at (-0.8, 0.55) {\large The consensus loop};
+
+% ------------------------------------------- the consensus state, one per agent
+\node[note, anchor=south, align=center, text width=2.7cm] at (0.8, -1.1)
+  {consensus state:\\ one 4D array per agent};
+\node[state, minimum width=1.6cm] (wzero)  at (0.8, -2.2) {\stateW{0}};
+\node[state, minimum width=1.6cm] (wone)   at (0.8, -4.4) {\stateW{1}};
+\node[state, minimum width=1.6cm] (wtwo)   at (0.8, -5.7) {\stateW{2}};
+\node[state, minimum width=1.6cm] (wthree) at (0.8, -7.0) {\stateW{3}};
+
+% ------------------------------------------------------- the temporal filter
+\node[plain, font=\footnotesize, minimum width=2.4cm, minimum height=3.5cm]
+  (filterin) at (3.6, -5.7) {\symFilterMatrix};
+\node[note, anchor=south] at (3.6, -3.85) {on each denoiser's input};
+\node[plain, font=\footnotesize, minimum width=2.4cm]
+  (filterout) at (12.6, -2.2) {\symFilterMatrix};
+\node[note, anchor=south] at (12.6, -1.75) {on the output stack};
+
+% ------------------------------------------------------------- the four agents
+\node[note, anchor=south] at (7.9, -0.95) {the four agents};
+\node[datafit, text width=4.3cm] (agentzero) at (7.9, -2.2)
+  {\dataFitAgent{}: all frames' proximal maps \proxAgent{t}, one per frame, each on the frame's device};
+\node[prior, minimum width=4.65cm] (agentone)   at (7.9, -4.4) {\denoiser{\orientXY}};
+\node[prior, minimum width=4.65cm] (agenttwo)   at (7.9, -5.7) {\denoiser{\orientYZ}};
+\node[prior, minimum width=4.65cm] (agentthree) at (7.9, -7.0) {\denoiser{\orientXZ}};
+\node[note, align=center, text width=7.6cm] at (7.9, -7.95)
+  {each sweeps its hyperplane volumes in slabs, on any device};
+
+% ------------------------------------------------------------- the update block
+\node[plain, minimum width=5.9cm, minimum height=5.6cm] (update) at (17.6, -4.6)
+  {\textbf{the update}\\[2mm]
+   $\avgZ = \sum_k \symBeta{k}\,(2\,\outX{k} - \stateW{k})$\\[2mm]
+   $\stateW{k} \leftarrow \stateW{k} + 2\symRho\,(\avgZ - \outX{k})$\\[2mm]
+   $\xbar = \sum_k \symBeta{k}\,\outX{k}$\\[3mm]
+   {\footnotesize $\symRho$ is \pRhoMann{} (default \defRhoMann)}\\
+   {\footnotesize $\symPriorWeight$ is \pMacePriorWeight{} (default \defMacePriorWeight)}\\
+   {\footnotesize $\symBeta{0} = 1 - \symPriorWeight$ for the data fit}\\
+   {\footnotesize $\symBeta{k} = \symPriorWeight/3$ for each denoiser}};
+
+% --------------------------------------------------------------- the result
+\node[state, minimum width=1.5cm] (xbar) at (21.7, -4.6) {\xbar};
+
+% ------------------------------------------------- state into the four agents
+\draw[flowamber] (wzero.east) -- (agentzero.west);
+\draw[flowamber] (wone.east)   -- (filterin.west |- wone.east);
+\draw[flowamber] (wtwo.east)   -- (filterin.west |- wtwo.east);
+\draw[flowamber] (wthree.east) -- (filterin.west |- wthree.east);
+\draw[flowamber] (filterin.east |- agentone.west)   -- (agentone.west);
+\draw[flowamber] (filterin.east |- agenttwo.west)   -- (agenttwo.west);
+\draw[flowamber] (filterin.east |- agentthree.west) -- (agentthree.west);
+
+% ------------------------------------------- agent outputs into the update
+\draw[flowblue] (agentzero.east) -- node[note, above, inner sep=2pt] {\outX{0}} (filterout.west);
+\draw[flowblue] (filterout.east) -- (update.west |- filterout.east);
+\draw[flowgreen] (agentone.east)   -- node[note, above, inner sep=2pt, pos=0.1] {\outX{1}} (update.west |- agentone.east);
+\draw[flowgreen] (agenttwo.east)   -- node[note, above, inner sep=2pt, pos=0.1] {\outX{2}} (update.west |- agenttwo.east);
+\draw[flowgreen] (agentthree.east) -- node[note, above, inner sep=2pt, pos=0.1] {\outX{3}} (update.west |- agentthree.east);
+
+% ------------------------------------------------------- the result leaves
+\draw[flowamber] (update.east) -- (xbar.west);
+\draw[flowamber] (xbar.east) -- node[note, above, inner sep=2pt] {result} ++(1.1,0);
+
+% ------------------------------- the updated state returns for the next pass
+\draw[flowamber, -] (update.south) -- (17.6,-8.8) -- (-0.8,-8.8) -- (-0.8,-2.2);
+\draw[flowamber] (-0.8,-2.2) -- (wzero.west);
+\draw[flowamber] (-0.8,-4.4) -- (wone.west);
+\draw[flowamber] (-0.8,-5.7) -- (wtwo.west);
+\draw[flowamber] (-0.8,-7.0) -- (wthree.west);
+\node[note, fill=white, inner sep=2pt] at (8.4,-8.8) {the next iteration of the loop};
+
+% ------------------------------------------------------------- the notes
+\node[notebox, anchor=north west, text width=10.4cm] at (-0.8,-9.4)
+  {At the fixed point, \xbar{} minimizes
+   $\symBeta{0}\symSigProx^2 D(x) + \symSigNoise^2 \sum_{k \geq 1} \symBeta{k} R_k(x)$,
+   where $D$ is the data fit of all frames weighted by $1/\symSigY^2$ and $R_k$ is the
+   qGGMRF prior of orientation $k$ at scale $\symSigX$.  So $\symSigProx$ and \pSnrDb{}
+   strengthen the data fit, $\symSigNoise$ strengthens the priors, and $\symSigX$ sets
+   how far each prior smooths.};
+\node[notebox, anchor=north west, text width=6.8cm] at (10.3,-9.4)
+  {$\symFilterMatrix$ is on when \pDejitter{} is \defDejitter{} (the default) and the frame
+   count is at least \pFramesPerRotation: a $\symNumFrames$ by $\symNumFrames$ matrix along
+   the frame axis that removes the modes with period \pFramesPerRotation{} and its harmonics.};
+\node[notebox, anchor=north west, text width=5.4cm] at (17.9,-9.4)
+  {The loop stops when the percent change of \xbar{} between iterations drops
+   below \pStopThreshold{} (default \defStopThreshold), or after \pMaxIterations{}
+   iterations (default \defMaxIterations).};
+
+% ---------------------------------------------------- code names and symbols
+\ifcodenames
+  \node[notebox, anchor=north west, text width=23.7cm] at (-0.8,-11.9)
+    {\keyline{\pRhoMann}{\symRho} \hspace{5mm}
+     \keyline{\pMacePriorWeight}{\symBeta{k}} \hspace{5mm}
+     \keyline{\pSigmaProxMace}{\symSigProx} \hspace{5mm}
+     \keyline{\pSigmaNoise}{\symSigNoise} \hspace{5mm}
+     \keyline{\pSigmaXMace}{\symSigX} \hspace{5mm}
+     \keyline{\filterMatrix}{\symFilterMatrix}};
+\fi
+
+\end{tikzpicture}
+\end{document}

@@ -1,0 +1,109 @@
+\documentclass[tikz,border=6pt]{standalone}
+\input{figpreamble}
+
+\begin{document}
+\begin{tikzpicture}
+
+% ---------------------------------------------------------------- the title
+\node[title, font=\large\bfseries, anchor=north west] at (0,13.0)
+  {Where the work runs};
+
+% ------------------------------------------------- the host and its state
+\node[plain, anchor=north west, minimum width=65mm, minimum height=76mm]
+  at (0,12.2) {};
+\node[title, anchor=north west] at (0.3,11.95) {Host memory};
+\node[note, anchor=north west] at (0.3,11.4) {the consensus state};
+
+\node[note, anchor=north west] at (0.3,10.65) {one input per agent};
+\foreach \k/\x in {0/0.95, 1/2.48, 2/4.01, 3/5.54}
+  \node[state, minimum width=13mm, minimum height=10mm] at (\x,9.7) {\stateW{\k}};
+\draw[lineGray, decorate, decoration={brace, mirror, amplitude=4pt}]
+  (0.30,9.15) -- (1.60,9.15);
+\draw[lineGray, decorate, decoration={brace, mirror, amplitude=4pt}]
+  (1.83,9.15) -- (6.19,9.15);
+\node[note, anchor=north] at (0.95,8.95) {data fit};
+\node[note, anchor=north] at (4.01,8.95) {denoisers};
+
+\node[state, minimum width=11mm, minimum height=10mm] at (0.95,7.6) {\avgZ};
+\node[note, anchor=west] at (1.65,7.6) {the average};
+\node[state, minimum width=11mm, minimum height=10mm] at (3.95,7.6) {\xbar};
+\node[note, anchor=west] at (4.65,7.6) {the result};
+
+\node[notebox, text width=5.4cm, anchor=north west] at (0.35,6.55)
+  {Each finished task's output region is folded into the state under a lock,
+   so no device holds the 4D arrays.};
+
+% ------------------------------------------------------- the data-fit tasks
+\node[datafit, anchor=north west, minimum width=168mm, minimum height=32mm]
+  at (8.6,12.2) {};
+\node[title, anchor=north west] at (8.95,12.02) {Data-fit tasks};
+\node[note, anchor=north west] at (8.95,11.5) {one per frame of the 4D image};
+
+% the frames, grouped over the device that runs them
+\cube{8.95}{9.6}{0.85}{\frameCube{0}}
+\cube{10.30}{9.6}{0.85}{\frameCube{3}}
+\cube{12.35}{9.6}{0.85}{\frameCube{1}}
+\cube{13.70}{9.6}{0.85}{\frameCube{4}}
+\cube{16.43}{9.6}{0.85}{\frameCube{2}}
+\node[note, font=\large] at (18.4,10.03) {$\cdots$};
+
+\foreach \x in {9.375, 10.725, 12.775, 14.125, 16.855}
+  \draw[flowblue] (\x,9.55) -- (\x,7.85);
+
+\node[notebox, text width=5.3cm, anchor=north west] at (19.7,11.5)
+  {Frame \symFrameIndex{} runs on device
+   \ensuremath{\symFrameIndex \bmod \symNumDevices}, with \symNumDevices{} the
+   size of the pool, and the choice is fixed for the run.  The frame's slab of
+   the sinogram \sinoFrame{\symFrameIndex} is placed on that device once.};
+
+% ------------------------------------------------------- the device pool
+\foreach \i/\x in {0/10.2, 1/13.6, 2/17.0}{
+  \node[plain, minimum width=29mm, minimum height=20mm] (d\i) at (\x,6.8) {};
+  \node[title] at ([yshift=-6mm]d\i.north) {device \i};
+  \node[notebox] at ([yshift=6mm]d\i.south) {worker};}
+\node[note, font=\large] at (18.95,6.8) {$\cdots$};
+
+\node[notebox, text width=5.3cm, anchor=north west] at (19.7,8.35)
+  {One worker thread per device runs both kinds of task.\\[3pt]
+   \pDevicePool{} takes \valNone{} (every GPU, or the CPU when there is none),
+   \valCpu{} or \valGpu{}, a count, or a list of device indices.\\[3pt]
+   \pNumDevicesEnv{} pins the count for a whole process.};
+
+% --------------------------------- the output goes back to the host state
+\draw[flowamber] (8.72,7.4) -- (6.62,7.4)
+  node[midway, above, note, align=center] {fold the output\\region};
+
+% -------------------------------------------------------- the denoise tasks
+\node[prior, anchor=north west, minimum width=168mm, minimum height=34mm]
+  at (8.6,4.95) {};
+\node[title, anchor=north west] at (8.95,4.77) {Denoise tasks};
+
+% the shared queue and its slabs
+\node[notebox, anchor=south west, minimum width=57mm, minimum height=16mm]
+  at (9.5,2.5) {};
+\foreach \x in {9.95, 10.67, 11.39, 12.11, 12.83, 13.55, 14.27}
+  \node[prior, minimum width=4.5mm, minimum height=10.5mm] at (\x,3.3) {};
+\node[note, font=\small] at (14.78,3.3) {$\cdots$};
+\node[note, anchor=north] at (12.35,2.4)
+  {one shared queue: slabs from \orientXY, \orientYZ, \orientXZ};
+
+\foreach \x in {10.2, 13.6, 17.0} \draw[flowgreen] (12.35,4.15) -- (\x,5.75);
+
+\node[notebox, text width=5.3cm, anchor=north west] at (19.7,4.45)
+  {Each orientation is cut into slabs of hyperplane volumes sized by
+   \pDenoiseSlabGb{} (default \defDenoiseSlabGb{} GB).  The slabs go into one
+   shared queue, and any device takes the next slab when it is free.};
+
+% ------------------------------------------------------------------ the key
+\node[notebox, anchor=south west, minimum width=65mm, minimum height=24mm]
+  at (0,1.55) {};
+\node[title, anchor=north west] at (0.3,3.75) {Key};
+\node[datafit, minimum width=6mm, minimum height=4mm] at (0.6,3.15) {};
+\node[note, anchor=west] at (0.95,3.15) {data fit, fixed per device};
+\node[prior, minimum width=6mm, minimum height=4mm] at (0.6,2.55) {};
+\node[note, anchor=west] at (0.95,2.55) {denoising, shared queue};
+\node[state, minimum width=6mm, minimum height=4mm] at (0.6,1.95) {};
+\node[note, anchor=west] at (0.95,1.95) {the consensus state on the host};
+
+\end{tikzpicture}
+\end{document}

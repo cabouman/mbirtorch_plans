@@ -1,0 +1,127 @@
+\documentclass[tikz,border=6pt]{standalone}
+\input{figpreamble}
+
+% Keep the words of the notes whole.
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+
+\begin{document}
+\begin{tikzpicture}
+
+% Scale of the view strip and the landmarks along it.
+\pgfmathsetmacro{\ds}{0.025}                              % cm per degree
+\pgfmathsetmacro{\stepdeg}{360/\defFramesPerRotation}
+\pgfmathsetmacro{\spandeg}{\defFrameOverlapFactor*\stepdeg}
+\pgfmathsetmacro{\stepx}{\stepdeg*\ds}
+\pgfmathsetmacro{\spanx}{\spandeg*\ds}
+\pgfmathsetmacro{\nstep}{int(2*\defFramesPerRotation)}     % steps in the two rotations drawn
+\pgfmathsetmacro{\xend}{\nstep*\stepx}
+\pgfmathsetmacro{\xtail}{\xend+0.6*\stepx}
+\pgfmathsetmacro{\xlast}{\xend-\spanx}                     % start of the last window
+\pgfmathsetmacro{\nview}{int(4*\nstep)}                    % view marks drawn
+\pgfmathsetmacro{\viewgap}{\stepx/4}
+
+% Heights of the bands.
+\def\ystripb{9.9}\def\ystript{10.5}\def\yaxis{10.85}
+\def\yspan{9.5}\def\ystep{9.05}
+\def\ybrone{8.6}\def\ydrop{0.55}
+\def\ycube{4.55}\def\cubesize{1.0}\def\yarrow{5.95}
+\def\ytime{4.0}\def\ybox{3.3}
+
+% ------------------------------------------------------------------- title
+\node[title, font=\large\bfseries, anchor=west] at (0,12.05) {The scan becomes frames};
+\node[note, anchor=west] at (0,11.5)
+  {The scan's views, recorded in time order at a uniform angular rate};
+
+% -------------------------------------------------------------- angle axis
+\draw[flow, inkGray] (0,\yaxis) -- (\xtail+0.45,\yaxis);
+\node[note, anchor=west] at (\xtail+0.55,\yaxis) {angle};
+\foreach \k in {0,...,\nstep}{
+  \pgfmathsetmacro{\xt}{\k*\stepx}
+  \pgfmathsetmacro{\dg}{int(\k*\stepdeg)}
+  \draw[lineGray] (\xt,\yaxis) -- (\xt,\yaxis-0.16);
+  \node[note, anchor=south] at (\xt,\yaxis+0.04) {\dg\degsym};}
+
+% ------------------------------------------------ the strip of scan views
+\fill[white] (0,\ystripb) rectangle (\xend,\ystript);
+\foreach \i in {0,...,\nview}{
+  \pgfmathsetmacro{\xv}{\i*\viewgap}
+  \draw[datafitBlue!40, line width=0.3pt] (\xv,\ystripb) -- (\xv,\ystript);}
+\draw[datafitBlue, thick] (0,\ystripb) rectangle (\xend,\ystript);
+% the trailing views, too few for a whole frame
+\fill[white] (\xend,\ystripb) rectangle (\xtail,\ystript);
+\fill[pattern=north east lines, pattern color=warnRed!60]
+  (\xend,\ystripb) rectangle (\xtail,\ystript);
+\draw[datafitBlue, thick] (\xend,\ystripb) rectangle (\xtail,\ystript);
+\node[note, anchor=north west, text width=2.3cm] at (\xtail+0.25,\ystript)
+  {leftover views: too few for a whole frame, so dropped};
+
+% --------------------------------------------- the step and span of a frame
+\draw[lineGray, dotted] (0,\ystripb) -- (0,\ybrone-0.05);
+\draw[lineGray, dotted] (\spanx,\ystripb) -- (\spanx,\ybrone-0.05);
+\draw[lineGray, dotted] (\stepx,\ystripb) -- (\stepx,\ybrone-\ydrop-0.05);
+\draw[flow, {Stealth[length=2mm]}-{Stealth[length=2mm]}, inkGray] (0,\yspan) -- (\spanx,\yspan);
+\node[note, anchor=west] at (\spanx+0.18,\yspan)
+  {span \ensuremath{=\symOverlap\times} step \ensuremath{=} \defFrameSpanDeg\degsym,
+   so \ensuremath{\symOverlap} frames share every view};
+\draw[flow, {Stealth[length=2mm]}-{Stealth[length=2mm]}, inkGray] (0,\ystep) -- (\stepx,\ystep);
+\node[note, anchor=west] at (\stepx+0.18,\ystep)
+  {step \ensuremath{=} one rotation \ensuremath{/\,\symFramesPerRotation=} \defFrameStepDeg\degsym};
+
+% ----------------------------------------------- the window of each frame
+\foreach \t in {0,...,3}{
+  \pgfmathsetmacro{\xa}{\t*\stepx}
+  \pgfmathsetmacro{\xb}{\xa+\spanx}
+  \pgfmathsetmacro{\yb}{\ybrone-\t*\ydrop}
+  \draw[decorate, decoration={brace, amplitude=4pt}, datafitBlue, semithick]
+    (\xa,\yb) -- (\xb,\yb);
+  \node[note, text=datafitBlue, inner sep=1.5pt] (win\t) at (\xa+0.5,\yb-0.28)
+    {\sinoFrame{\t}};}
+\draw[decorate, decoration={brace, amplitude=4pt}, datafitBlue, semithick]
+  (\xlast,\ybrone) -- (\xend,\ybrone);
+\node[note, text=datafitBlue, inner sep=1.5pt] (winlast) at (\xlast+0.5,\ybrone-0.28)
+  {\sinoFrame{\symNumFrames-1}};
+\node[note, anchor=west] at (\spanx+3*\stepx+0.3,\ybrone-2.4*\ydrop)
+  {\ensuremath{\cdots} more windows, to the end of the scan};
+
+% ------------------------------------------- the 4D image, one cube a frame
+\foreach \t in {0,...,3}{
+  \pgfmathsetmacro{\xc}{\t*\stepx}
+  \cube{\xc}{\ycube}{\cubesize}{\frameCube{\t}}}
+\cube{\xlast}{\ycube}{\cubesize}{\frameCube{\symNumFrames-1}}
+\node[font=\large] at (4*\stepx+0.6,\ycube+0.5) {\ensuremath{\cdots}};
+\foreach \t in {0,...,3}{
+  \pgfmathsetmacro{\xc}{\t*\stepx+0.5}
+  \draw[flowblue] (\xc,\yarrow) -- (win\t.south);}
+\draw[flowblue] (\xlast+0.5,\yarrow) -- (winlast.south);
+\node[note, anchor=north west, text width=6.6cm] at (4*\stepx+1.4,\ycube+1.3)
+  {The windows give as many frames as fit.  \pNumFrames{} \ensuremath{=} \defNumFrames{}
+   keeps them all; a smaller \pNumFrames{} keeps only the first that many.};
+
+% ------------------------------------------------------------- the time axis
+\draw[flow, inkGray] (0,\ytime) -- (\xlast+1.6,\ytime);
+\node[note, anchor=west] at (\xlast+1.7,\ytime) {\ensuremath{t}};
+\node[note, anchor=north west] at (0,\ytime-0.1)
+  {the 4D image \fourD{}, one volume per frame};
+
+% -------------------------------------------------- the key and the glossary
+\node[notebox, anchor=north west, text width=4.9cm] at (0,\ybox)
+  {set when the model is built\\[2pt]
+   \pFramesPerRotation{} \ensuremath{=} \defFramesPerRotation\\
+   \pFrameOverlapFactor{} \ensuremath{=} \defFrameOverlapFactor\\
+   \pNumFrames{} \ensuremath{=} \defNumFrames};
+\ifcodenames
+  \node[notebox, anchor=north west, text width=4.9cm] at (5.5,\ybox)
+    {written short above\\[2pt]
+     \keyline{\pFramesPerRotation}{\symFramesPerRotation}\\
+     \keyline{\pFrameOverlapFactor}{\symOverlap}\\
+     \keyline{\pNumFrames}{\symNumFrames}};
+\fi
+\node[notebox, anchor=north west, text width=7.4cm] at (10.8,\ybox)
+  {Each frame has its own model \projFrame{t}, a copy of \ctmodel{} over the frame's
+   angles, so it keeps the parent's geometry and every parameter set on \ctmodel{},
+   such as \pSnrDb{} and \pSharpnessCt{}.  The frame's views are \sinoFrame{t}, the
+   matching slab of the sinogram.};
+
+\end{tikzpicture}
+\end{document}

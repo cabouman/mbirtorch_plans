@@ -1,0 +1,149 @@
+% Notation for the MACE4D figures.
+%
+% Every parameter, symbol, default value, and constant that a figure shows is
+% a macro here, so that the figures change from code names to symbols, or
+% follow a change of a default, by editing this file alone.
+%
+%   \codenamestrue   renders each parameter as its code name (current setting)
+%   \codenamesfalse  renders the symbolic form
+%
+% \sym{code name}{symbol} is the switch every parameter macro uses.  A
+% parameter that exists on both models carries its owner in code mode.
+
+\newif\ifcodenames
+\codenamestrue
+
+\providecommand{\code}[1]{\texttt{#1}}
+\newcommand{\sym}[2]{\ifcodenames\code{#1}\else\ensuremath{#2}\fi}
+\newcommand{\ctmodel}{\code{ct\_model}}
+\newcommand{\macemodel}{\code{MACE4DModel}}
+% A key line "code name <-> symbol", shown in code mode only.
+\newcommand{\keyline}[2]{\ifcodenames#1~\ensuremath{\leftrightarrow}~\ensuremath{#2}\fi}
+
+% ------------------------------------------------------------ math symbols
+% These are always symbolic; the formulas use them, and the key lines tie
+% them to the code names.
+\newcommand{\symSigY}{\sigma_y}
+\newcommand{\symSigProx}{\sigma_p}
+\newcommand{\symSigNoise}{\sigma_n}
+\newcommand{\symSigX}{\sigma_x}
+\newcommand{\symSharpness}{s}
+\newcommand{\symBeta}[1]{\beta_{#1}}
+\newcommand{\symRho}{\rho}
+\newcommand{\symNbrWeightTime}{b_t}
+\newcommand{\symNumFrames}{T}
+\newcommand{\symFramesPerRotation}{P}
+\newcommand{\symOverlap}{f}
+
+% ------------------------------------------------------------------ objects
+\newcommand{\frameCube}[1]{\ensuremath{C_{#1}}}          % frame t of the 4D image
+\newcommand{\fourD}{\ensuremath{x}}                      % the 4D image
+\newcommand{\initImage}{\ensuremath{x^{0}}}              % the initial 4D image
+\newcommand{\sinoFrame}[1]{\ensuremath{y_{#1}}}          % the views of frame t
+\newcommand{\weightsFrame}[1]{\ensuremath{\Lambda_{#1}}} % the weights of frame t
+\newcommand{\projFrame}[1]{\ensuremath{A_{#1}}}          % the frame model
+\newcommand{\proxAgent}[1]{\ensuremath{F_{#1}}}          % the prox map of frame t
+\newcommand{\dataFitAgent}{\ensuremath{F}}               % all frames' prox maps as one agent
+\newcommand{\orientXY}{\sym{XY-t}{\mathrm{XY}t}}
+\newcommand{\orientYZ}{\sym{YZ-t}{\mathrm{YZ}t}}
+\newcommand{\orientXZ}{\sym{XZ-t}{\mathrm{XZ}t}}
+\newcommand{\denoiser}[1]{\ensuremath{G_{#1}}}           % \denoiser{\orientXY}
+\newcommand{\stateW}[1]{\ensuremath{W_{#1}}}             % the loop's input to agent k
+\newcommand{\outX}[1]{\ensuremath{X_{#1}}}               % the output of agent k
+\newcommand{\avgZ}{\ensuremath{z}}
+\newcommand{\xbar}{\ensuremath{\bar{x}}}
+\newcommand{\filterMatrix}{\sym{filter\_matrix}{H}}
+\newcommand{\genInit}{\code{'init'}}                     % the generator of the partitions
+\newcommand{\genIteration}{the iteration number}          % the generator of the subset order
+
+% --------------------------------------------- parameters and their defaults
+% Scan and frames (constructor arguments of MACE4DModel)
+\newcommand{\pFramesPerRotation}{\sym{frames\_per\_rotation}{\symFramesPerRotation}}
+\newcommand{\defFramesPerRotation}{6}
+\newcommand{\pFrameOverlapFactor}{\sym{frame\_overlap\_factor}{\symOverlap}}
+\newcommand{\defFrameOverlapFactor}{2.0}
+\newcommand{\pNumFrames}{\sym{num\_frames}{\symNumFrames}}
+\newcommand{\defNumFrames}{all}
+
+% Set on ct_model; reach the frame models
+\newcommand{\pSnrDb}{\sym{snr\_db}{\mathrm{SNR}_{\mathrm{dB}}}}
+\newcommand{\defSnrDb}{30}
+\newcommand{\pSharpnessCt}{\sym{ct\_model.sharpness}{\symSharpness_{\mathrm{ct}}}}
+\newcommand{\defSharpnessCt}{1.0}
+\newcommand{\pSigmaProxCt}{\sym{ct\_model.sigma\_prox}{\symSigProx^{\mathrm{ct}}}}
+\newcommand{\pSigmaXCt}{\sym{ct\_model.sigma\_x}{\symSigX^{\mathrm{ct}}}}
+\newcommand{\pPQTCt}{\sym{ct\_model.p, q, T}{(p, q, T)_{\mathrm{ct}}}}
+\newcommand{\pSigmaY}{\sym{sigma\_y}{\symSigY}}
+
+% Set on MACE4DModel
+\newcommand{\pSigmaProxMace}{\sym{MACE4DModel.sigma\_prox}{\symSigProx}}
+\newcommand{\defSigmaProxMace}{None (estimated per frame)}
+\newcommand{\pSigmaNoise}{\sym{sigma\_noise}{\symSigNoise}}
+\newcommand{\defSigmaNoise}{None (estimated)}
+\newcommand{\pSigmaXMace}{\sym{MACE4DModel.sigma\_x}{\symSigX}}
+\newcommand{\defSigmaXMace}{estimated}
+\newcommand{\pSharpnessMace}{\sym{MACE4DModel.sharpness}{\symSharpness}}
+\newcommand{\defSharpnessMace}{0.0}
+\newcommand{\pPQTMace}{\sym{MACE4DModel.p, q, T}{(p, q, T)}}
+\newcommand{\defPQT}{2.0, 1.2, 1.0}
+\newcommand{\pNbrWeightTime}{\sym{nbr\_weight\_time}{\symNbrWeightTime}}
+\newcommand{\defNbrWeightTime}{1.0}
+\newcommand{\pMacePriorWeight}{\sym{mace\_prior\_weight}{\beta}}
+\newcommand{\defMacePriorWeight}{0.5}
+\newcommand{\pRhoMann}{\sym{rho\_mann}{\symRho}}
+\newcommand{\defRhoMann}{0.5}
+\newcommand{\pProxNumIterations}{\sym{prox\_num\_iterations}{N_p}}
+\newcommand{\defProxNumIterations}{3}
+\newcommand{\pProxPartitionAdvance}{\sym{prox\_partition\_advance}{a}}
+\newcommand{\defProxPartitionAdvance}{1.0}
+\newcommand{\pProxWarmStart}{\code{prox\_warm\_start}}
+\newcommand{\defProxWarmStart}{True}
+\newcommand{\pProxStopThreshold}{\code{prox\_stop\_threshold}}
+\newcommand{\defProxStopThreshold}{0.02}
+\newcommand{\pDenoiserWarmStart}{\code{denoiser\_warm\_start}}
+\newcommand{\defDenoiserWarmStart}{False}
+\newcommand{\pDenoiseSlabGb}{\code{denoise\_slab\_gb}}
+\newcommand{\defDenoiseSlabGb}{2.0}
+\newcommand{\pDejitter}{\code{dejitter}}
+\newcommand{\defDejitter}{True}
+\newcommand{\pDevicePool}{\code{set\_device\_pool}}
+\newcommand{\pNumDevicesEnv}{\code{MBIRTORCH\_NUM\_DEVICES}}
+
+% Arguments of MACE4DModel.recon
+\newcommand{\pMaxIterations}{\sym{max\_iterations}{N}}
+\newcommand{\defMaxIterations}{10}
+\newcommand{\pStopThreshold}{\code{stop\_threshold\_change\_pct}}
+\newcommand{\defStopThreshold}{0.2}
+\newcommand{\pSeed}{\code{seed}}
+\newcommand{\defSeed}{None}
+\newcommand{\pInitRecon}{\code{init\_recon}}
+\newcommand{\pInitDir}{\code{init\_dir}}
+
+% ---------------------------------------------------------------- constants
+\newcommand{\cInitIterations}{15}        % iterations of the per-frame initial image
+\newcommand{\cDenoiseMaxIterations}{15}  % iterations per denoised volume, at most
+\newcommand{\cDenoiseStopPct}{0.05}      % percent change that stops a denoised volume
+\newcommand{\cSigmaXFactor}{0.2}         % sigma_x and sigma_prox estimates: factor * 2^sharpness * std
+\newcommand{\cSigmaXFloor}{10^{-6}}      % floor of the denoiser sigma_x estimate
+\newcommand{\cSigmaXBase}{1.0}           % base default of sigma_x when no estimate runs
+\newcommand{\cDenoiseSubsets}{16}        % pixel subsets of a denoiser partition, at most
+\newcommand{\cPixelsPerSubset}{64}       % fewer pixels per subset than this and the count drops
+
+% ------------------------------------------- symbols the figures use inline
+\newcommand{\symPriorWeight}{\ensuremath{w}}    % the value of the prior weight
+\newcommand{\symFilterMatrix}{\ensuremath{H}}   % the temporal filter
+\newcommand{\symFrameIndex}{\ensuremath{t}}
+\newcommand{\symNumDevices}{\ensuremath{n}}     % the size of the device pool
+\newcommand{\degsym}{\ensuremath{^{\circ}}}
+% Argument values of the device pool selector
+\newcommand{\valNone}{\code{None}}
+\newcommand{\valCpu}{\code{'cpu'}}
+\newcommand{\valGpu}{\code{'gpu'}}
+% Derived defaults, in degrees (integers; add rounding if a default ever gives a fraction)
+\newcommand{\defFrameStepDeg}{\pgfmathparse{int(360/\defFramesPerRotation)}\pgfmathresult}
+\newcommand{\defFrameSpanDeg}{\pgfmathparse{int(\defFrameOverlapFactor*360/\defFramesPerRotation)}\pgfmathresult}
+% Axis labels of the 4D image
+\newcommand{\axisT}{\ensuremath{t}}
+\newcommand{\axisX}{\ensuremath{x}}
+\newcommand{\axisY}{\ensuremath{y}}
+\newcommand{\axisZ}{\ensuremath{z}}

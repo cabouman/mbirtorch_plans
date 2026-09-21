@@ -1,0 +1,78 @@
+% Slides: the annotated figures of MACE4DModel, one per slide, with a short
+% reading guide beside each.  Build the figures first (bash build.sh), then
+% latexmk mace4d_figures_deck.tex (see latexmkrc).  Same look as the other
+% mbirtorch decks.
+\documentclass[aspectratio=169,10pt]{beamer}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usetheme[progressbar=frametitle,numbering=fraction]{metropolis}
+\usepackage[sfdefault,lining]{FiraSans}
+\usepackage{FiraMono}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc,shapes.misc,fit,backgrounds,
+                decorations.pathreplacing,patterns,matrix}
+\input{notation}
+\input{styles}
+\graphicspath{{build/}}
+
+\definecolor{barGray}{HTML}{262626}
+\setbeamercolor{frametitle}{bg=barGray, fg=white}
+
+% A figure slide: the figure fills the frame, and a one-line guide sits below it.
+\newcommand{\figureslide}[3]{%
+  \begin{frame}{#1}
+    \centering
+    \includegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]{#2}
+    \par\vspace{2mm}
+    {\footnotesize\textcolor{inkGray}{#3}}
+  \end{frame}}
+
+\title{MACE4D: the model and its parameters}
+\subtitle{4D CT reconstruction by consensus of agents in mbirtorch}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{frame}{What the figures cover}
+  \begin{enumerate}
+    \item The scan becomes frames: windows of views, one frame model each.
+    \item One frame's data-fit agent: the proximal map and its two strengths.
+    \item The 4D image and the three denoisers: one prior per orientation.
+    \item The consensus loop: how the four agents are combined.
+    \item Where each parameter comes from: set values, estimates, precedence.
+    \item Where the work runs: devices, tasks, and the host-resident state.
+  \end{enumerate}
+  \vspace{3mm}
+  {\footnotesize\textcolor{inkGray}{Blue is the data-fit side, green the priors, amber the
+  consensus state.  A solid arrow carries a value the user set, a dashed arrow an estimate.}}
+\end{frame}
+
+\figureslide{The scan becomes frames}{fig1_frames.pdf}{%
+  Frame starts are one rotation over \pFramesPerRotation{} apart; a frame spans
+  \pFrameOverlapFactor{} of those steps, so that many frames share each view.
+  Each frame model is a copy of \ctmodel{} over its own angles.}
+
+\figureslide{One frame's data-fit agent}{fig2_data_fit.pdf}{%
+  The proximal map of the frame's data fit.  $\symSigY$ comes from \pSnrDb{};
+  $\symSigProx$ is estimated from \pSharpnessCt{} unless a set value overrides it.}
+
+\figureslide{The 4D image and the three denoisers}{fig3_denoisers.pdf}{%
+  Each orientation is a stack of 3D volumes with time as the first axis.  One
+  \pSigmaNoise{} and one \pSigmaXMace{} for all three, so the priors add up to one 4D prior.}
+
+\figureslide{The consensus loop}{fig4_consensus.pdf}{%
+  One iteration: agents, the average, the state update with \pRhoMann.  The
+  temporal filter acts on the data-fit output and on the denoiser inputs.}
+
+\figureslide{Where each parameter comes from}{fig5_parameters.pdf}{%
+  A set value beats an estimate.  Each sharpness acts on its own side.  The one
+  arrow crossing the divider is \pSigmaProxMace.}
+
+\figureslide{Where the work runs}{fig6_devices.pdf}{%
+  Frames are pinned to devices round robin; denoise slabs go through a shared
+  queue; the consensus state stays on the host.}
+
+\end{document}

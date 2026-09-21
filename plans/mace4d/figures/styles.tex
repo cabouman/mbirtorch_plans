@@ -1,0 +1,57 @@
+% Colors and TikZ styles shared by the MACE4D figures.
+%
+% Blue is the data-fit side, green the priors, amber the consensus state.
+% A solid arrow carries a value the user set; a dashed arrow carries an
+% estimate.  \cube draws one frame of the 4D image.
+
+\definecolor{datafitBlue}{HTML}{3D6B99}
+\definecolor{priorGreen}{HTML}{2E7D32}
+\definecolor{stateAmber}{HTML}{B26B1F}
+\definecolor{warnRed}{HTML}{A23B3B}
+\definecolor{inkGray}{HTML}{5A5A5A}
+\definecolor{lineGray}{HTML}{9A9A9A}
+\definecolor{paleBlue}{HTML}{E3ECF5}
+\definecolor{paleGreen}{HTML}{E4F0E4}
+\definecolor{paleAmber}{HTML}{F5EBDD}
+\definecolor{paleGray}{HTML}{F0F0F0}
+
+\tikzset{
+  every node/.style={font=\small},
+  box/.style={draw, rounded corners=3pt, thick, align=center, inner sep=5pt,
+              minimum height=8mm},
+  datafit/.style={box, draw=datafitBlue, fill=paleBlue},
+  prior/.style={box, draw=priorGreen, fill=paleGreen},
+  state/.style={box, draw=stateAmber, fill=paleAmber},
+  plain/.style={box, draw=lineGray, fill=paleGray},
+  note/.style={font=\footnotesize, text=inkGray, align=left},
+  notebox/.style={note, draw=lineGray, rounded corners=2pt, inner sep=4pt,
+                  fill=white},
+  param/.style={font=\footnotesize, align=left},
+  title/.style={font=\bfseries, align=left},
+  setarrow/.style={-{Stealth[length=2mm]}, thick},
+  estarrow/.style={-{Stealth[length=2mm]}, thick, dashed, inkGray},
+  flow/.style={-{Stealth[length=2mm]}, semithick},
+  flowblue/.style={flow, datafitBlue},
+  flowgreen/.style={flow, priorGreen},
+  flowamber/.style={flow, stateAmber},
+  cut/.style={-{Stealth[length=1.5mm]}, thin, inkGray},
+  cubeFront/.style={fill=white, draw=black!70, thin},
+  cubeTop/.style={fill=black!8, draw=black!70, thin},
+  cubeSide/.style={fill=black!20, draw=black!70, thin},
+}
+
+% \cube{x}{y}{size}{label}: a cube whose front face has its lower left
+% corner at (x, y) and side length size, with a label on the front face.
+\newcommand{\cube}[4]{%
+  \begin{scope}[shift={(#1,#2)}]
+    \pgfmathsetmacro{\cubeDepth}{0.35*#3}
+    \draw[cubeTop] (0,#3) -- (\cubeDepth,#3+\cubeDepth) -- (#3+\cubeDepth,#3+\cubeDepth) -- (#3,#3) -- cycle;
+    \draw[cubeSide] (#3,0) -- (#3+\cubeDepth,\cubeDepth) -- (#3+\cubeDepth,#3+\cubeDepth) -- (#3,#3) -- cycle;
+    \draw[cubeFront] (0,0) rectangle (#3,#3);
+    \node at (0.5*#3,0.5*#3) {#4};
+  \end{scope}}
+
+% \arrowkey{x}{y}: the legend of the two arrow kinds, anchored at (x, y).
+\newcommand{\arrowkey}[2]{%
+  \draw[setarrow] (#1,#2) -- ++(1,0) node[note, right] {set by the user};
+  \draw[estarrow] (#1,#2-0.45) -- ++(1,0) node[note, right] {estimated from the data};}

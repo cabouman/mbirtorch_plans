@@ -1,0 +1,113 @@
+\documentclass[tikz,border=6pt]{standalone}
+\input{figpreamble}
+% keep the short labels unbroken
+\hyphenpenalty=10000 \exhyphenpenalty=10000
+\begin{document}
+\begin{tikzpicture}
+
+% ------------------------------------------------------------------- title
+\node[title, anchor=north west] at (0.2,13.35) {\large One frame's data-fit agent};
+
+% ------------------------------------- left: the inputs that belong to frame t
+% the scan's views, with the frame's angles marked
+\node[note, anchor=south west] at (0.2,12.22) {the scan's views};
+\draw[thin, draw=lineGray, fill=white] (0.2,11.60) rectangle (3.20,12.20);
+\foreach \i in {1,...,11} {\draw[lineGray!60, very thin] (0.2+\i*0.25,11.60) -- ++(0,0.60);}
+\draw[thick, draw=datafitBlue, fill=paleBlue] (0.95,11.60) rectangle (1.45,12.20);
+\draw[cut] (1.20,11.55) -- (1.15,11.10);
+
+% the frame's own views and weights
+\cube{0.50}{9.60}{1.15}{\sinoFrame{t}}
+\cube{2.75}{9.60}{1.15}{\weightsFrame{t}}
+\node[note, anchor=north west, text width=4.20cm] at (0.30,9.35)
+  {the frame's views and their weights, the same shape};
+
+% the frame's own projector
+\node[plain, anchor=north west, text width=3.70cm, align=left] at (0.20,8.20)
+  {\projFrame{t}\\[1pt]{\footnotesize a copy of \ctmodel{} over the frame's angles}};
+
+% the three inputs gathered into the agent
+\draw[decorate, decoration={brace, amplitude=5pt}, lineGray]
+  (4.55,11.00) -- (4.55,7.10);
+\draw[flowblue] (4.90,9.05) -- (6.00,9.05);
+
+% ------------------------------------------------- center: the agent itself
+\coordinate (agentSW) at (6.00,6.75);
+\coordinate (agentNE) at (14.40,9.80);
+\node[datafit, fit={(agentSW) (agentNE)}, inner sep=0pt] (agent) {};
+\node[anchor=north] at (10.20,9.58) {\textbf{\proxAgent{t}}};
+\node[note, anchor=north, align=center] at (10.20,9.12)
+  {the proximal map of the frame's data fit};
+\node[anchor=north] at (10.20,8.66)
+  {$\begin{aligned}
+     \outX{t} \;=\; \operatorname*{arg\,min}_{x}\;\;
+       & \tfrac{1}{2\symSigY^{2}}\,\big\|\sinoFrame{t}-\projFrame{t}x\big\|^{2}_{\weightsFrame{t}}\\[3pt]
+       & +\;\tfrac{1}{2\symSigProx^{2}}\,\big\|x-\textcolor{stateAmber}{\stateW{t}}\big\|^{2}
+   \end{aligned}$};
+
+% the loop's input for this frame
+\node[state, anchor=south west, text width=4.00cm, align=center] (w) at (6.00,10.45)
+  {\stateW{t}\\[1pt]{\footnotesize the loop's input for this frame}};
+\draw[flowamber] (7.90,10.45) -- (7.90,9.80);
+
+% ------------------------------------------- right: start, output, settings
+\node[plain, anchor=north west, text width=8.80cm, align=left] (init) at (15.30,12.95)
+  {the initial image \initImage{} of frame $t$\\[3pt]
+   {\footnotesize a plain reconstruction of the frame with its own qGGMRF prior,
+    \cInitIterations{} iterations, stopping at \pProxStopThreshold{} percent
+    (default \defProxStopThreshold); the only place \pSigmaXCt{} and \pPQTCt{}
+    act; cached in \pInitDir{} when given, or replaced by \pInitRecon{} when
+    supplied.}};
+\draw[flowamber] (15.30,11.10) -- (10.35,11.10)
+  node[note, midway, above] {the start of the loop};
+
+\node[datafit, anchor=north west, text width=8.80cm, align=center] (out) at (15.30,9.10)
+  {\outX{t}\\[1pt]{\footnotesize the agent's output for this frame}};
+\draw[flowblue] (14.40,8.45) -- (15.30,8.45);
+
+\node[param, draw=lineGray, rounded corners=2pt, fill=white, inner sep=4pt,
+      anchor=north west, text width=8.80cm] (par) at (15.30,6.80)
+  {\pProxNumIterations{} = \defProxNumIterations: inner iterations of each call.\\[9pt]
+   \pProxPartitionAdvance{} = \defProxPartitionAdvance: the partition sequence moves
+     forward by this many entries per outer iteration.\\[9pt]
+   \pProxWarmStart{} = \defProxWarmStart: start from the frame's previous output
+     \outX{t}; False starts from \stateW{t}.\\[9pt]
+   \pSeed{}: the partitions come from the generator named \genInit{}, the subset order
+     from the generator named by \genIteration{}, so the draws do not depend on which
+     worker runs the frame.};
+
+% ------------------------------------- bottom: where the two strengths come from
+\node[notebox, anchor=north west, text width=5.70cm] (sy) at (0.20,5.10)
+  {\pSnrDb{} (default \defSnrDb) and the RMS of \sinoFrame{t}.\\[2pt]
+   The data-fit noise level, set once per frame when the prox map initializes.};
+\draw[estarrow] (4.60,5.10) -- (6.95,6.75)
+  node[note, midway, above, sloped] {$\symSigY$};
+
+\node[notebox, anchor=north west, text width=6.60cm] (sp) at (7.20,5.10)
+  {\pSharpnessCt{} (default \defSharpnessCt) and the recon std of \sinoFrame{t},
+   by the rule $\cSigmaXFactor \cdot 2^{\symSharpness} \cdot \mathrm{std}$.};
+\draw[estarrow] (13.20,5.10) -- (13.20,6.75);
+\node[note, anchor=east] at (13.05,6.30) {$\symSigProx$};
+
+% two settings that replace the estimate: they cut it and take its place
+\draw[thick, inkGray] (12.92,5.68) -- (13.48,5.68);
+\node[param, anchor=north west, text width=7.00cm] (ovrA) at (6.20,3.45)
+  {\pSigmaProxCt{} when set on \ctmodel{}};
+\node[param, anchor=north west, text width=7.00cm] (ovrB) at (6.20,2.90)
+  {\pSigmaProxMace{} when set on \macemodel{}, default \defSigmaProxMace};
+\draw[setarrow, rounded corners=3pt]
+  (ovrA.east) -- (14.50,3.26) -- (14.50,6.08) -- (13.32,6.08);
+\draw[setarrow, rounded corners=3pt]
+  (ovrB.east) -- (14.95,2.52) -- (14.95,6.44) -- (13.32,6.44);
+\node[note, anchor=north west, text width=8.60cm] at (6.20,1.80)
+  {\pSigmaProxMace{} beats \pSigmaProxCt{} beats the estimate.};
+
+% ---------------------------------------- bottom left: the keys to the figure
+\node[notebox, anchor=north west] at (0.20,3.35)
+  {\keyline{\pSigmaY}{\symSigY}\\
+   \keyline{\pSigmaProxMace}{\symSigProx}\\
+   \keyline{\pSharpnessCt}{\symSharpness}};
+\arrowkey{0.55}{1.40}
+
+\end{tikzpicture}
+\end{document}

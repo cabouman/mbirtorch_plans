@@ -1,0 +1,156 @@
+\documentclass[tikz,border=6pt]{standalone}
+\input{figpreamble}
+
+% Labels break between words, never inside one.
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\tolerance=9999
+\emergencystretch=1em
+
+% The second line of a parameter box, which carries its default.
+\newcommand{\defline}[1]{\\[1pt]{\scriptsize #1}}
+% \cutbar{x}{y}: the mark that stops an estimate where a set value takes over.
+\newcommand{\cutbar}[2]{%
+  \draw[line width=1.1pt, inkGray] ({#1-0.08},{#2-0.26}) -- ({#1-0.08},{#2+0.26});
+  \draw[line width=1.1pt, inkGray] ({#1+0.08},{#2-0.26}) -- ({#1+0.08},{#2+0.26});}
+
+% The three bands of each column, and the label of an arrow that takes over.
+\tikzset{
+  pbox/.style={text width=3.75cm, font=\footnotesize},
+  ebox/.style={plain, text width=3.1cm, font=\footnotesize},
+  sbox/.style={text width=1.95cm, font=\footnotesize},
+  tbox/.style={text width=3.1cm, font=\footnotesize},
+  wins/.style={font=\footnotesize\bfseries, fill=white, inner sep=1.5pt},
+  winarrow/.style={setarrow, line width=1.1pt},
+}
+
+\begin{document}
+\begin{tikzpicture}
+
+% ---------------------------------------------------- title and the two columns
+\node[title, font=\large\bfseries, anchor=west] at (-12.65,2.9) {Where each parameter comes from};
+\node[title, text=datafitBlue, anchor=west] at (-12.65,2.1)
+  {\ctmodel{} feeds the frame models (data fit)};
+\node[title, text=priorGreen, anchor=west] at (1.65,2.1)
+  {\macemodel{} feeds the denoisers (priors)};
+\draw[lineGray] (0,2.4) -- (0,-10.7);
+
+% ------------------------------------------ left column: the proximal strength
+\node[datafit, pbox] (pshct) at (-10.6,0.9)
+  {\pSharpnessCt\defline{default \defSharpnessCt}};
+\node[ebox] (eprox) at (-6.275,0.9)
+  {$\cSigmaXFactor \cdot 2^{\symSharpness} \times$ recon std of \sinoFrame{t}};
+\node[datafit, sbox] (sprox) at (-2.5,0.9)
+  {$\symSigProx$\defline{strength of the frame's proximal map}};
+\draw[estarrow] (pshct) -- (eprox);
+\draw[estarrow] (eprox) -- (sprox);
+\cutbar{-4.1}{0.9}
+
+% the value set on ct_model, which stops that estimate
+\node[datafit, pbox] (pproxct) at (-10.6,-1.3)
+  {\pSigmaProxCt\defline{when you set it}};
+\draw[setarrow, rounded corners=2pt]
+  (pproxct.east) -- (-2.5,-1.3) -- (sprox.south);
+\node[wins, anchor=west] at (-2.4,-0.55) {wins};
+
+% ---------------------------------------- left column: the data-fit noise level
+\node[datafit, pbox] (psnr) at (-10.6,-3.3)
+  {\pSnrDb\defline{default \defSnrDb}};
+\node[ebox] (esigy) at (-6.275,-3.3)
+  {RMS of the frame's views \sinoFrame{t}};
+\node[datafit, sbox] (ssigy) at (-2.5,-3.3)
+  {$\symSigY$\defline{data-fit noise level of frame $t$}};
+\draw[estarrow] (psnr) -- (esigy);
+\draw[estarrow] (esigy) -- (ssigy);
+
+% ------------------------------------ left column: the two that reach only x0
+\node[datafit, pbox] (pinit) at (-10.6,-5.4) {\pSigmaXCt\\[1pt]\pPQTCt};
+\node[ebox] (einit) at (-6.275,-5.4) {the initial image \initImage{} only};
+\draw[setarrow] (pinit) -- (einit);
+\node[note, anchor=west] at (-4.45,-5.4) {they act nowhere else};
+
+% ------------------- right column: the one value that crosses to the other side
+\node[datafit, pbox] (pproxmace) at (3.4,0.9)
+  {\pSigmaProxMace\defline{default \defSigmaProxMace}};
+\draw[winarrow] (pproxmace.west) -- (sprox.east);
+\node[wins] at (0,1.42) {wins over both};
+\node[note, anchor=west, text width=6.3cm] at (6.0,0.9)
+  {It is set here, and it acts on the data-fit side.};
+
+% ---------------------------------------- right column: the denoiser noise level
+\node[prior, pbox] (pnoise) at (3.4,-1.3)
+  {\pSigmaNoise\defline{default \defSigmaNoise}};
+\node[ebox] (esign) at (7.725,-1.3)
+  {noise std of the initial image \initImage};
+\node[prior, sbox] (ssign) at (11.5,-1.3)
+  {$\symSigNoise$\defline{noise level of all three denoisers}};
+\draw[estarrow] (pnoise) -- (esign);
+\draw[estarrow] (esign) -- (ssign);
+\cutbar{9.9}{-1.3}
+\draw[setarrow, rounded corners=2pt] (pnoise.south) -- (3.4,-2.45)
+  -- (11.05,-2.45) -- ($(ssign.south)-(0.45,0)$);
+\node[wins, above=1.5pt] at (6.9,-2.45) {wins};
+
+% -------------------------------------------- right column: the prior strength
+\node[prior, pbox] (pshmace) at (3.4,-4.05)
+  {\pSharpnessMace\defline{default \defSharpnessMace}};
+\node[ebox] (esigx) at (7.725,-4.05)
+  {$\cSigmaXFactor \cdot 2^{\symSharpness} \times$ neighbor std of the filtered
+   \initImage, floor $\cSigmaXFloor$};
+\node[prior, sbox] (ssigx) at (11.5,-4.05)
+  {$\symSigX$\defline{prior strength of all three denoisers, one value}};
+\draw[estarrow] (pshmace) -- (esigx);
+\draw[estarrow] (esigx) -- (ssigx);
+\cutbar{9.9}{-4.05}
+% the noise level is the estimator's second input
+\draw[estarrow, rounded corners=2pt] ($(ssign.south)+(0.65,0)$) -- (12.15,-2.9)
+  -- (8.65,-2.9) -- ($(esigx.north)+(0.925,0)$);
+
+% the value set on MACE4DModel, which stops that estimate
+\node[prior, pbox] (psigxmace) at (3.4,-5.7)
+  {\pSigmaXMace\defline{when you set it}};
+\draw[setarrow, rounded corners=2pt] (psigxmace.east) -- (11.05,-5.7)
+  -- ($(ssigx.south)-(0.45,0)$);
+\node[wins, above=1.5pt] at (7.9,-5.7) {wins};
+
+% -------------------------------- right column: the values that are used as set
+\node[prior, pbox] (pnbr) at (3.4,-7.0)
+  {\pNbrWeightTime\defline{default \defNbrWeightTime}};
+\node[prior, tbox] (tnbr) at (7.725,-7.0) {time neighbor weight $\symNbrWeightTime$};
+\draw[setarrow] (pnbr) -- (tnbr);
+
+\node[prior, pbox] (ppqt) at (3.4,-8.2) {\pPQTMace\defline{defaults \defPQT}};
+\node[prior, tbox] (tpqt) at (7.725,-8.2) {qGGMRF shape};
+\draw[setarrow] (ppqt) -- (tpqt);
+\node[circle, draw=warnRed, fill=white, thick, inner sep=1pt,
+      font=\scriptsize\bfseries, text=warnRed] at (9.9,-8.2) {!};
+\node[note, text=warnRed, anchor=west, text width=2.2cm, font=\scriptsize]
+  at (10.3,-8.2) {read from \macemodel{}, not from \ctmodel};
+
+\node[prior, pbox] (ploop) at (3.4,-9.75)
+  {\pMacePriorWeight\defline{default \defMacePriorWeight}\\[2pt]
+   \pRhoMann\defline{default \defRhoMann}};
+\node[state, tbox] (tloop) at (7.725,-9.75) {the loop};
+\draw[setarrow] (ploop) -- (tloop);
+
+% ------------------------------------------------- the key and the two warnings
+\draw[lineGray, thin] (-12.65,-6.5) -- (-1.35,-6.5);
+\arrowkey{-12.45}{-7.0}
+\node[notebox, anchor=north west, text width=10.6cm] at (-12.65,-7.9)
+  {A set value beats an estimate.\\
+   Each sharpness acts on its own side only.};
+\node[notebox, anchor=north west, text width=10.6cm, draw=warnRed] at (-12.65,-9.2)
+  {Setting \pSigmaY{} on \macemodel{} only turns the $\symSigX$ estimate off,
+   and $\symSigX$ then falls to the base default \cSigmaXBase.
+   Set \pSigmaNoise{} instead.};
+
+% ------------------------------------------------------- code names and symbols
+\node[notebox, anchor=north, text width=24.5cm, align=center] at (0,-10.75)
+  {\keyline{\pSigmaY}{\symSigY} \quad
+   \keyline{\pSigmaProxMace}{\symSigProx} \quad
+   \keyline{\pSigmaNoise}{\symSigNoise} \quad
+   \keyline{\pSigmaXMace}{\symSigX} \quad
+   \keyline{\pSharpnessMace}{\symSharpness}};
+
+\end{tikzpicture}
+\end{document}

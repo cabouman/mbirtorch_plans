@@ -1,0 +1,175 @@
+\documentclass[tikz,border=6pt]{standalone}
+\input{figpreamble}
+\usepackage{array}
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+
+% Drawing helpers: a thin cut plane through the cube whose front face has its
+% lower left corner at (x, y) and side length s.
+% \plateZ: a plane at one z index.  \plateX: a plane at one x index.
+% \plateY: a plane at one y index.
+\newcommand{\plateZ}[3]{%
+  \begin{scope}[shift={(#1,#2)}]
+    \pgfmathsetmacro{\plD}{0.35*#3}
+    \pgfmathsetmacro{\plE}{0.15*#3}
+    \pgfmathsetmacro{\plH}{0.34*#3}
+    \filldraw[priorGreen, fill opacity=0.40, thin]
+      (-\plE,\plH) -- (#3+\plE,\plH) -- (#3+\plE+\plD,\plH+\plD) -- (-\plE+\plD,\plH+\plD) -- cycle;
+  \end{scope}}
+\newcommand{\plateX}[3]{%
+  \begin{scope}[shift={(#1,#2)}]
+    \pgfmathsetmacro{\plD}{0.35*#3}
+    \pgfmathsetmacro{\plE}{0.15*#3}
+    \pgfmathsetmacro{\plC}{0.38*#3}
+    \filldraw[priorGreen, fill opacity=0.40, thin]
+      (\plC,-\plE) -- (\plC+\plD,-\plE+\plD) -- (\plC+\plD,#3+\plE+\plD) -- (\plC,#3+\plE) -- cycle;
+  \end{scope}}
+\newcommand{\plateY}[3]{%
+  \begin{scope}[shift={(#1,#2)}]
+    \pgfmathsetmacro{\plD}{0.35*#3}
+    \pgfmathsetmacro{\plA}{0.5*\plD}
+    \filldraw[priorGreen, fill opacity=0.40, thin]
+      (\plA,\plA) rectangle (\plA+#3,\plA+#3);
+  \end{scope}}
+
+\begin{document}
+\begin{tikzpicture}
+
+% ---------------------------------------------------------------- the title
+\node[title, font=\large\bfseries, anchor=north west] at (0.2,13.9)
+  {The 4D image and the three denoisers};
+
+% ------------------------------------------------- the 4D image: one row of
+% frames, with the axes marked on the first frame and time along the row
+\node[note, anchor=north west] at (0.35,13.2)
+  {The 4D image: an array of shape (frames, \axisX, \axisY, \axisZ)};
+\cube{0.50}{10.95}{1.05}{\frameCube{0}}
+\cube{2.05}{10.95}{1.05}{\frameCube{1}}
+\cube{3.60}{10.95}{1.05}{\frameCube{2}}
+\cube{5.15}{10.95}{1.05}{\frameCube{3}}
+\node at (6.95,11.48) {\ensuremath{\cdots}};
+\cube{7.30}{10.95}{1.05}{\frameCube{\symNumFrames-1}}
+\draw[cut] (0.50,10.87) -- (1.30,10.87);
+\node[note, anchor=north] at (1.32,10.84) {\axisX};
+\draw[cut] (0.42,10.95) -- (0.42,11.75);
+\node[note, anchor=east] at (0.40,11.68) {\axisZ};
+\draw[cut] (0.44,12.06) -- (0.80,12.42);
+\node[note, anchor=south west] at (0.84,12.44) {\axisY};
+\draw[cut] (0.50,10.35) -- (8.75,10.35)
+  node[note, above=1pt, pos=0.80] {time \axisT};
+
+% ------------------------------- the inset: one voxel and its six neighbors
+\begin{scope}[shift={(11.0,11.70)}]
+  \foreach \nx/\ny in {-1.35/0, 1.35/0, 0/1.00, 0/-1.00, 0.78/0.78, -0.78/-0.78}
+    {\draw[lineGray, thin] (0,0) -- (\nx,\ny);
+     \draw[fill=white, draw=black!60, thin] (\nx-0.14,\ny-0.14) rectangle (\nx+0.14,\ny+0.14);}
+  \draw[fill=paleGreen, draw=priorGreen, thick] (-0.16,-0.16) rectangle (0.16,0.16);
+  \node[note, anchor=south] at (-0.72,0.06) {\ensuremath{\symNbrWeightTime}};
+  \node[note, anchor=south] at (0.72,0.06) {\ensuremath{\symNbrWeightTime}};
+  \node[note, anchor=east] at (-0.06,0.62) {1};
+  \node[note, anchor=south east] at (0.56,0.62) {1};
+  \node[note, anchor=north] at (-1.35,-0.22) {\frameCube{\axisT-1}};
+  \node[note, anchor=north] at (1.35,-0.22) {\frameCube{\axisT+1}};
+  \node[note, anchor=south] at (0,1.18) {\axisX};
+  \node[note, anchor=west] at (0.98,0.78) {\axisY};
+  \node[note, anchor=north] at (0.75,-0.06) {\axisT};
+\end{scope}
+\node[note, anchor=north west, text width=10.6cm] at (13.4,13.1)
+  {One voxel of a (\axisT, \axisX, \axisY) volume and its six neighbors: two
+   along \axisT, in \frameCube{\axisT-1} and \frameCube{\axisT+1}, two along
+   \axisX, two along \axisY. The neighbor weights of every volume are
+   [\pNbrWeightTime, 1, 1] (default \defNbrWeightTime). The \axisT{} direction
+   lies in all three orientations and each spatial direction in two, so at the
+   default a time neighbor weighs 1.5 times a spatial neighbor, and
+   \pNbrWeightTime{} = 2/3 makes them equal.};
+
+% --------------------------------- the three cuts: one row of frames each,
+% a thin plane through every frame, and an arrow to the denoiser of that cut
+\node[note, anchor=south west] at (0.55,9.50) {fix one \axisZ{} index};
+\foreach \i in {0,1,2,3}
+  {\pgfmathsetmacro{\xx}{0.55+1.12*\i}
+   \cube{\xx}{8.35}{0.78}{}\plateZ{\xx}{8.35}{0.78}}
+\node at (5.25,8.88) {\ensuremath{\cdots}};
+\cube{5.62}{8.35}{0.78}{}\plateZ{5.62}{8.35}{0.78}
+\draw[flowgreen] (6.95,8.88) -- (8.05,8.88);
+
+\node[note, anchor=south west] at (0.55,7.40) {fix one \axisX{} index};
+\foreach \i in {0,1,2,3}
+  {\pgfmathsetmacro{\xx}{0.55+1.12*\i}
+   \cube{\xx}{6.25}{0.78}{}\plateX{\xx}{6.25}{0.78}}
+\node at (5.25,6.78) {\ensuremath{\cdots}};
+\cube{5.62}{6.25}{0.78}{}\plateX{5.62}{6.25}{0.78}
+\draw[flowgreen] (6.95,6.78) -- (8.05,6.78);
+
+\node[note, anchor=south west] at (0.55,5.30) {fix one \axisY{} index};
+\foreach \i in {0,1,2,3}
+  {\pgfmathsetmacro{\xx}{0.55+1.12*\i}
+   \cube{\xx}{4.15}{0.78}{}\plateY{\xx}{4.15}{0.78}}
+\node at (5.25,4.68) {\ensuremath{\cdots}};
+\cube{5.62}{4.15}{0.78}{}\plateY{5.62}{4.15}{0.78}
+\draw[flowgreen] (6.95,4.68) -- (8.05,4.68);
+
+\draw[cut] (0.55,3.85) -- (6.65,3.85)
+  node[note, below=1pt, pos=0.80] {time \axisT};
+\node[note, anchor=north west, text width=6.4cm] at (0.55,3.35)
+  {Each cut takes the same slice from every frame, so the row axis of every
+   volume is time \axisT.};
+
+% ------------------------------------------------------ the three denoisers
+\node[prior, font=\footnotesize, align=left, text width=5.0cm, anchor=west]
+  at (8.15,8.88) {\denoiser{\orientXY}\\ volumes (\axisT, \axisX, \axisY), one per \axisZ{} slice};
+\node[prior, font=\footnotesize, align=left, text width=5.0cm, anchor=west]
+  at (8.15,6.78) {\denoiser{\orientYZ}\\ volumes (\axisT, \axisY, \axisZ), one per \axisX{} slice};
+\node[prior, font=\footnotesize, align=left, text width=5.0cm, anchor=west]
+  at (8.15,4.68) {\denoiser{\orientXZ}\\ volumes (\axisT, \axisX, \axisZ), one per \axisY{} slice};
+\node[note, anchor=north west, text width=6.2cm] at (8.15,3.35)
+  {Each denoiser is a 3D qGGMRF MAP denoiser, run on every volume of its
+   orientation.};
+
+% ------------------------- the parameters the three denoisers share, fed to
+% each of them
+\node[prior, font=\footnotesize, align=left, text width=7.6cm, anchor=north west]
+  at (16.2,9.50)
+  {{\bfseries Shared by the three denoisers}\\[1pt]
+   \pSigmaNoise{}: the noise level, one value for all three\\
+   \pSigmaXMace{}: the prior strength, one value, so that the three 3D priors
+   add up to one 4D prior\\
+   \pPQTMace{}: defaults \defPQT};
+\draw[priorGreen, semithick] (16.2,8.30) -- (15.20,8.30);
+\draw[priorGreen, semithick] (15.20,8.88) -- (15.20,4.68);
+\foreach \y in {8.88,6.78,4.68} \draw[flowgreen] (15.20,\y) -- (13.65,\y);
+
+% ------------------------------------------------- the weight of each agent
+\node[note, anchor=north west, text width=8.4cm] at (16.2,6.60)
+  {{\bfseries Agent weights}\\
+   \pMacePriorWeight{} = \symPriorWeight{} (default \defMacePriorWeight)
+   gives each denoiser \ensuremath{\symPriorWeight/3} and the data fit
+   \ensuremath{1 - \symPriorWeight}; a list of three values sets the three
+   denoiser weights one by one.};
+
+% ------------------------------------------------------- how a sweep is run
+\node[param, anchor=north west, text width=9.5cm] at (15.20,4.40)
+  {{\bfseries How a sweep runs}\\[2pt]
+   \begin{tabular}{@{}l@{~}>{\raggedright\arraybackslash}p{9.0cm}@{}}
+     \textbullet & each orientation is swept in slabs of volumes sized by
+       \pDenoiseSlabGb{} (default \defDenoiseSlabGb)\\
+     \textbullet & any device of the pool may take a slab\\
+     \textbullet & each volume runs at most \cDenoiseMaxIterations{} iterations
+       and stops at a \cDenoiseStopPct{} percent change\\
+     \textbullet & the pixel partition has at most \cDenoiseSubsets{} subsets,
+       drawn once per orientation from \pSeed\\
+     \textbullet & \pDenoiserWarmStart{} (default \defDenoiserWarmStart) keeps
+       the previous output, at the cost of one extra 4D array per orientation
+   \end{tabular}};
+
+% ------------------------------------------ the code names and their symbols
+\ifcodenames
+  \node[notebox, anchor=north west, text width=8.6cm] at (0.55,2.30)
+    {\keyline{\pSigmaNoise}{\symSigNoise} \hfill
+     \keyline{\pSigmaXMace}{\symSigX}\\
+     \keyline{\pNbrWeightTime}{\symNbrWeightTime} \hfill
+     \keyline{\pMacePriorWeight}{\symBeta{k}}};
+\fi
+
+\end{tikzpicture}
+\end{document}
