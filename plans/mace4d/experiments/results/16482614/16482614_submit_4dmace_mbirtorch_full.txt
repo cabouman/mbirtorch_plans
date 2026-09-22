@@ -1,0 +1,78 @@
+#!/bin/bash
+# The first full-size 4D MACE reconstruction with mbirtorch: every time frame
+# of the scan, at full detector resolution.
+#
+# Every setting is the driver's default, so the only difference from the smoke
+# run of 2026-09-16 is the frame count: 99 frames rather than 25.
+#
+# The first attempt, job 16478297, ran out of memory in the denoise phase of
+# MACE iteration 1.  The batch estimate returned 921 volumes against the 728
+# hyperplanes that exist, so the batch was the whole orientation, and the
+# device then held four 18.15 GiB stacks at once.  mbirtorch is PATCHED here,
+# not committed, for three fixes: the estimate now charges the output stack
+# that denoise_stack allocates, the temporal filter's output is made
+# contiguous so the denoiser's reshape no longer copies it while the slab is
+# live, and an orientation is cut into slabs of equal size rather than into
+# the largest that fit.  The patch and its sha256 are recorded below and the
+# file sits beside this script.  None of it has run on CUDA before this job.
+#
+# The initial reconstruction is read from the cache job 16478297 wrote before
+# it failed, so the initial image is identical to that run and the comparison
+# is controlled.  That saves the 1019 s the initialization took.  Ten
+# iterations at about 3 minutes should finish inside an hour.  Three hours are
+# reserved.
+#
+# Data is read in place from depot.  Output goes to scratch through the
+# Desktop/data symlink; home has a 25 GB quota and a full recon would break
+# it.  The script's own ./logs holds only run_info.txt and the two CSVs, so
+# it stays here in the experiment folder.
+#SBATCH -A bouman
+#SBATCH -N1
+#SBATCH -n56
+#SBATCH --gpus-per-node=4
+#SBATCH -q normal
+#SBATCH -p ai
+#SBATCH -t 03:00:00
+#SBATCH --job-name=4dmace_mbirtorch_full
+#SBATCH -o /home/li5273/PycharmProjects/lilly_exp/nsi/2026/0917/slurm_logs/%j.out
+#SBATCH -e /home/li5273/PycharmProjects/lilly_exp/nsi/2026/0917/slurm_logs/%j.err
+
+PY=/home/li5273/.conda/envs/mbirtorch/bin/python
+DRIVER=/home/li5273/PycharmProjects/mbirtorch_applications_4dct/nsi_4d/Lilly_recon_4d.py
+DATA=/depot/bouman/data/Lilly/4DCT/Phantom_30s_Run1_Dec2024
+OUT=/home/li5273/Desktop/data/output/2026/0917/phantom_mbirtorch_full
+
+# The caches under ~/.mbirtorch were built on 2026-08-28 by an earlier torch,
+# and a cache keyed to replaced torch files makes the first compiled kernel
+# fail to build.  A job-scoped directory avoids that without deleting them.
+CACHE=/home/li5273/Desktop/data/lilly_exp_scratch/cache_$SLURM_JOB_ID
+export TORCHINDUCTOR_CACHE_DIR=$CACHE/torch_cache
+export TRITON_CACHE_DIR=$CACHE/triton_cache
+mkdir -p "$TORCHINDUCTOR_CACHE_DIR" "$TRITON_CACHE_DIR" "$OUT"
+
+# Run from the experiment folder, so the driver's ./logs lands here.
+cd /home/li5273/PycharmProjects/lilly_exp/nsi/2026/0917 || exit 1
+
+echo "host $(hostname)"
+echo "gpus $SLURM_JOB_GPUS"
+echo "mbirtorch $(git -C /home/li5273/PycharmProjects/mbirtorch log --oneline -1)"
+# The working tree is patched, so the commit above does NOT describe what ran.
+# Record the deviation with the code it produced.
+echo "mbirtorch tree: $(git -C /home/li5273/PycharmProjects/mbirtorch status --short | wc -l) modified file(s) -- NOT a committed state"
+git -C /home/li5273/PycharmProjects/mbirtorch diff --stat
+echo "patch sha256 $(sha256sum /home/li5273/PycharmProjects/lilly_exp/nsi/2026/0917/abc_denoise_batch.patch)"
+echo "driver    $(git -C /home/li5273/PycharmProjects/mbirtorch_applications_4dct log --oneline -1)"
+$PY -c "import torch; print('torch', torch.__version__, 'devices', torch.cuda.device_count())"
+
+PYTHONUNBUFFERED=1 $PY "$DRIVER" \
+  --data_path           "$DATA" \
+  --output_path         "$OUT" \
+  --downsampling        1 \
+  --max_mace_iterations 10 \
+  --verbose             1
+# $? is the driver's status and the next command overwrites it, so hold it
+# first and exit with it.  A trailing echo of its own would leave the
+# script exiting 0 and Slurm reporting a crashed run as COMPLETED.
+status=$?
+echo "--- driver exit $status ---"
+exit $status

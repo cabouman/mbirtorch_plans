@@ -108,6 +108,17 @@ listed below, most important first.
   iterations the reconstructions differ by less than one iteration's own
   change, and the coarse schedule converges no more slowly.  Open for
   Greg: change the default to 0.0, or to a small value such as 0.25.
+- The loop is 2.6 times slower with one host thread than with the cores
+  of the allocation, because the consensus folds and the frame filter run
+  on the host inside the timed tasks (`experiments/m4d4_partition_advance.md`,
+  follow-up section).  A gautschi job that sources `~/load_conda_cuda.sh`
+  gets one thread; the run of 2026-09-17 had 56.  Decided 2026-09-21: the
+  package warns at import when torch has one host thread and more cores
+  are available, naming the two variables and `torch.set_num_threads`
+  (`mbirtorch/_host_threads.py`, committed on `greg_dev` as 37c41e6); the cluster
+  preamble and both regression preamble examples now unset the variables.
+  The advance timings above were taken at one thread and should be
+  repeated at 56 before the default changes.
 
 **Tests.**  The release trim of 2026-09-18 and 19 kept, of this port's
 tests, the consensus update, the two-worker queue, the hyperplane agent,

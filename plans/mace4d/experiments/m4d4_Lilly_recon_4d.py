@@ -115,6 +115,9 @@ def parse_args():
                    help="Use the first N devices instead of all of them. A GPU may not be "
                         "named twice, so N is capped by the number of visible GPUs and by "
                         "MBIRTORCH_NUM_DEVICES when that is set.")
+    g.add_argument("--denoise_slab_gb", type=float, default=None,
+                   help="Size, in GB, of the stack of hyperplane volumes one denoiser task "
+                        "sweeps. Omit to keep the model's default.")
     g.add_argument("--verbose", type=int, default=1, help="0 = silent, 1 = progress, 2 = debug.")
     g.add_argument("--gif_vmax", type=float, default=0.06,
                    help="Upper display bound for the output GIF, in units of attenuation.")
@@ -178,6 +181,7 @@ def append_run_info(log_dir, args, dataset_dir, num_frames, devices, run_time_h,
         f.write(f"weight_type          = {args.weight_type}\n")
         f.write(f"sharpness (frames)   = {args.sharpness}\n")
         f.write(f"prox_partition_advance = {args.prox_partition_advance}\n")
+        f.write(f"denoise_slab_gb      = {args.denoise_slab_gb}\n")
         f.write(f"denoiser_sharpness   = {args.denoiser_sharpness}\n")
         f.write(f"sigma_noise          = {args.sigma_noise}\n")
         f.write(f"denoiser_sigma_x     = {args.denoiser_sigma_x}\n")
@@ -222,6 +226,8 @@ def main():
         verbose=args.verbose,
     )
     set_denoiser_strength(mace_model, args)
+    if args.denoise_slab_gb is not None:
+        mace_model.set_params(denoise_slab_gb=args.denoise_slab_gb)
     if args.serial:
         mace_model.set_device_pool(1)
     elif args.num_devices is not None:

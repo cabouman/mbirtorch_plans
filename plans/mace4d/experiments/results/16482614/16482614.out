@@ -1,0 +1,73 @@
+host h007.gautschi.rcac.purdue.edu
+gpus 2,3,4,5
+mbirtorch c06f165 Clamp a denoiser batch to the hyperplanes an orientation holds.
+mbirtorch tree: 6 modified file(s) -- NOT a committed state
+ mbirtorch/_memory_ledger.py | 25 ++++++++++++++++++++++---
+ mbirtorch/denoising.py      | 10 ++++++++--
+ mbirtorch/mace.py           |  7 ++++++-
+ mbirtorch/mace4d.py         | 27 +++++++++++++++++----------
+ tests/test_denoiser.py      | 29 +++++++++++++++++++++++++++++
+ tests/test_mace4d.py        | 35 +++++++++++++++++++++++++++++++++++
+ 6 files changed, 117 insertions(+), 16 deletions(-)
+patch sha256 5f7bb2b69c1aa3ee88e912e5afd34a254c41a035c1fafda9e70ebc0ab0856a9b  /home/li5273/PycharmProjects/scripts/2026/0917/abc_denoise_batch.patch
+driver    c1e2576 Add the 4D MACE driver for NSI data.
+torch 2.14.0+cu130 devices 4
+
+************** NSI dataset preprocessing **************
+
+
+########## Loading object, blank, dark scans, and geometry parameters from NSI dataset directory
+The following files will be used to compute the NSI reconstruction:
+     - NSI config file: /depot/bouman/data/Lilly/4DCT/Phantom_30s_Run1_Dec2024/3014053-D00087-009_Test1_30s_400delay.nsipro
+     - Geometry report: /depot/bouman/data/Lilly/4DCT/Phantom_30s_Run1_Dec2024/Geometry Report [3014053-D00087-009_Test1_30s_400delay].rtf
+     - Radiograph directory: /depot/bouman/data/Lilly/4DCT/Phantom_30s_Run1_Dec2024/Radiographs-3014053-D00087-009_Test1_30s_400delay
+     - Blank scan image: /depot/bouman/data/Lilly/4DCT/Phantom_30s_Run1_Dec2024/Corrections/gain0.tif
+     - Dark scan image: /depot/bouman/data/Lilly/4DCT/Phantom_30s_Run1_Dec2024/Corrections/offset.tif
+     - Defective pixel information: /depot/bouman/data/Lilly/4DCT/Phantom_30s_Run1_Dec2024/Corrections/defective_pixels.defect
+
+Corrected coordinate of (0,0) detector pixel (from Geometry Report) = [ 36.637    92.825   369.88553]
+Scans are in landscape mode!
+counter-clockwise rotation.
+############ NSI geometry parameters ############
+vector from origin to source =  [   0.         0.      -328.66968]  [mm]
+vector from origin to (0,0) detector pixel =  [ 36.637    92.825   369.88553]  [mm]
+Unit vector of rotation axis =  [ 9.691053e-04 -9.999995e-01  0.000000e+00]
+Unit vector of normal =  [ 0.         -0.00362738  0.99999344]
+Unit vector of horizontal =  [-1.  0.  0.]
+Detector pixel pitch: (delta_det_row, delta_det_channel) = (0.254,0.254) [mm]
+Detector size: (num_det_rows, num_det_channels) = (768,300)
+Pixels to crop from the border of each view = 20
+############ End NSI geometry parameters ############
+Loading 2400 object scans from disk.
+Scans loaded.
+Flipping scans horizontally
+
+
+########## Cropping scans
+
+
+########## Computing sinogram (downsample -> transmission -> detector rotation, fused)
+Sinogram computation complete.
+
+
+########## Correcting sinogram data to account for background offset
+cropped obj_scan shape =  (2400, 728, 260)
+sinogram shape =  (2400, 728, 260)
+
+************** Build 4D MACE model **************
+Denoiser sigma_x estimated from the initial image, scaled by sharpness 0.0.
+Time frames: 99 (48 views each)
+Devices: 4: cuda:0, cuda:1, cuda:2, cuda:3
+
+************** Run 4D MACE reconstruction **************
+
+[INFO] Total wall time: 0.41 hours.
+[INFO] Iterations run: 10 of 10.
+[INFO] Denoiser sigma_x: 0.000221139 (estimated from the initial image).
+[INFO] Temporal/spatial spread: 2.320190424387581.
+[INFO] Recon saved to: /home/li5273/Desktop/data/output/2026/0917/phantom_mbirtorch_full/recon_4d_Phantom_30s_Run1_Dec2024_voxel_pitch_119.56um_frames_99.npy
+[INFO] Logs:           /home/li5273/PycharmProjects/scripts/2026/0917/logs/recon_4d_Phantom_30s_Run1_Dec2024_voxel_pitch_119.56um_frames_99
+[INFO] GIF saved to:   /home/li5273/Desktop/data/output/2026/0917/phantom_mbirtorch_full/recon_4d_Phantom_30s_Run1_Dec2024_voxel_pitch_119.56um_frames_99_x130.gif
+[INFO] GIF saved to:   /home/li5273/Desktop/data/output/2026/0917/phantom_mbirtorch_full/recon_4d_Phantom_30s_Run1_Dec2024_voxel_pitch_119.56um_frames_99_y130.gif
+[INFO] GIF saved to:   /home/li5273/Desktop/data/output/2026/0917/phantom_mbirtorch_full/recon_4d_Phantom_30s_Run1_Dec2024_voxel_pitch_119.56um_frames_99_z364.gif
+--- driver exit 0 ---

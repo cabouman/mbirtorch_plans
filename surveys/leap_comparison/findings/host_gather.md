@@ -159,3 +159,32 @@ both nodes.
   carry every number they hold.
 - Library change: `mbirtorch/_sharding.py`, `tests/test_sharding.py`, and
   one sentence in `docs/source/dev_sharding_overview.rst`.
+
+## 4. Addendum: the gather when torch has all its threads
+
+The measurements above were taken with torch on one host thread, which is
+what a job on gautschi had when it sourced the cluster preamble.  The
+preamble now leaves torch its threads, and the pool rule of section 3
+divides the cores by torch's thread count, so under the new preamble the
+gather runs with one host thread per shard and torch's parallel copy does
+the strided write.  Three conditions were timed, `Shards.gather` on the
+tree at 6eef8bf, the 9.6 GB volume of the ORNL scan, two repetitions each
+(jobs 16564867, 16564866, and 16581010; the first repetition on one device
+pays the page faults of the new host array):
+
+| condition | 1 device | 2 devices | 4 devices |
+|---|---|---|---|
+| torch one thread, 14 gather threads per shard | 0.27 to 0.42 s | 0.25 s | 0.27 to 0.30 s |
+| torch 56 threads, one gather thread per shard (the rule as shipped) | 0.64 to 0.72 s | 0.37 s | 0.33 s |
+| torch 56 threads, the gather setting torch to one thread for its duration | 0.25 to 0.40 s | 0.24 s | 0.24 to 0.26 s |
+
+Torch's own copy parallelizes the strided write less well than the explicit
+threads, so the shipped rule gives up 0.08 s on four devices, 0.13 s on
+two, and 0.3 to 0.4 s on one, once per reconstruction, in proportion to the
+volume.  The third row was a change that made the gather run under a
+temporarily single-threaded torch and restored the count afterward.  It
+was measured and not adopted: it flips a process-wide setting from inside
+the library for a gain that is small against any reconstruction, and the
+gather with threads free is still 17 times faster than before the rework.
+The rule of section 3 stands.  Result files:
+`experiments/gather/results/gather_bench_{16564866,16564867,16581010}.json`.
