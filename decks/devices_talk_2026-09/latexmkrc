@@ -1,0 +1,6 @@
+# latexmk settings for the deck: build the PDF here, keep every other build
+# file in tex_output/.  Run `latexmk devices_talk_deck.tex` in this directory.
+$pdf_mode = 1;
+$out_dir = '.';
+$aux_dir = 'tex_output';
+$emulate_aux = 1;

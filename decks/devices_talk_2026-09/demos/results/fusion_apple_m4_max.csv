@@ -1,0 +1,3 @@
+device,eager_ms,compiled_ms,speedup,first_call_s,compiled_GB_per_s,max_relative_difference
+cpu,96.783,38.173,2.54,9.92,14.1,2.63e-07
+mps,15.815,1.422,11.12,0.12,377.6,0.00e+00

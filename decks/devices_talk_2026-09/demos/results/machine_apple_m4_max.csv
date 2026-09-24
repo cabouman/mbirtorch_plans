@@ -1,0 +1,9 @@
+device,quantity,value,unit
+cpu,matrix product,3.031,TFLOP/s
+cpu,"bandwidth, c = a + b",315.698,GB/s
+cpu,one small operation,1.069,microseconds
+mps,matrix product,13.401,TFLOP/s
+mps,"bandwidth, c = a + b",431.583,GB/s
+mps,one small operation,3.245,microseconds
+mps,host to GPU,89.064,GB/s
+mps,GPU to host,44.124,GB/s

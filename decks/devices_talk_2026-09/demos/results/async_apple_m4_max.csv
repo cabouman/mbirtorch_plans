@@ -1,0 +1,4 @@
+device,reading,ms
+mps,the call returned,0.107
+mps,synchronize() returned,81.880
+mps,.item() returned,81.970
