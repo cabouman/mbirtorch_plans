@@ -1,0 +1,13 @@
+# LaTeX build files go to tex_output/ (see latexmkrc); the PDF builds here.
+tex_output/
+*.pdf
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.gz
+*.toc
+
+# The chart PDFs that make_figures.py writes are kept; they are the deck's figures.
+!images/*.pdf
