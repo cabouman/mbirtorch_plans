@@ -9,3 +9,13 @@
 __pycache__/
 .pytest_cache/
 .DS_Store
+
+*.aux
+*.toc
+*.gz
+*.nav
+*.out
+*.vrb
+*.snm
+*.pdf
+
