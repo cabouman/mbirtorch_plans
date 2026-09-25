@@ -130,7 +130,7 @@
         & \speclabel{m4 max laptop} & \speclabel{one gautschi node} \rowrule
         cores & 12 + 4 CPU cores, and a GPU with 40 cores & 112 CPU cores, and 8 H100 GPUs \rowrule
         memory & 128 GB, shared & 1 TB on the host, and 80 GB on each GPU \rowrule
-        bandwidth & 546 GB/s, shared (432 GB/s measured on the GPU) & 3.35 TB/s on each GPU \rowrule
+        memory bandwidth & 546 GB/s, shared (432 GB/s measured on the GPU) & 3.35 TB/s from each GPU's 80 GB \rowrule
         host to GPU & no separate link (a copy measured 89 GB/s) & PCIe 5, 64 GB/s each way \rowrule
         GPU to GPU & none & NVLink, 900 GB/s \rowrule
         float32 & 13.4 TFLOP/s measured on the GPU & 67 TFLOP/s on each GPU \\
@@ -147,6 +147,7 @@
   \begin{tikzpicture}[>=Stealth, font=\scriptsize,
       host/.style={draw, rounded corners=2pt, fill=gray!12, align=center},
       gpu/.style={draw, rounded corners=2pt, fill=planAccent!14, minimum width=14mm, minimum height=10mm, align=center},
+      hbm/.style={gpu, minimum height=12mm},
       pcie/.style={<->, thick, axialBrick},
       own/.style={<->, thick, planAccent}]
     % ---- one gautschi node
@@ -154,7 +155,7 @@
     \node[host, anchor=south west, minimum width=66mm, minimum height=7mm] (host) at (0,2.8)
       {host: 112 CPU cores and about 1 TB of memory};
     \foreach \i in {0,1,2,3} {
-      \node[gpu] (g\i) at (0.8+1.7*\i, 1.2) {H100\\80 GB};
+      \node[hbm] (g\i) at (0.8+1.7*\i, 1.25) {H100\\80 GB HBM3\\3.35 TB/s};
       \draw[pcie] (g\i.north |- host.south) -- (g\i.north);
     }
     \node[anchor=west, text=inkGray] at (6.7,1.2) {and 4 more};
@@ -162,7 +163,6 @@
     \draw[safeGreen, line width=2.2pt] (0.2,0.3) -- (6.6,0.3);
     \foreach \i in {0,1,2,3} { \draw[safeGreen, thick] (g\i.south) -- (g\i.south |- 0,0.3); }
     \node[safeGreen, anchor=west] at (6.7,0.3) {NVLink, 900 GB/s};
-    \node[planAccent, anchor=north] at (3.3,0.12) {each GPU reads its own memory at 3.35 TB/s};
     % ---- the M4 Max
     \begin{scope}[xshift=94mm]
       \node[font=\small\bfseries, anchor=west] at (0,3.75) {The M4 Max laptop};
@@ -177,11 +177,13 @@
       \node[anchor=north, text=inkGray] at (2.25,0.45) {the CPU and GPU read the same memory};
     \end{scope}
   \end{tikzpicture}\par\vspace{4pt}
-  \noteline{An H100 reads its own memory at 3.35 TB/s.  Data in host memory
-  reaches it at 64 GB/s at most, about 50 times slower.  On the Mac a copy from
-  host to MPS measured 89 GB/s, about 5 times slower than the GPU's own reads.
-  Code developed on a Mac can therefore hide a copy cost that dominates on
-  gautschi.}
+  \noteline{PCIe brings data from host memory to an H100 at 64 GB/s at most.
+  In the time one array arrives, the H100 can read about 50 arrays of the same
+  size from its own memory.  On the M4 Max the same ratio is about 5, from the
+  measured rates of 432 GB/s and 89 GB/s.  The copy itself is faster on the Mac
+  than on gautschi.  It is a smaller share of the time because the Mac's GPU
+  memory is slower.  A loop that copies data in every step can therefore spend
+  most of its time copying on gautschi, even when it runs well on the Mac.}
   \source{NVIDIA H100 SXM and Apple M4 Max specifications; \texttt{demos/demo\_machine.py}}
 \end{frame}
 
@@ -764,7 +766,7 @@ torch.set_num_threads(14)
   \begin{columns}[T]
     \begin{column}{0.50\textwidth}
       {\small
-      PCIe carries 64 GB/s at most, about 50 times less than the GPU's own
+      PCIe carries at most 64 GB/s, about 1/50 of the rate of the H100's own
       memory.  Three rules follow.\par\vspace{2pt}
       \begin{enumerate}
         \item Move data to the GPU once, and keep it there.

@@ -93,7 +93,7 @@ Each decision below was discussed with Greg or follows his style guides:
 
 ## Measurement caveats
 
-The demo numbers have four limits, which questions may raise:
+The demo numbers have five caveats, which questions may raise:
 
 - The thread demo varied between runs by up to 15 percent.  In the first run,
   sin on 12 threads was 11.1 times faster than on one thread.  In the
@@ -107,6 +107,15 @@ The demo numbers have four limits, which questions may raise:
   Max numbers are measured.
 - The first compiled call on MPS took 0.12 s, but it ran after the CPU
   compile in the same process.  It is therefore not a clean compile time.
+- Slide 3 compares two rates: the rate at which a GPU reads its own memory,
+  and the rate at which a copy brings an array from host memory.  The ratio
+  is about 50 for an H100, from NVIDIA's specifications of 3.35 TB/s and
+  64 GB/s.  It is about 5 for the M4 Max, from the measured 432 GB/s and
+  89 GB/s.  A separate check on 2026-09-24 timed one read of a 1 GiB array
+  on MPS at 2.34 ms, and a copy of the same array from host memory at
+  11.66 ms, a ratio of 5.0.  The 3.35 TB/s is the bandwidth of the 80 GB of
+  HBM3.  The H100's 50 MB L2 cache is faster, and NVIDIA does not publish
+  its bandwidth.
 
 ## Open items
 

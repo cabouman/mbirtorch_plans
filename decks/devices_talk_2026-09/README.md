@@ -38,7 +38,9 @@ conda environment.  The CSV files in `demos/results/` hold every number.
 - An 8192 by 8192 matrix product on MPS returned after 0.11 ms and finished
   after 81.9 ms, a rate of 13.4 TFLOP/s.
 - The MPS memory bandwidth for `c = a + b` was 432 GB/s, and the CPU's was
-  316 GB/s.  A copy from host to MPS ran at 89 GB/s, and back at 44 GB/s.
+  316 GB/s.  These rates count two reads and one write per value.  A copy
+  from host to MPS ran at 89 GB/s, and back at 44 GB/s.  The copy rates
+  count each array's bytes once.
 - One small operation cost 3.3 microseconds on MPS when issued without a
   wait.  With a wait after each one, it cost about 140 microseconds.
 - The CPU matrix product ran at about 3.0 TFLOP/s with every thread count
