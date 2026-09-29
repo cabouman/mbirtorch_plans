@@ -32,6 +32,13 @@ information" is legitimate and "fresh pool" is not.  Say the literal
 fact: a new ThreadPoolExecutor is constructed, used once, and
 destroyed.)
 
+**Math mode in Claude app output:**
+ * Display math goes in a $$ block with the delimiters on their own lines. 
+ * Inline math uses \( ... \) and stays under 58 characters. Anything longer becomes a display block. 
+ * Single-dollar inline and \[ ... \] display are banned, since neither renders. 
+ * Escaping-safe macros only inside math: \cr for row separators, \lbrace and \rbrace for set braces, \lVert and \rVert for norms, \quad or backslash-space for spacing. 
+ * For long or publication-quality derivations, Claude should offer a KaTeX widget, an HTML artifact, or local typesetting with your MacTeX install.
+
 ## Structure
 
 * Order sections and paragraphs as a conceptual narrative: the big idea
