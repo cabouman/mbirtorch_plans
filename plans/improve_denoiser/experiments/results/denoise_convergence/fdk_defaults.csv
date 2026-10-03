@@ -1,4 +1,4 @@
-iteration,distance,change,sweep_gradient,gradient_bound,nmae_pct_offset_-1000,nmae_pct_offset_0,nmae_pct_offset_1000,nmae_pct_offset_10000,alpha,flat_noise,seconds
+iteration,distance,change,gradient_statistic,exact_gradient,percent_change_offset_-1000,percent_change_offset_0,percent_change_offset_1000,percent_change_offset_10000,alpha,flat_noise,seconds
 1.000000e+00,4.829795e-01,4.406831e-01,1.641032e+00,8.280756e-01,7.820160e+00,7.899355e+00,2.930035e+00,4.198882e-01,1.000000e+00,1.004278e+00,7.123399e-02
 2.000000e+00,3.097881e-01,1.872720e-01,9.305551e-01,5.174735e-01,3.503955e+00,3.543544e+00,1.294165e+00,1.854611e-01,1.000000e+00,8.389773e-01,3.119397e-02
 3.000000e+00,2.150309e-01,1.002737e-01,5.874064e-01,3.516013e-01,1.952013e+00,1.975559e+00,7.151582e-01,1.024864e-01,1.000000e+00,7.495169e-01,4.270911e-02

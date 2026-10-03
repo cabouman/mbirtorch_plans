@@ -1,71 +1,158 @@
 # Step 4: the stopping rule and the default number of iterations
 
-This page reports step 4 of `improve_qggmrf_denoiser.md`.  Step 4 had four
-parts: how far `denoise` stops from the MAP estimate, a comparison of stopping
-rules, the inner iterations of the MACE denoiser agent, and the bias of the
-automatic noise estimate.  All measurements used mbirtorch at b0b1879.  This
-commit is `greg_dev` at 5f62506, which includes the scaling fix of PR #14,
-plus the change of PR #15.  The measurements ran on CPU on 2026-10-03.  The run records are `experiments/denoise_convergence.md`,
-`experiments/mace_inner_iterations.md`, and `experiments/noise_estimate.md`.
+This page reports step 4 of
+`plans/improve_denoiser/improve_qggmrf_denoiser.md`.  Step 4 asked how the
+stopping rule and the default number of iterations of `denoise` should be set
+for each place that calls it.  The page has three parts:
 
-Distances below are rms distances to the MAP estimate, in units of
-\( \sigma_y \).  The strength of the prior is \( r = \sigma_x / \sigma_y \).
+1. How far `denoise` stops from the MAP estimate, and a comparison of
+   stopping rules.
+2. The inner iterations of the MACE denoiser agent.
+3. The bias of the automatic noise estimate.  The plan does not list this
+   part.  It is here because the estimate sets \( \sigma_y \), and with it
+   \( r \), for a call of `denoise(image)`.
+
+The run records are `experiments/denoise_convergence.md`,
+`experiments/mace_inner_iterations.md`, and `experiments/noise_estimate.md`.
+All measurements ran on CPU on 2026-10-03, with mbirtorch at commit b0b1879.
+Commit b0b1879 adds PR #15 to `greg_dev` at 5f62506, which holds the scaling
+fix of PR #14.  PR #15 compiles the denoiser update once for all noise
+levels.  Paths that start with `mbirtorch/` or `tests/` are in the mbirtorch
+repository.
+
+## Terms
+
+The page uses these terms:
+
+- **\( \sigma_y \)**: the standard deviation of the noise, the parameter
+  `sigma_noise` of `denoise`.  When `sigma_noise` is not given, `denoise`
+  estimates it.
+- **\( r = \sigma_x / \sigma_y \)**: the ratio of the prior's scale
+  \( \sigma_x \) to \( \sigma_y \).  A smaller \( r \) gives a stronger
+  prior.  For the MACE denoiser agent, the parameter `sigma_prox` takes the
+  place of \( \sigma_y \).
+- **MAP estimate**: the image that minimizes the cost of `denoise`.
+- **VCD**: vectorized coordinate descent, the algorithm of `denoise`.  One
+  VCD iteration updates every voxel once, one subset of voxels at a time, with
+  16 subsets by default.
+- **distance**: the rms difference between an image and the MAP estimate, in
+  units of \( \sigma_y \).
+- **change**: the rms change of the image in one iteration, in units of
+  \( \sigma_y \).
+- **exact gradient**: \( \sigma_y \) times the rms gradient of the cost at
+  the image after an iteration.
+- **gradient statistic**: the same, except that each voxel's gradient is
+  taken just before the voxel's update in the sweep.
+- **offset**: a constant added to every voxel.  An image in HU has an offset
+  of -1000 relative to the same image with air at 0.
+- **percent-change rule**: the stopping rule of `denoise` today.  It stops
+  when \( 100 \lVert \Delta x \rVert_1 / \lVert x \rVert_1 \) falls below
+  `stop_threshold_change_pct`, whose default is 0.2.
+- **current defaults**: the percent-change rule at 0.2, together with
+  `max_iterations` = 15.
+- **fdk noise**: noise with the spectrum of an FDK image within each slice,
+  and independent from slice to slice.  **fdk_z noise** is fdk noise with a
+  correlation of 0.78 between adjacent slices.
+- **MACE**: multi-agent consensus equilibrium, as implemented in
+  `mbirtorch/mace.py`.
+
+**[derived]** marks a claim that follows from the math.  **[measured]** marks
+a claim that rests only on these measurements.  **[inferred]** marks a claim
+that the measurements suggest but did not test.
 
 ## Summary
 
-The current defaults of `denoise` are adequate only at the automatic strength
-and only for images with a moderate offset.  The defaults are 15 iterations and
-a stop when \( 100 \lVert \Delta x \rVert_1 / \lVert x \rVert_1 \) falls below
-0.2.  On a 3D test volume, the automatic strength was \( r = 0.19 \) to 0.26.
-There, the defaults stopped 0.03 to 0.04 from the MAP estimate.  At
-\( r = 0.1 \) they stopped 0.09 to 0.11 away, and at \( r = 0.05 \) they
-stopped 0.23 away.  With 10000 added to the same volume, the defaults stopped
-after 2 or 3 iterations, 0.12 to 0.49 away.
+The current defaults stopped close to the MAP estimate in only one setting.
+On the 3D test volume, with noise independent between slices and \( r \)
+from 0.19 to 0.4, they stopped 0.01 to 0.04 from the MAP estimate.  In every
+other case tested, they stopped farther away:
 
-A rule that compares the change per iteration with \( \sigma_y \) removes the
-dependence on the offset, but not the dependence on \( r \).  The change per
-iteration is smaller than the distance by a factor that grows about as
-\( 1 / r^2 \).  So a fixed threshold on the change stops farther from the MAP
-estimate as \( r \) falls.
+- With fdk_z noise, at the automatic \( r \) of 0.17, they stopped 0.07 away.
+- On a 2D slice, at the automatic \( r \) of 0.16, they stopped 0.17 away.
+- At \( r = 0.1 \), they stopped 0.09 to 0.38 away.  At \( r = 0.05 \), they
+  stopped 0.23 away.
+- With 10000 added to the image, and with \( \sigma_y \) and \( \sigma_x \)
+  held fixed, the percent-change rule stopped the loop after 1 to 3
+  iterations, 0.12 to 0.85 away.
 
-A rule on the gradient of the cost works at every \( r \) tested.  In units of
-\( \sigma_y \), the rms of the gradient bounds the rms distance to the MAP
-estimate.  The VCD sweep can compute this gradient statistic at almost no
-cost.  With a threshold of 0.01 on the gradient statistic, every case stopped
-between 0.004 and 0.007 from the MAP estimate.  The number of iterations then varied with \( r \), from 9 at
-\( r = 0.4 \) to 515 at \( r = 0.05 \).
+A rule that compares the change with a threshold in units of \( \sigma_y \)
+removes the dependence on the offset.  It does not remove the dependence on
+\( r \).  The change is smaller than the distance by a factor that grows
+about as \( 1 / r^2 \).  So a fixed threshold on the change stops farther
+from the MAP estimate as \( r \) falls.
 
-The MACE denoiser agent needs no change.  With its default of 8 warm-started
-iterations per call, MACE reached each accuracy target at the same iteration
-as with 32, at \( r = 1 \) and at \( r = 0.2 \).
+A rule on the gradient statistic stopped every case at nearly the same
+distance.  In units of \( \sigma_y \), the exact gradient is an upper bound
+on the distance **[derived]**.  The gradient statistic was at least 1.27
+times the distance at every iteration of every case **[measured]**.  The VCD
+sweep could compute the gradient statistic with one more sum per subset.  Its
+cost was not timed.  With a threshold of 0.01, all 13 cases stopped between
+0.004 and 0.007 from the MAP estimate.  The number of iterations then ranged
+from 9 at \( r = 0.4 \) to 515 at \( r = 0.05 \).
 
-The automatic noise estimate has three biases.  It reads 0.80 of the true level
-on white noise in a flat image.  Edges raise it, and so does an offset from
-air at 0 to air at -1000.  The automatic \( \sigma_x \) is 0.2 times the same
-statistic, so the automatic strength inherits these biases.
+The number of iterations needed depends on \( r \), on the noise, and on
+whether the image is 2D or 3D.  At \( r = 0.1 \), the 2D slice needed 131
+iterations to reach a distance of 0.01, and the 3D volume needed 87.  The
+size of the image mattered little.  Slices of 256 and 500 voxels on a side
+were at nearly the same distance after 15 iterations.
+
+The MACE denoiser agent needs no change on the problem tested.  Each call of
+the agent runs 8 inner iterations, starting from its previous output.  With
+8, MACE reached each accuracy target at the same MACE iteration as with 32,
+at \( r = 1 \) and at \( r = 0.2 \).
+
+The automatic noise estimate has three biases.  It returns 0.80 of the true
+level on white noise in a flat image.  Edges raise it.  An offset that moves
+air from 0 to -1000 also raises it.  When `sigma_noise` is given, the
+automatic \( r \) depends on edges even more.  The reason is that the
+automatic \( \sigma_x \) comes from a statistic that compares voxels 12 rows
+apart on the test volume.  When `sigma_noise` is estimated, \( \sigma_y \)
+inherits the three biases.
 
 ## Decisions for Greg
 
-1. **Replace the stopping statistic of the denoiser** with the gradient
-   statistic in the three sweep paths: `denoise` on one device, `denoise` on
-   several devices, and `denoise_stack`.  A threshold of 0 would still run
-   exactly `max_iterations`.  The parameter would need a new name, such as
-   `stop_threshold`, because its unit changes from percent to
-   \( \sigma_y \).  `recon` keeps its own rule.
+1. **Replace the percent-change rule with a rule on the gradient
+   statistic.**  The change would apply to the three code paths that run the
+   VCD loop: `denoise` on one device, `denoise` on several devices, and
+   `denoise_stack`.  The parameter `stop_threshold_change_pct` would need a
+   new name, such as `stop_threshold`, because its unit changes from percent
+   to \( \sigma_y \).  A threshold of 0 would still run exactly
+   `max_iterations`.  Two callers in the package pass the old parameter.
+   MACE4D passes 0.05, and the MACE denoiser agent passes 0.  I propose to
+   update both, and to make the old name raise an error that names the new
+   parameter.  The stopping rule of the tomography `recon` would not change.
 2. **Choose the defaults.**  I propose a threshold of 0.01 and
-   `max_iterations` = 200.  At the automatic strength this runs 18 to 30
-   iterations, against 10 to 13 today, and stops about 0.005 from the MAP
-   estimate.  The cap of 200 is enough for \( r \ge 0.1 \) on the test
-   volume.  A log line would report a sweep that the cap stops.
-3. **MACE4D.**  Its stack denoisers stop when the current statistic falls
-   below 0.05 percent.  The gradient statistic would answer open question 12 of
-   `plans/mace4d/decisions.md`, as explained below.  This choice belongs to
-   the MACE4D plan.
-4. **The automatic noise estimate.**  I propose no change in this step.  A fix
-   changes the default strength, because the constant 0.2 in the automatic
-   \( \sigma_x \) was tuned with the biased estimate.  The options are below.
+   `max_iterations` = 200.  With this threshold, the output differed from the
+   MAP estimate by less than 1% of the noise level in every case.  That
+   distance was less than a tenth of the MAP estimate's own rms error over
+   the flat region of the test volume.  At the automatic \( r \) of the test
+   images, the rule ran 18 to 64 iterations, against at most 15 today.  At
+   \( r = 0.1 \), it ran 104 to 151 iterations.  The cap of 200 is enough
+   for \( r \ge 0.1 \) in every case tested.  At \( r = 0.05 \), the cap
+   would stop the loop 0.04 from the MAP estimate.  A log line would report
+   each call that reaches `max_iterations`.
+3. **MACE4D.**  The stack denoisers of `MACE4DModel` use the percent-change
+   rule at 0.05, with a cap of 15.  Open question 12 of
+   `plans/mace4d/decisions.md` concerns this rule when the denoiser warm
+   start is on.  Its planned remedy is an inner tolerance that tightens with
+   the outer loop, after a measurement in Stage 8.  The gradient statistic
+   could give that tolerance a meaning that does not depend on the warm
+   start, as the section on callers explains.  This choice belongs to the
+   MACE4D plan.
+4. **The automatic noise estimate.**  I propose no change in this step.  Any
+   fix to the estimate would change the default \( r \), because the
+   automatic \( \sigma_x \) comes from the same statistic.  The estimate also
+   sets the default noise level of the MACE4D denoisers.  So a fix needs its
+   own measurement of image quality.  The options are at the end of the
+   section on the noise estimate.
 
-## Why the gradient bounds the distance
+A rule that needs no new statistic is an alternative to decision 1.  It
+estimates the remaining distance from the factor by which the change shrinks
+per iteration.  At a threshold of 0.01, it stopped 0.009 to 0.015 from the
+MAP estimate.  At 0.03, it stopped 0.015 to 0.079 away.  This rule has no
+bound, and on some iterations its estimate was 0.30 times the distance.
+
+## Why the exact gradient is an upper bound on the distance
 
 In units of \( \sigma_y \), the cost is
 
@@ -73,9 +160,9 @@ $$
 J(v) = \frac{1}{2} \lVert z - v \rVert^2 + P(v) ,
 $$
 
-where \( z = y / \sigma_y \) and \( P \) is the prior.  \( P \) is convex for
-\( 1 \le q \le p \le 2 \).  A convex function plus
-\( \lVert z - v \rVert^2 / 2 \) is 1-strongly convex.  So for any image
+where \( v = x / \sigma_y \), \( z = y / \sigma_y \), and \( P \) is the
+prior.  \( P \) is convex for \( 1 \le q \le p \le 2 \).  A convex function
+plus \( \lVert z - v \rVert^2 / 2 \) is 1-strongly convex.  So for any image
 \( v \) and the minimizer \( v^* \),
 
 $$
@@ -83,118 +170,200 @@ $$
 $$
 
 Dividing both sides by the square root of the number of voxels turns this into
-a bound on the rms distance.  The gradient in units of \( \sigma_y \) is
-\( \sigma_y \) times the gradient of the cost in the unit of the image.  In
-units of \( \sigma_y \), the cost does not change when the image,
-\( \sigma_y \), and \( \sigma_x \) are multiplied by a constant, or when a
-constant is added to the image.  So the gradient statistic does not depend on
-the image's scale or offset **[derived]**.
+a bound on the rms distance.  Let \( f \) be the same cost written in the
+unit of the image, so that \( J(v) = f(\sigma_y v) \).  Then
+
+$$
+\nabla J(v) = \sigma_y \nabla f(\sigma_y v) .
+$$
+
+This is why the exact gradient and the gradient statistic multiply the
+gradient of \( f \) by \( \sigma_y \).
+
+\( J \) does not change when the image, \( \sigma_y \), and \( \sigma_x \)
+are multiplied by the same constant.  It also does not change when the same
+constant is added to the noisy image and to the current image.  So the
+gradient statistic does not depend on the image's offset.  It also does not
+change when the image, \( \sigma_y \), and \( \sigma_x \) are scaled
+together **[derived]**.  Both statements assume that \( \sigma_y \) and
+\( \sigma_x \) do not change with the offset.  The automatic parameters do
+change with the offset, as the section on the noise estimate shows.
 
 Each subset update of VCD already computes both terms of the gradient at its
-pixels.  These are `forward_grad` and `prior_grad` in `vcd_subset_denoiser`.
-The sweep statistic sums the squares of their sum over each subset, which costs
-one more reduction per subset.  Each pixel's gradient is taken just before the
-pixel's update, so the statistic approximates the gradient at the image
-rather than equaling it.
+voxels.  In `vcd_subset_denoiser`, the gradient of the data term is
+`-fm_constant * cur_error_image`, and the gradient of the prior is
+`prior_grad`.  The function passes both to `_identity_update_direction`.  The
+gradient statistic needs the sum of the squares of their sum over the
+subset's voxels.  Each voxel's gradient is taken just before the voxel's
+update.  So the gradient statistic approximates the exact gradient rather
+than equaling it, and the bound is proven only for the exact gradient.
 
-The measurements confirm the bound and show that it is close.  From iteration
-10 on, the median ratio of the gradient at the image to the distance was 1.15
-to 1.68 across the cases, and the smallest ratio was 1.09.  The median ratio
-of the sweep statistic to the distance was 1.44 to 2.14.  The sweep statistic
-was never less than 1.38 times the distance, at any iteration of any case.
-So a rule on the sweep statistic never stopped before the distance was below
-its threshold.
+The measurements confirm the bound.  From iteration 10 on, the median ratio
+of the exact gradient to the distance was 1.15 to 1.76 across the cases.  The
+smallest ratio was 1.07.  The median ratio of the gradient statistic to the
+distance was 1.37 to 2.14.  The gradient statistic was never less than 1.27
+times the distance, at any iteration of any case **[measured]**.  So a rule
+on the gradient statistic never stopped before the distance was below its
+threshold.
 
 ## Why a rule on the change fails at small r
 
-VCD divides each pixel's gradient by the second derivative of its surrogate
-cost.  In units of \( \sigma_y \), that second derivative is
-\( 1 + 1/r^2 \) at a pixel in a flat region, for \( p = 2 \) and
-\( q < 2 \) **[derived]**.  The 1 comes from the data term.  The
-\( 1/r^2 \) comes from the prior, whose six neighbor weights sum to 1.  So in
-flat regions the change per iteration is about \( r^2 \) times the gradient,
-and the gradient is close to the distance.
+VCD divides each voxel's gradient by the second derivative of its surrogate
+cost.  Consider a voxel whose differences from its six neighbors are much
+smaller than \( T \sigma_x \).  In units of \( \sigma_y \), the second
+derivative there is \( 1 + 1/r^2 \), for \( p = 2 \) and \( q < 2 \)
+**[derived]**.  The 1 comes from the data term.  The \( 1/r^2 \) comes from
+the prior, whose six neighbor weights sum to 1.  So at such voxels the change
+per iteration is about \( r^2 \) times the gradient.  The previous section
+showed that the median ratio of the gradient to the distance was 1.15 to
+2.14.
 
-The measurements follow this pattern.  The median ratio of the gradient
-statistic to the change was 4.4 at \( r = 0.4 \), 15 at 0.2, 64 at 0.1, and
-280 at 0.05.  These ratios are 0.6 to 0.7 times \( 1 + 1/r^2 \).  A threshold
-of 0.001 on the change therefore stopped at distances from 0.002 at
-\( r = 0.4 \) to 0.107 at \( r = 0.05 \).
+The measurements follow this pattern.  For fdk noise on the 3D volume, the
+median ratio of the gradient statistic to the change was 4.4 at
+\( r = 0.4 \), 15 at 0.2, 64 at 0.1, and 280 at 0.05.  These ratios are 0.58
+to 0.70 times \( 1 + 1/r^2 \).  A threshold of 0.001 on the change therefore
+stopped at distances from 0.002 at \( r = 0.4 \) to 0.107 at
+\( r = 0.05 \).
 
-The current rule has the same problem, and it adds a dependence on the
-offset.  Adding a constant to the image changes \( \lVert x \rVert_1 \), but
-it changes neither the VCD path nor \( \lVert \Delta x \rVert_1 \).  On the
-test volume, with air at 0 and water at 1000, the current rule at 0.2 percent
-stopped after 7 to 21 iterations.  With 10000 added it stopped after 2 or 3.
-The offset can also delay the stop.  In a volume of water in true HU,
-\( \lVert x \rVert_1 \) is only the size of the residual noise, so the rule
-would stop only at the cap of 15 **[inferred]**.
+The percent-change rule has the same problem, and it adds a dependence on the
+offset.  Adding a constant to the image changes \( \lVert x \rVert_1 \).  It
+changes neither the VCD updates nor \( \lVert \Delta x \rVert_1 \), as long as
+\( \sigma_y \) and \( \sigma_x \) stay fixed.  On the test volume, with air at
+0 and water at 1000, the percent-change rule at 0.2 stopped the loop after 7
+to 34 iterations.  With 10000 added, it stopped the loop after 1 to 3
+iterations.  The offset can also delay the stop.  In an image of water in
+HU, the values are near 0, so \( \lVert x \rVert_1 \) is about the size of
+the remaining noise.  The rule would then stop only at the cap of 15
+**[inferred]**.
 
 ## How many iterations each case needs
 
-The table gives the iterations to reach each distance, and where the current
-defaults and the proposed rule stop.  Each "fdk" case has noise whose power
-rises with frequency within a slice, as in an FDK image.
+The table gives the iterations needed to reach each distance.  It also gives
+where the current defaults and the proposed rule stop.  The proposed rule is
+a threshold of 0.01 on the gradient statistic.  The Case column uses three
+labels:
+
+- "\( r \) given" means that `sigma_noise` = 182 HU and
+  \( \sigma_x = 182 r \).
+- "automatic \( \sigma_x \)" means that `sigma_noise` = 182 HU and the
+  denoiser chose \( \sigma_x \).
+- "all automatic" means that the denoiser estimated both, as a call of
+  `denoise(image)` does.
 
 | Case | \( r \) | Distance after 15 | Iterations to 0.03 | to 0.01 | Current defaults: iteration, distance | Proposed rule: iteration, distance |
 |---|---:|---:|---:|---:|---|---|
-| fdk, \( r \) pinned | 0.400 | 0.0003 | 5 | 7 | 7: 0.010 | 9: 0.004 |
+| fdk, \( r \) given | 0.400 | 0.0003 | 5 | 7 | 7: 0.010 | 9: 0.004 |
 | fdk, all automatic | 0.259 | 0.009 | 10 | 15 | 10: 0.030 | 18: 0.005 |
-| fdk, \( r \) pinned | 0.200 | 0.024 | 14 | 22 | 13: 0.033 | 27: 0.005 |
+| fdk, \( r \) given | 0.200 | 0.024 | 14 | 22 | 13: 0.033 | 27: 0.005 |
 | white, automatic \( \sigma_x \) | 0.197 | 0.017 | 11 | 20 | 11: 0.030 | 25: 0.005 |
 | fdk, automatic \( \sigma_x \) | 0.188 | 0.030 | 16 | 24 | 13: 0.041 | 30: 0.005 |
-| white, \( r \) pinned | 0.100 | 0.081 | 46 | 91 | 13: 0.090 | 108: 0.007 |
-| fdk, \( r \) pinned | 0.100 | 0.110 | 46 | 87 | 15: 0.110 | 104: 0.007 |
-| fdk, \( r \) pinned | 0.050 | 0.229 | 256 | 444 | 15: 0.229 | 515: 0.007 |
+| white, \( r \) given | 0.100 | 0.081 | 46 | 91 | 13: 0.090 | 108: 0.007 |
+| fdk, \( r \) given | 0.100 | 0.110 | 46 | 87 | 15: 0.110 | 104: 0.007 |
+| fdk, \( r \) given | 0.050 | 0.229 | 256 | 444 | 15: 0.229 | 515: 0.007 |
+| fdk_z, automatic \( \sigma_x \) | 0.167 | 0.070 | 23 | 34 | 15: 0.070 | 42: 0.005 |
+| fdk_z, \( r \) given | 0.100 | 0.179 | 52 | 88 | 15: 0.179 | 106: 0.006 |
+| 2D slice, fdk, automatic \( \sigma_x \) | 0.162 | 0.172 | 39 | 56 | 15: 0.172 | 64: 0.006 |
+| 2D slice, fdk, \( r \) given | 0.100 | 0.383 | 88 | 131 | 15: 0.383 | 151: 0.006 |
+| 2D slice, white, \( r \) given | 0.100 | 0.247 | 71 | 120 | 15: 0.247 | 139: 0.007 |
 
-In the last two rows, the current defaults reached the cap of 15 before the
-0.2 percent rule fired.  The kind of noise mattered little: at \( r = 0.1 \),
-white noise needed 91 iterations to reach 0.01, and fdk noise needed 87.  One
-iteration took 0.03 to 0.04 s for the 2.1 million voxels on 4 CPU threads.
+The columns of iterations to each distance, and the column of the proposed
+rule, ignore the cap of 15.  Where the current defaults show iteration 15,
+they reached the cap before the percent-change rule stopped the loop.  In the
+all-automatic case, the denoiser estimated \( \sigma_y \) = 131.2 HU instead
+of 182 HU.  Its distances are in units of 131.2 HU.
 
-The convergence rate should not depend on the size of the volume
-**[inferred]**.  In units of \( \sigma_y \), the eigenvalues of the cost's
+The kind of noise and the dimension of the image changed the iteration
+counts.  At \( r = 0.1 \) on the 3D volume, white noise needed 91 iterations
+to reach 0.01, and fdk noise needed 87.  So the correlation within a slice
+mattered little.  The fdk_z noise slowed the first iterations.  After 15
+iterations, its distance was 0.179, against 0.110 for fdk noise.  The 2D
+slice was slower throughout.  These results suggest that VCD removes the error at high
+spatial frequencies quickly and the error at low frequencies slowly
+**[inferred]**.  Noise correlated between slices has less power at high
+frequencies along the slice axis.  A 2D image has a larger share of its
+frequencies near zero than a 3D volume **[derived]**.
+
+This dependence explains why the plan reported slower convergence than the
+3D volume shows.  On the plan's 2D slice at \( r = 0.1 \), 15 iterations left
+the image 69.6 HU, or 0.38 \( \sigma_y \), from the MAP estimate.
+`experiments/plan_slice_check.py` reproduced 69.6 HU with the current code.
+
+The number of iterations should not depend on the size of the image
+**[inferred]**.  In units of \( \sigma_y \), the cost's second derivative is
+the identity plus the prior's second derivative.  The prior's second
+derivative is a weighted graph Laplacian.  The weight of each neighbor pair
+is \( \sigma_y^2 \rho''(\Delta) / 6 \), where \( \Delta \) is the pair's
+difference.  For \( p = 2 \) and \( 1 \le q < 2 \), \( \rho'' \) is largest
+at \( \Delta = 0 \), where it equals \( 1 / \sigma_x^2 \).  This was checked
+numerically.  So each weight is at most \( 1 / (6 r^2) \).  The eigenvalues
+of a graph Laplacian are at most twice the largest sum of weights at a
+voxel, and a voxel has at most 6 neighbors.  So the eigenvalues of the cost's
 second derivative lie between 1 and \( 1 + 2/r^2 \) for every image size
-**[derived]**.  So the iteration counts above should carry over to large
-volumes and to GPUs, where only the time per iteration changes.  The upper
-end of this range also explains why the iteration counts grow about as
-\( 1/r^2 \).
+**[derived]**.
+
+The slices agreed with this.  With the same layout of the array, the slices
+of 256 and 500 voxels on a side were 0.383 and 0.373 from the MAP estimate
+after 15 iterations.  So the iteration counts above should apply to larger
+images with the same noise and the same dimension.  Only the time per
+iteration should change.  The upper end \( 1 + 2/r^2 \) also explains why
+the iteration counts grow about as \( 1/r^2 \) **[inferred]**.  One
+iteration took 0.03 to 0.04 s for the 2.1 million voxels of the 3D volume on
+4 CPU threads.
 
 ## The callers of `denoise`
 
-Three kinds of callers use the denoiser, each with its own settings:
+Three kinds of callers use the denoiser.  Each kind has its own settings:
 
 | Caller | Iterations | Stop | Start of each call |
 |---|---|---|---|
-| `denoise` and `denoise_stack`, called directly, as in demo 9 | 15 | 0.2 percent | the input |
-| `QGGMRFDenoiserAgent` in `mace.py` | 8 | none | its previous output |
-| The stack denoisers of `MACE4DModel` | 15 | 0.05 percent | the input, or the previous output with `denoiser_warm_start` |
+| `denoise` and `denoise_stack`, called directly, as in demo 9 | 15 | percent-change rule at 0.2 | the noisy input |
+| `QGGMRFDenoiserAgent` in `mbirtorch/mace.py` | 8 | none | its previous output |
+| The stack denoisers of `MACE4DModel` | 15 | percent-change rule at 0.05 | the noisy input, or the previous output with `denoiser_warm_start` |
 
-**`QGGMRFDenoiserAgent`.**  With automatic parameters, the agent runs at
-\( r = 1 \), because `auto_set_sigma_x` and `auto_set_sigma_prox` apply the same
-formula to the same estimate.  On the MACE problem of `tests/test_mace.py`, 4
-inner iterations gave the same NRMSE as 32 to within 0.00003.  With
-`sigma_prox` multiplied by 5, the agent ran at \( r = 0.2 \).  There, 8 inner
-iterations reached each NRMSE target at the same MACE iteration as 32.  One
-inner iteration needed 46 MACE iterations to reach 0.01, against 28.  So the
-default of 8 is enough at both strengths.  An agent at \( r = 0.1 \) or below
-would need more **[inferred]**.
+**`QGGMRFDenoiserAgent`.**  The agent has no automatic parameters.  In
+`tests/test_mace.py`, the caller passes the model's automatic `sigma_prox`
+and `sigma_x`.  Then \( r = \sigma_x / \sigma_{prox} = 1 \), because
+`auto_set_sigma_x` and `auto_set_sigma_prox` apply the same formula to the
+same estimate.  On that problem, 8 inner iterations gave the same NRMSE as 32
+to within 0.00001 at MACE iterations 1, 10, 20, 40, and 60.  With
+`sigma_prox` multiplied by 5 in both agents, the denoiser agent ran at
+\( r = 0.2 \).  There, 8 inner iterations reached each NRMSE target at the
+same MACE iteration as 32.  Earlier in the run, the NRMSE with 8 was higher.
+At MACE iteration 10 it was 0.0585, against 0.0509 with 32.  One inner
+iteration needed 46 MACE iterations to reach 0.01, and 8 or more needed 28.
+These results indicate that the default of 8 is enough at both values of
+\( r \).  The standalone counts above are for calls that start from the
+noisy input, and they grow about as \( 1/r^2 \).  So an agent at
+\( r = 0.1 \) or below may need more than 8 inner iterations
+**[inferred]**.
 
-**The MACE4D stack denoisers.**  These run near \( r = 0.2 \).  Question 12 of
-`plans/mace4d/decisions.md` found that the current rule fires after two or
-three iterations of a warm-started call, whether or not the call has reached
-its solution.  The gradient statistic does not have this problem.  At the
-start of a warm-started call, it measures the distance from the previous
-output to the solution for the new input.  So a call continues until it is
-within the threshold of that solution, however small its steps are.  A call
-whose input barely changed stops after one iteration.
+**The MACE4D stack denoisers.**  With automatic parameters, MACE4D sets the
+\( \sigma_y \) of these denoisers to the noise estimate of the initial
+image.  It sets \( \sigma_x \) to 0.2 times a similar statistic.  So they
+run near \( r = 0.2 \) **[inferred]**.  Work on question 12 of
+`plans/mace4d/decisions.md` found that, with the denoiser warm start on, the
+percent-change rule at 0.2 stopped each call after two or three iterations.
+The calls stopped before they had finished.  The MACE4D plan then lowered the
+threshold to 0.05 as a stopgap.  Question 12 stays open until Stage 8
+measures it.  Its planned remedy is an inner tolerance that tightens with
+the outer loop.
+
+The gradient statistic does not depend on the warm start in this way.  At the
+start of a warm-started call, the exact gradient is an upper bound on the
+distance from the previous output to the MAP estimate for the new input
+**[derived]**.  So a call with a rule on the gradient statistic stops only
+when its distance to that MAP estimate is below the threshold
+**[measured]**.  The size of the call's steps does not matter.  A tolerance
+that tightens with the outer loop could be a threshold on the gradient
+statistic **[inferred]**.
 
 ## The automatic noise estimate
 
 `estimate_image_noise_std` takes the standard deviation of a voxel and its
-three backward neighbors, and averages it over a support of voxels above a
-threshold.  On white noise in a flat volume, this returns
-\( 0.798 \sigma \).  The factor comes from the four-value standard deviation
+three backward neighbors.  It averages this standard deviation over a
+support of voxels above a threshold.  On white noise in a flat volume, this
+returns \( 0.798 \sigma \).  The factor 0.798 comes from the standard
+deviation of four values, which divides by 4 and is biased low
 **[derived]**.
 
 | Volume | Noise | Estimate / \( \sigma \) at 20 HU | at 60 HU | at 182 HU |
@@ -207,44 +376,58 @@ threshold.  On white noise in a flat volume, this returns
 | phantom, air at -1000 | fdk | 1.635 | 0.869 | 0.770 |
 
 These results show three biases.  The estimate is low on flat images.  Edges
-raise it, more so at low noise.  The offset changes it, because the support's
-threshold depends on the mean absolute value.
+raise it, and they raise it more at low noise.  The offset changes it,
+because the support's threshold depends on the mean absolute value.
 
 The automatic \( \sigma_x \) is 0.2 times the same statistic, computed on
-about 20 rows.  So with `sigma_noise` given, the automatic \( r \) ranged from
-0.15 on the flat volumes to 0.83 on the phantom with air at -1000 and 20 HU of
-noise.  The automatic strength is therefore weak on images with strong edges
-and low noise.
+every 12th row of the 256 rows.  In that subsample, neighbors along the row
+axis are 12 voxels apart.  So edges raise the statistic of \( \sigma_x \)
+much more than they raise the noise estimate.  On the phantom with 20 HU of
+white noise, the statistic of \( \sigma_x \) was 3.33 times the true level,
+while the estimate was 1.23 times it.  With `sigma_noise` given, the
+automatic \( r \) ranged from 0.15 on the flat volumes to 0.83 on the
+phantom with air at -1000 and 20 HU of noise.  These results indicate that
+the automatic \( r \) is large, and the denoising weak, on images with strong
+edges and low noise.
 
 The bias matters for a call of `denoise(image)`.  On the fdk test volume,
 `denoise` estimated 131 HU for noise of 182 HU.  Its MAP estimate had an rms
 error of 73 HU over the flat region.  With `sigma_noise` = 182 and the
-automatic \( \sigma_x \), the error was 39 HU.
+automatic \( \sigma_x \), the error was 39 HU.  The same estimate sets the
+default noise level of the MACE4D denoisers.
 
 A robust alternative is the median absolute first difference, divided by
 \( 0.6745 \sqrt{2} \).  It returned 1.000 to 1.031 of the true level on white
-noise, on every volume and at every offset.  On fdk noise it returned 0.74 to
-0.77.  Any estimate from neighbor differences reads low on noise that is
+noise, on every volume and at both offsets.  On fdk noise it returned 0.74 to
+0.77.  Any estimate from neighbor differences is low on noise that is
 positively correlated between neighbors **[derived]**.  There are three
 options for the automatic estimate:
 
 1. Keep the estimate, and state its behavior in the docstring.
-2. Use the robust estimate for `sigma_noise` only.  On flat white noise this
-   raises \( \sigma_y \) by about 25%, which strengthens the default
-   denoising.
+2. Use the robust estimate for `sigma_noise` only.  Across the tested
+   volumes, this would multiply \( \sigma_y \) by 0.47 to 1.25, and the
+   automatic \( r \) by the inverse factor.
 3. Use the robust estimate for `sigma_noise`, and set the automatic
-   \( \sigma_x \) to a fixed ratio times it.  This removes the edge and offset
-   dependence of the automatic strength, and the ratio needs tuning.
+   \( \sigma_x \) to a fixed ratio times it.  This removes the dependence of
+   the automatic \( r \) on edges and on the offset.  The ratio needs tuning.
 
 ## Limits of this evidence
 
-- The convergence cases used one phantom of 2.1 million voxels and one
-  partition seed.
-- The MACE test used one 2D problem of 64 by 64 pixels.
-- Every run used the CPU.  The iteration counts should hold on a GPU, but
-  this was not tested.
-- The fdk noise is independent from slice to slice.  Real FDK noise is also
-  correlated between slices.
-- The test volume's flat-region error is not a measure of image quality
-  alone.  At \( r = 0.05 \), the iterates came closer to the clean volume than
-  the MAP estimate did, as `experiments/denoise_convergence.md` reports.
+- The convergence cases used one phantom and one partition seed.
+- The noise models are simple.  Most cases use fdk noise that is independent
+  from slice to slice, so the 3D volume converges faster than a real FDK
+  volume would **[inferred]**.  The fdk_z cases add one level of correlation
+  between slices.
+- The MACE test used one 2D problem of 64 by 64 by 1 voxels.
+- Every run used the CPU.  The iteration counts should be the same on a GPU,
+  but this was not tested.
+- `denoise` on several devices, `denoise_stack`, and the MACE4D stack
+  denoisers were not run.  They use the same VCD update, so their
+  convergence per iteration should be similar **[inferred]**.
+- Above about 17 million voxels, the noise estimate reads a subsample whose
+  neighbors are 2 or more voxels apart.  So its biases on large volumes may
+  differ from the table.
+- Distance to the MAP estimate is not the same as image quality.  At
+  \( r = 0.1 \) and below on the 3D volume, some iterates came closer to the
+  clean volume than the MAP estimate did, as
+  `experiments/denoise_convergence.md` reports.

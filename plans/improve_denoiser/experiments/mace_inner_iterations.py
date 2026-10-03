@@ -7,14 +7,17 @@ of the consensus average against a converged reconstruction after each MACE
 iteration.  The forward agent is held fixed: 3 inner iterations, with its
 warm start.
 
-With equal agent weights, the MACE solution minimizes the data term plus the
-prior, for any sigma_prox [derived].  So sigma_prox changes only how fast the
-loop converges, and the reconstruction is the reference for every case.  The
-denoiser agent's strength is r = sigma_x / sigma_prox.  With mbirtorch's
-automatic sigma_prox and sigma_x, r = 1, because both are 0.2 * 2^sharpness
+With equal agent weights and the same sigma_prox in both agents, the MACE
+solution minimizes the data term plus the prior, for any sigma_prox
+[derived].  So sigma_prox changes only how fast the loop converges, and the
+reconstruction is the reference for every case.  For the denoiser agent,
+sigma_prox takes the place of sigma_y, so its prior is set by the ratio
+r = sigma_x / sigma_prox.  The agent has no automatic parameters, so the
+script passes it the model's automatic sigma_prox and sigma_x, as
+tests/test_mace.py does.  Then r = 1, because both are 0.2 * 2^sharpness
 times the same estimate (tomography_model.py, auto_set_sigma_x and
-auto_set_sigma_prox).  PROX_SCALES multiplies sigma_prox, so a scale of 5
-runs the denoiser agent at r = 0.2, the strength the MACE4D denoisers use.
+auto_set_sigma_prox).  PROX_SCALES multiplies sigma_prox in both agents, so a
+scale of 5 runs the denoiser agent at r = 0.2.
 
 The problem is the 2D cone-beam scan of tests/test_mace.py: a Shepp-Logan
 phantom, 64 views, 64 detector channels, one detector row.

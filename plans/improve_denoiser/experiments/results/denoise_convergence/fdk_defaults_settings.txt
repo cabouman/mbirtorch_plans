@@ -1,5 +1,6 @@
 {
  "name": "fdk_defaults",
+ "volume": "3d",
  "noise": "fdk",
  "r_setting": "defaults",
  "shape": [

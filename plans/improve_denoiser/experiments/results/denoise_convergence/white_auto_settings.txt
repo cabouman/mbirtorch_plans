@@ -1,5 +1,6 @@
 {
  "name": "white_auto",
+ "volume": "3d",
  "noise": "white",
  "r_setting": "auto",
  "shape": [

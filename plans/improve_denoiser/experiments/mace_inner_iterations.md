@@ -8,25 +8,29 @@ percent change after each MACE iteration, one column per case) and
 
 ## Setup
 
-The problem is the one of `tests/test_mace.py`: a 2D cone-beam scan of a
-Shepp-Logan phantom with 64 views, 64 detector channels, and one detector
-row.  The image has 64 by 64 by 1 voxels.  MACE runs two agents with equal
+The problem is the one of `tests/test_mace.py` in the mbirtorch repository:
+a 2D cone-beam scan of a Shepp-Logan phantom with 64 views, 64 detector
+channels, and one detector row.  The image has 64 by 64 by 1 voxels.  MACE runs two agents with equal
 weights and \( \rho = 0.5 \).  The forward agent runs 3 VCD iterations per
 call with its warm start.  `QGGMRFDenoiserAgent` runs the count in the first
 column of the tables, starting from its previous output.  Every run starts
 from a 30-iteration reconstruction and runs 60 MACE iterations.
 
-With equal weights, the MACE solution minimizes the data term plus the prior,
-whatever `sigma_prox` is **[derived]**.  So a 400-iteration reconstruction is
-the reference for every run.  Its NRMSE against a 200-iteration
-reconstruction was \( 5 \times 10^{-5} \).
+With equal weights, and with the same `sigma_prox` in both agents, the MACE
+solution minimizes the data term plus the prior, whatever `sigma_prox` is
+**[derived]**.  So a 400-iteration reconstruction is the reference for every
+run.  Its NRMSE against a 200-iteration reconstruction was
+\( 5 \times 10^{-5} \).
 
-The denoiser agent's strength is \( r = \sigma_x / \sigma_{prox} \).  With
-mbirtorch's automatic parameters, `sigma_prox` and `sigma_x` were both 0.02208,
-so \( r = 1 \).  The two are equal because `auto_set_sigma_x` and
+For the denoiser agent, `sigma_prox` takes the place of \( \sigma_y \).  So
+the ratio that sets the agent's prior is \( r = \sigma_x / \sigma_{prox} \),
+and a smaller \( r \) gives a stronger prior.  The agent has no automatic
+parameters.  `tests/test_mace.py` passes it the model's automatic
+`sigma_prox` and `sigma_x`, and this script does the same.  Both were
+0.02208, so \( r = 1 \).  The two are equal because `auto_set_sigma_x` and
 `auto_set_sigma_prox` apply the same formula to the same estimate.  A second
-set of runs multiplies `sigma_prox` by 5, so that \( r = 0.2 \), near the
-strength of the MACE4D denoisers.
+set of runs multiplies `sigma_prox` by 5 in both agents, so that
+\( r = 0.2 \).
 
 ## Results
 
@@ -58,15 +62,20 @@ The first run includes the compilation of both agents, so its time and share,
 in parentheses, are not comparable with the others.
 
 These results indicate that the default of 8 inner iterations is enough on
-this problem at both strengths.  At \( r = 1 \), 4 iterations gave the same
-NRMSE as 32 to within 0.00003 at every reported iteration.  At \( r = 0.2 \),
-8 iterations reached each target at the same iteration as 32.  Fewer inner
-iterations slowed the loop: at \( r = 0.2 \), one inner iteration needed 46
-MACE iterations to reach 0.01, against 28.
+this problem at both values of \( r \).  At \( r = 1 \), 8 iterations gave
+the same NRMSE as 32 to within 0.00001 at MACE iterations 1, 10, 20, 40, and
+60.  4 iterations gave the same NRMSE as 32 to within 0.00003 at MACE
+iterations 10, 20, 40, and 60.  At \( r = 0.2 \), 8 iterations reached each target at
+the same MACE iteration as 32.  Earlier in the run, the NRMSE with 8 was
+higher.  At MACE iteration 10 it was 0.0585, against 0.0509 with 32.
 
-The test has two limits.  The image is a single 64 by 64 slice, so the
-denoiser's share of the time is small and dominated by the cost per call.
-And the two strengths bracket only part of the range.  From the standalone
-measurements in `denoise_convergence.md`, the iterations a cold start needs
-grow about as \( 1 / r^2 \), so an agent at \( r = 0.1 \) or below would need
-more than 8 **[inferred]**.
+Fewer inner iterations slowed the loop.  At \( r = 0.2 \), one inner
+iteration needed 46 MACE iterations to reach 0.01, and 8 or more needed 28.
+
+The test has two limits.  First, the image is a single slice of 64 by 64
+voxels.  So the denoiser's share of the time is small, and the fixed cost of
+each call dominates it.  Second, the two values of \( r \) cover only part of
+the range.  The standalone runs of `denoise_convergence.md` start from the
+noisy image, and their iteration counts grow about as \( 1 / r^2 \).  So an
+agent at \( r = 0.1 \) or below may need more than 8 inner iterations
+**[inferred]**.

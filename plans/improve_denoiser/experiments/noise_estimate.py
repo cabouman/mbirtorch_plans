@@ -16,6 +16,10 @@ support of voxels above 5% of the mean absolute value plus the estimate of a
 first pass.  For white noise in a flat region, the mean of this standard
 deviation is 0.798 sigma [derived: sqrt(3/4) times c4(4) = 0.9213].
 
+The automatic sigma_x is 0.2 times the same statistic, computed on every
+num_rows // 20-th row (subsample_views), which is every 12th row here.  In
+that subsample, neighbors along the row axis are 12 voxels apart.
+
 The volumes are made by phantom3d.make_phantom:
   flat          water at 1000 everywhere, so the volume has no edges
   phantom       air at 0, water at 1000, and six inserts

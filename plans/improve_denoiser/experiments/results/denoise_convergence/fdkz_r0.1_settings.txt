@@ -1,7 +1,7 @@
 {
- "name": "white_r0.1",
+ "name": "fdkz_r0.1",
  "volume": "3d",
- "noise": "white",
+ "noise": "fdk_z",
  "r_setting": 0.1,
  "shape": [
   256,
@@ -17,15 +17,15 @@
  "T": 1.0,
  "subsets": 16,
  "reference": {
-  "iterations": 113,
-  "evaluations": 122,
+  "iterations": 108,
+  "evaluations": 117,
   "message": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH",
-  "distance_bound": 4.211265700757919e-08,
-  "seconds": 71.69097757339478
+  "distance_bound": 6.03889655212009e-08,
+  "seconds": 70.4097216129303
  },
- "noisy_flat_noise": 1.0001405684001206,
- "map_flat_noise": 0.07671758493571763,
- "map_distance_from_noisy": 0.9828813117672448,
+ "noisy_flat_noise": 1.000340022737392,
+ "map_flat_noise": 0.1396259540379115,
+ "map_distance_from_noisy": 0.9122173340996027,
  "check_iterations": 15,
  "check_max_abs_difference": 0.0,
  "mbirtorch_version": "0.1.1",

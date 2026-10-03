@@ -1,31 +1,31 @@
 {
- "name": "fdk_auto",
- "volume": "3d",
+ "name": "slice_fdk_auto",
+ "volume": "slice",
  "noise": "fdk",
  "r_setting": "auto",
  "shape": [
   256,
   256,
-  32
+  1
  ],
  "sigma": 182.0,
  "sigma_y": 182.0,
- "sigma_x": 34.13017272949219,
- "r": 0.18752842159061642,
+ "sigma_x": 29.537437438964844,
+ "r": 0.16229361230200465,
  "p": 2.0,
  "q": 1.2,
  "T": 1.0,
  "subsets": 16,
  "reference": {
   "iterations": 55,
-  "evaluations": 63,
+  "evaluations": 62,
   "message": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH",
-  "distance_bound": 2.480685629008903e-08,
-  "seconds": 34.66657614707947
+  "distance_bound": 2.0138996162609376e-08,
+  "seconds": 3.7152316570281982
  },
- "noisy_flat_noise": 1.000861429713552,
- "map_flat_noise": 0.2125015209266182,
- "map_distance_from_noisy": 0.8217855724999631,
+ "noisy_flat_noise": 1.015300034278559,
+ "map_flat_noise": 0.39509307337147603,
+ "map_distance_from_noisy": 0.6898872634978725,
  "check_iterations": 15,
  "check_max_abs_difference": 0.0,
  "mbirtorch_version": "0.1.1",

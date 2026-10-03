@@ -15,14 +15,15 @@ three volumes of 256 by 256 by 32 voxels:
 - **phantom in HU**: the phantom minus 1000, so air is -1000 and water is 0.
 
 Each volume gets white noise or fdk noise, at 20, 60, or 182 HU per voxel.
-The fdk noise has a power that rises with frequency within each slice.  Its
-correlation between neighbors is 0.57 within a slice and 0 between slices.
+The fdk noise has the spectrum of an FDK image within each slice, as
+`phantom3d.py` describes.  Its correlation between neighbors is 0.57 within a
+slice and 0 between slices.
 
 The script also reports the automatic \( r = \sigma_x / \sigma_y \) in two
-ways: with `sigma_noise` set to the true level, and with `sigma_noise`
-estimated, as in a call of `denoise(image)`.  The last column is a robust
-candidate estimate: the median absolute first difference, pooled over the
-three axes and all voxels, divided by \( 0.6745 \sqrt{2} \).
+ways.  In the first, `sigma_noise` is set to the true level.  In the second,
+`sigma_noise` is estimated, as in a call of `denoise(image)`.  The last column
+is a robust candidate estimate: the median absolute first difference, pooled
+over the three axes and all voxels, divided by \( 0.6745 \sqrt{2} \).
 
 ## How the current estimate works
 
@@ -37,9 +38,20 @@ For white noise in a flat region, the mean of this standard deviation is
 \( c_4(4) = 0.9213 \), because the standard deviation divides by 4 and not
 by 3 **[derived; a simulation gave 0.7976]**.
 
-The automatic \( \sigma_x \) of the denoiser is 0.2 times the same statistic,
-computed on a subsample of about 20 rows (`auto_set_sigma_x`).  So the
-automatic \( \sigma_x \) follows the statistic's response to edges.
+The estimate reads at most about 5 million voxels, with the same stride along
+every axis.  The stride is 1 below about 17 million voxels, as for these
+volumes.  Above that size, neighbors in the subsample are 2 or more voxels
+apart, so the results below may not apply to large volumes **[inferred]**.
+
+The automatic \( \sigma_x \) of the denoiser is 0.2 times the same
+statistic, computed on every 12th row (`subsample_views`, called from
+`_settle_regularization`).  The stride is the number of rows divided by 20.
+In that subsample, neighbors along the row axis are 12 voxels apart.  So
+edges raise the statistic of the automatic \( \sigma_x \) much more than they
+raise the noise estimate.  On the phantom with 20 HU of white noise, the
+statistic of \( \sigma_x \) was 3.33 times the true level, while the estimate
+was 1.23 times it.  On the flat volume with fdk noise, the two were 0.755 and
+0.687 times the true level.
 
 ## Results
 
@@ -70,14 +82,16 @@ The current estimate has three biases:
    against 1.226 with air at 0.  The offset moves the support's threshold,
    which depends on the mean absolute value.
 
-The automatic \( r \) inherits these biases.  With \( \sigma \) given, it
-ranged from 0.15 on the flat volumes to 0.83 on the phantom in HU at 20 HU.
-So the automatic strength is weak on images with strong edges and low noise.
+With \( \sigma \) given, the automatic \( r \) ranged from 0.15 on the flat
+volumes to 0.83 on the phantom in HU at 20 HU.  These values follow the
+statistic of the automatic \( \sigma_x \), whose row neighbors are 12 voxels
+apart.  So on images with strong edges and low noise, the automatic \( r \)
+is large, and the denoising is weak.
 
 The candidate estimate was within 3.1% of the true level for white noise on
-every volume.  Edges changed it by at most 3.1%, and the offset did not change
-it.  For fdk noise
-it returned 0.74 to 0.77 of the true level.  Any estimate from neighbor
-differences reads low on noise that is positively correlated between
-neighbors **[derived]**.  So no estimate of this kind recovers the per-voxel
-level of fdk noise without a model of the correlation.
+every volume.  Edges changed it by at most 3.1%, and the offset did not
+change it.  For fdk noise it returned 0.74 to 0.77 of the true level.  Any
+estimate from neighbor differences is low on noise that is positively
+correlated between neighbors **[derived]**.  So no estimate of this kind
+recovers the per-voxel level of fdk noise without a model of the
+correlation.

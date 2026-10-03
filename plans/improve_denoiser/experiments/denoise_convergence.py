@@ -1,40 +1,44 @@
 """Convergence of QGGMRFDenoiser.denoise to the MAP estimate, and its stopping rules (step 4 of the plan).
 
-For each case in CASES, the script denoises the 3D test volume of
-phantom3d.py with the denoiser's own VCD update, one iteration at a time, and
-records after each iteration:
-  distance        rms distance to the MAP estimate
-  change          rms change of the image in this iteration
-  sweep_gradient  rms of the gradient of J at each pixel just before the
-                  pixel's update, over the iteration, times sigma_y
-  gradient_bound  rms of the gradient of J at the image after the
-                  iteration, times sigma_y.  Computed at the iterations in
-                  BOUND_ITERATIONS only, because it costs about 0.3 s.
-  nmae_pct        denoise's stopping statistic, 100 ||change||_1 / ||x||_1,
-                  for the volume with each offset in OFFSETS added
-  alpha           mean step size over the subsets
-  flat_noise      rms error against the clean volume over its flat region
-  seconds         time of the iteration's updates, without the statistics
-Every quantity but nmae_pct, alpha, and seconds is in units of sigma_y.
+For each case in CASES, the script denoises a test volume made by
+phantom3d.py with the denoiser's own VCD update, one iteration at a time.  The
+volume is the 3D test volume, or its middle slice as a 2D image ('slice').
+After each iteration the script records:
+  distance            rms distance to the MAP estimate
+  change              rms change of the image in this iteration
+  gradient_statistic  rms of the gradient of J at each voxel just before the
+                      voxel's update, over the iteration, times sigma_y
+  exact_gradient      rms of the gradient of J at the image after the
+                      iteration, times sigma_y.  Computed at the iterations
+                      in BOUND_ITERATIONS only, because it costs about 0.3 s.
+  percent_change      denoise's stopping statistic, 100 ||change||_1 / ||x||_1,
+                      for the volume with each offset in OFFSETS added
+  alpha               mean step size over the subsets
+  flat_noise          rms error against the clean volume over its flat region
+  seconds             time of the iteration's updates, without the statistics
+Every quantity but percent_change, alpha, and seconds is in units of sigma_y.
 
-The gradient times sigma_y bounds the distance.  In the unit of sigma_y, J is
-|z - v|^2 / 2 plus a convex prior, so J is 1-strongly convex, and the rms
-distance from any image to the minimizer is at most the rms of its gradient
-[derived].  gradient_bound is that bound at the image after the iteration.
-sweep_gradient is a statistic the VCD loop could compute at almost no cost,
-because each subset update already computes the gradient at its pixels.
+The exact gradient is an upper bound on the distance.  In the unit of
+sigma_y, J is |z - v|^2 / 2 plus a convex prior, so J is 1-strongly convex,
+and the rms distance from any image to the minimizer is at most the rms of
+its gradient [derived].  The gradient statistic is a statistic the VCD loop
+could compute with one more reduction per subset, because each subset update
+already computes the gradient at its voxels.
 
 The MAP estimate comes from qggmrf_map3d.solve, whose distance bound is
 recorded.  The loop is the one of denoise's single-device path, with the same
-pixel partition and the same compiled update.  The sweep gradient is computed
+pixel partition and the same compiled update.  The gradient statistic is computed
 by a second compiled function before each subset update, so the image follows
 denoise's path exactly.  A check confirms that the loop's image after
 CHECK_ITERATIONS iterations equals the output of denoise.
 
 The VCD update does not change when a constant is added to the noisy image,
 because it depends only on differences of neighbors and on y - x.  So adding
-an offset changes only ||x||_1 in the stopping statistic, and nmae_pct can be
-computed for each offset from one run [derived].
+an offset changes only ||x||_1 in the stopping statistic, and percent_change
+can be computed for each offset from one run [derived].  This holds with
+sigma_y and sigma_x fixed.  The automatic sigma_x and the estimate of sigma_y
+change with the offset, so the offset columns of the 'auto' and 'defaults'
+cases are not those of denoise(image + offset).
 
 Each case's record goes to results/denoise_convergence/<case>.csv, and the
 case's parameters go to <case>_settings.txt beside it, in JSON.  A case whose
@@ -66,13 +70,17 @@ from phantom3d import make_phantom  # noqa: E402
 # ---- Run parameters ----------------------------------------------------------
 SHAPE = (256, 256, 32)          # rows, columns, slices
 SIGMA = 182.0                   # noise per voxel of the test volume, in HU
-# Each case is (name, noise, r).  r = sigma_x / sigma_y pins the prior with
-# sigma_noise = SIGMA.  'auto' keeps sigma_noise = SIGMA and lets the denoiser
-# choose sigma_x.  'defaults' lets the denoiser estimate both, as a call of
-# denoise(image) does.
-CASES = [('fdk_r0.05', 'fdk', 0.05), ('fdk_r0.1', 'fdk', 0.1), ('fdk_r0.2', 'fdk', 0.2),
-         ('fdk_r0.4', 'fdk', 0.4), ('fdk_auto', 'fdk', 'auto'), ('fdk_defaults', 'fdk', 'defaults'),
-         ('white_r0.1', 'white', 0.1), ('white_auto', 'white', 'auto')]
+# Each case is (name, volume, noise, r).  volume is '3d' for the test volume
+# or 'slice' for its middle slice.  noise is a kind of phantom3d.py.
+# r = sigma_x / sigma_y sets sigma_x with sigma_noise = SIGMA.  'auto' keeps
+# sigma_noise = SIGMA and lets the denoiser choose sigma_x.  'defaults' lets
+# the denoiser estimate both, as a call of denoise(image) does.
+CASES = [('fdk_r0.05', '3d', 'fdk', 0.05), ('fdk_r0.1', '3d', 'fdk', 0.1), ('fdk_r0.2', '3d', 'fdk', 0.2),
+         ('fdk_r0.4', '3d', 'fdk', 0.4), ('fdk_auto', '3d', 'fdk', 'auto'),
+         ('fdk_defaults', '3d', 'fdk', 'defaults'), ('white_r0.1', '3d', 'white', 0.1),
+         ('white_auto', '3d', 'white', 'auto'), ('fdkz_r0.1', '3d', 'fdk_z', 0.1),
+         ('fdkz_auto', '3d', 'fdk_z', 'auto'), ('slice_fdk_r0.1', 'slice', 'fdk', 0.1),
+         ('slice_fdk_auto', 'slice', 'fdk', 'auto'), ('slice_white_r0.1', 'slice', 'white', 0.1)]
 MAX_ITERATIONS = 4000           # the loop stops here at the latest
 STOP_DISTANCE = 1e-4            # or when the distance falls below this, in units of sigma_y
 OFFSETS = (-1000.0, 0.0, 1000.0, 10000.0)   # added to the volume for the stopping statistic
@@ -83,7 +91,7 @@ RESULTS = HERE / 'results' / 'denoise_convergence'
 CACHE = Path(tempfile.gettempdir()) / 'improve_denoiser_cache'
 # The analysis reports the iteration at which each rule stops.
 DISTANCE_TARGETS = (0.3, 0.1, 0.03, 0.01, 0.003)
-NMAE_THRESHOLDS_PCT = (0.2, 0.05)
+PERCENT_CHANGE_THRESHOLDS = (0.2, 0.05)
 CHANGE_THRESHOLDS = (0.01, 0.003, 0.001)
 GRADIENT_THRESHOLDS = (0.03, 0.01)
 ESTIMATE_THRESHOLDS = (0.03, 0.01)
@@ -92,11 +100,21 @@ ESTIMATE_SPAN = 5               # iterations over which the contraction factor i
 
 def subset_gradient_squared(flat_image, flat_error_image, pixel_indices, fm_constant, qggmrf_params,
                             image_shape):
-    """The sum of the squared gradient of J over the pixels of one subset,
+    """The sum of the squared gradient of J over the voxels of one subset,
     computed as vcd_subset_denoiser computes the gradient's two terms."""
     prior_grad, _ = qggmrf.qggmrf_gradient_and_hessian_at_indices(
         flat_image, image_shape, pixel_indices, qggmrf_params)
     return torch.sum((prior_grad - fm_constant * flat_error_image[pixel_indices]) ** 2)
+
+
+def test_volume(volume, noise):
+    """Return (clean, noisy, flat) for a case: the test volume, or its middle
+    slice with a slice axis of length 1."""
+    clean, noisy, flat = make_phantom(SHAPE, noise=noise, sigma=SIGMA)
+    if volume == 'slice':
+        middle = slice(SHAPE[2] // 2, SHAPE[2] // 2 + 1)
+        clean, noisy, flat = clean[:, :, middle], noisy[:, :, middle], flat[:, :, middle]
+    return np.ascontiguousarray(clean), np.ascontiguousarray(noisy), np.ascontiguousarray(flat)
 
 
 def settle(noisy, r):
@@ -127,9 +145,10 @@ def map_estimate(name, noisy, sigma_y, sigma_x, p, q, T):
     return reference, info
 
 
-def run_case(name, noise, r):
+def run_case(name, volume, noise, r):
     """Run one case and write its record."""
-    clean, noisy, flat = make_phantom(SHAPE, noise=noise, sigma=SIGMA)
+    clean, noisy, flat = test_volume(volume, noise)
+    shape = noisy.shape
     denoiser, partition, sigma_y, sigma_x = settle(noisy, r)
     p, q, T = (float(v) for v in denoiser.get_params(['p', 'q', 'T']))
     print(f'{name}: sigma_y {sigma_y:.2f}, sigma_x {sigma_x:.3f}, r {sigma_x / sigma_y:.4f}, '
@@ -137,8 +156,8 @@ def run_case(name, noise, r):
     reference, info = map_estimate(name, noisy, sigma_y, sigma_x, p, q, T)
     print(f'  reference: {info}', flush=True)
 
-    num_slices = SHAPE[2]
-    num_voxels = int(np.prod(SHAPE))
+    num_slices = shape[2]
+    num_voxels = int(np.prod(shape))
     b = qggmrf.get_b_from_nbr_wts(denoiser.get_params('qggmrf_nbr_wts'))
     qggmrf_params = (b, sigma_x, p, q, T)
     noisy_t = torch.as_tensor(noisy, dtype=torch.float32)
@@ -164,16 +183,16 @@ def run_case(name, noise, r):
             seconds, ell1, alpha, squares = 0.0, 0.0, 0.0, 0.0
             for k in range(partition.shape[0]):
                 squares = squares + gradient_squared(flat_image, flat_error, partition[k], fm_constant_t,
-                                                     qggmrf_params_t, SHAPE)
+                                                     qggmrf_params_t, shape)
                 tick = time.time()
                 flat_image, flat_error, ell1_subset, alpha_subset = update(
-                    flat_image, flat_error, partition[k], fm_constant_t, qggmrf_params_t, SHAPE)
+                    flat_image, flat_error, partition[k], fm_constant_t, qggmrf_params_t, shape)
                 ell1, alpha = ell1 + ell1_subset, alpha + alpha_subset
                 seconds += time.time() - tick
             ell1 = float(ell1)
             image64 = flat_image.double()
             if iteration in BOUND_ITERATIONS:
-                _, gradient = qggmrf_map3d.cost_and_gradient(image64.reshape(SHAPE) / sigma_y, z_t,
+                _, gradient = qggmrf_map3d.cost_and_gradient(image64.reshape(shape) / sigma_y, z_t,
                                                              sigma_x / sigma_y, p, q, T)
                 bound = float(torch.sqrt(torch.mean(gradient ** 2)))
             else:
@@ -185,7 +204,7 @@ def run_case(name, noise, r):
                         + [float(alpha) / partition.shape[0], rms((image64 - clean_t)[flat_t]), seconds])
             previous.copy_(flat_image)
             if iteration == CHECK_ITERATIONS:
-                checked = flat_image.reshape(SHAPE).numpy().copy()
+                checked = flat_image.reshape(shape).numpy().copy()
             if rows[-1][1] < STOP_DISTANCE:
                 break
 
@@ -197,12 +216,13 @@ def run_case(name, noise, r):
     print(f'  {len(rows)} iterations, distance {rows[-1][1]:.2e}; largest difference from denoise '
           f'after {CHECK_ITERATIONS} iterations: {check}', flush=True)
 
-    columns = (['iteration', 'distance', 'change', 'sweep_gradient', 'gradient_bound']
-               + [f'nmae_pct_offset_{c:g}' for c in OFFSETS] + ['alpha', 'flat_noise', 'seconds'])
+    columns = (['iteration', 'distance', 'change', 'gradient_statistic', 'exact_gradient']
+               + [f'percent_change_offset_{c:g}' for c in OFFSETS] + ['alpha', 'flat_noise', 'seconds'])
     RESULTS.mkdir(parents=True, exist_ok=True)
     np.savetxt(RESULTS / f'{name}.csv', np.array(rows), delimiter=',', header=','.join(columns),
                comments='', fmt='%.6e')
-    settings = {'name': name, 'noise': noise, 'r_setting': r, 'shape': SHAPE, 'sigma': SIGMA,
+    settings = {'name': name, 'volume': volume, 'noise': noise, 'r_setting': r, 'shape': shape,
+                'sigma': SIGMA,
                 'sigma_y': sigma_y, 'sigma_x': sigma_x, 'r': sigma_x / sigma_y, 'p': p, 'q': q, 'T': T,
                 'subsets': int(partition.shape[0]), 'reference': info,
                 'noisy_flat_noise': float(np.sqrt(np.mean((noisy - clean)[flat] ** 2)) / sigma_y),
@@ -222,7 +242,7 @@ def first(mask):
 def analyze():
     """Print, for each case, the iterations needed to reach each distance, and
     where each stopping rule stops."""
-    for name, _, _ in CASES:
+    for name, _, _, _ in CASES:
         path = RESULTS / f'{name}.csv'
         if not path.exists():
             continue
@@ -250,14 +270,14 @@ def analyze():
                 print(f'  {label}: does not stop')
             else:
                 print(f'  {label}: stops at {int(iteration[k])}, distance {distance[k]:.4f}')
-        for threshold in NMAE_THRESHOLDS_PCT:
+        for threshold in PERCENT_CHANGE_THRESHOLDS:
             for c in OFFSETS:
-                report(f'nmae < {threshold}% at offset {c:g}',
-                       first(data[f'nmae_pct_offset_{c:g}'] < threshold))
+                report(f'percent change < {threshold} at offset {c:g}',
+                       first(data[f'percent_change_offset_{c:g}'] < threshold))
         for threshold in CHANGE_THRESHOLDS:
             report(f'change < {threshold}', first(change < threshold))
         for threshold in GRADIENT_THRESHOLDS:
-            report(f'sweep gradient < {threshold}', first(data['sweep_gradient'] < threshold))
+            report(f'gradient statistic < {threshold}', first(data['gradient_statistic'] < threshold))
         # The contraction factor f over the last ESTIMATE_SPAN iterations
         # estimates the remaining distance as change f / (1 - f).
         span = ESTIMATE_SPAN
@@ -269,8 +289,8 @@ def analyze():
         # How well each statistic tracks the distance, from iteration 10 on.
         late = iteration >= 10
         for label, statistic in (('change', change), ('estimated distance', estimate),
-                                 ('sweep gradient', data['sweep_gradient']),
-                                 ('gradient bound', data['gradient_bound'])):
+                                 ('gradient statistic', data['gradient_statistic']),
+                                 ('exact gradient', data['exact_gradient'])):
             valid = late & np.isfinite(statistic)
             ratio = statistic[valid] / distance[valid]
             print(f'  {label} / distance from iteration 10: median {np.median(ratio):.3f}, '
@@ -279,9 +299,9 @@ def analyze():
 
 def main():
     torch.manual_seed(0)
-    for name, noise, r in CASES:
+    for name, volume, noise, r in CASES:
         if not (RESULTS / f'{name}.csv').exists():
-            run_case(name, noise, r)
+            run_case(name, volume, noise, r)
     analyze()
 
 
