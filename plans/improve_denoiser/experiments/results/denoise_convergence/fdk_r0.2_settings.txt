@@ -1,0 +1,32 @@
+{
+ "name": "fdk_r0.2",
+ "noise": "fdk",
+ "r_setting": 0.2,
+ "shape": [
+  256,
+  256,
+  32
+ ],
+ "sigma": 182.0,
+ "sigma_y": 182.0,
+ "sigma_x": 36.4,
+ "r": 0.19999999999999998,
+ "p": 2.0,
+ "q": 1.2,
+ "T": 1.0,
+ "subsets": 16,
+ "reference": {
+  "iterations": 51,
+  "evaluations": 60,
+  "message": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH",
+  "distance_bound": 4.295223179344608e-08,
+  "seconds": 32.98737406730652
+ },
+ "noisy_flat_noise": 1.000861429713552,
+ "map_flat_noise": 0.23512074419037093,
+ "map_distance_from_noisy": 0.7996142782366793,
+ "check_iterations": 15,
+ "check_max_abs_difference": 0.0,
+ "mbirtorch_version": "0.1.1",
+ "torch_threads": 4
+}
