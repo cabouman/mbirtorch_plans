@@ -11,7 +11,8 @@ this script does four things.
 2. It computes the exact gradient of the cost at the MAP estimate, after the
    last update.  In units of sigma_y, its rms is an upper bound on the
    remaining distance from the true minimizer.
-3. It reports the distance of the call's output from the MAP estimate.
+3. It reports the distance of the call's output from the MAP estimate, as an
+   rms over the volume and as the largest difference at one voxel.
 4. It runs the denoiser again from the call's start, the input or the warm
    start, one iteration at a time up to TRAJECTORY_ITERATIONS, with the call's
    own partition.  After each iteration it records the distance, the percent
@@ -19,8 +20,10 @@ this script does four things.
    each rule in RULES stops, how far from the MAP estimate it stops, and how
    many iterations reach each distance in TARGETS.
 
-Every distance is an rms over the volume, in units of sigma_y.  The trajectory
-uses the patched library's solver.  For a sample of a run of that solver
+Every distance is in units of sigma_y.  max_distance_call and
+replay_difference are the largest absolute difference at one voxel, and the
+other distances are rms values over the volume.  The trajectory uses the
+patched library's solver.  For a sample of a run of that solver
 (versions B, C, and D), the trajectory after the call's iteration count
 reproduces the call's output, and replay_difference checks this.  For a sample
 of version A, replay_difference is the difference between the old and the new
@@ -272,6 +275,7 @@ def main():
                                        if meta.get('gradient_statistic') else ''),
                    distance_start=float(np.sqrt(np.mean((start.astype(np.float64) - ref) ** 2))) / sigma,
                    distance_call=float(np.sqrt(np.mean((x.astype(np.float64) - ref) ** 2))) / sigma,
+                   max_distance_call=float(np.max(np.abs(x.astype(np.float64) - ref))) / sigma,
                    replay_difference=float(np.max(np.abs(replayed - x))) / sigma,
                    reference_iterations=ref_iterations, reference_statistic=ref_statistic,
                    reference_exact_gradient=ref_exact, seconds=round(time.time() - tick, 1))
@@ -284,7 +288,8 @@ def main():
             row[f'{name}_distance'] = distance
         summary_rows.append(row)
         print('   ', {k: (round(v, 4) if isinstance(v, float) else v) for k, v in row.items()
-                     if k.startswith(('distance', 'replay', 'iterations_to', 'percent', 'gradient', 'seconds'))},
+                     if k.startswith(('distance', 'max_distance', 'replay', 'iterations_to', 'percent', 'gradient',
+                                      'seconds'))},
               flush=True)
         for step, (distance, percent, gradient) in enumerate(rows, start=1):
             trajectory_rows.append(dict(label=meta['label'], iteration=meta['iteration'],

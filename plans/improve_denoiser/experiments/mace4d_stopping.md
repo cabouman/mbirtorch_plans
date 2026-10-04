@@ -1,6 +1,7 @@
 # GPU test of the denoiser's stopping rule in MACE4D
 
-Status: set up 2026-10-04.  The runs wait for an allocation on gautschi.
+Status: set up 2026-10-04.  The stage `smoke` passed on one A100 of gilbreth
+on 2026-10-04.  The runs wait for an allocation on gautschi.
 
 Greg asked on 2026-10-04 for timing and results on GPUs and real data before
 he chooses the stopping rule of `findings/step4_stopping_rule.md`.  This record
@@ -83,7 +84,8 @@ difference of adjacent voxels divided by \( 0.6745 \sqrt{2} \).
   keeps a few sampled calls.
 - `robust_sigma.py` computes option 2's noise level and three related values.
 - `frame_check.py` runs `denoise` on one frame of the initial image, on one
-  GPU, for versions A to D.
+  GPU, for versions A to D.  Its version D uses the noise level of the MACE4D
+  run D.
 - `mace4d_calls.py` computes the MAP estimate of each sampled call and the
   distance of the call's output from it.  It runs one process per GPU.
 - `mace4d_compare.py` compares the runs: time, iteration counts, final

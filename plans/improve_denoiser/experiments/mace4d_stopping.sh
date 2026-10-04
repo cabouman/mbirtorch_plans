@@ -11,7 +11,7 @@
 #   sigma     option 2's noise level from the initial image
 #   A B C D   the MACE4D runs of versions A to D (mace4d_stopping.md); D needs sigma
 #   Bw Cw     versions B and C with the denoiser warm start on
-#   frame     denoise on one frame of the initial image, for A to D, on one GPU
+#   frame     denoise on one frame of the initial image, for A to D, on one GPU; D needs sigma
 #   calls     the distance of the sampled calls from their MAP estimates, one
 #             process per GPU
 #   compare   the comparison of the runs
@@ -153,7 +153,7 @@ smoke)
     mace Cw C "$SMOKE/Cw" "$SMOKE/init" "${small[@]}" --rule gradient --denoiser_warm_start
     py A frame_check.py --init "$SMOKE/init/init_recon.npy" --out_dir "$SMOKE/frame" --label A
     py C frame_check.py --init "$SMOKE/init/init_recon.npy" --out_dir "$SMOKE/frame" --label D \
-        --rule gradient --sigma_noise robust
+        --rule gradient --sigma_noise "$(sigma_of "$SMOKE/init")"
     calls "$SMOKE/calls" "$SMOKE/calls_cache" "$SMOKE/A" "$SMOKE/C" "$SMOKE/Cw" "$SMOKE/frame"
     py C mace4d_compare.py --runs A="$SMOKE/A" B="$SMOKE/B" C="$SMOKE/C" D="$SMOKE/D" Cw="$SMOKE/Cw" \
         --baseline B --out "$SMOKE/compare"
@@ -172,7 +172,7 @@ frame)
     py B frame_check.py --init "$INIT" --out_dir "$RUNS/frame" --label B
     py C frame_check.py --init "$INIT" --out_dir "$RUNS/frame" --label C --rule gradient
     py C frame_check.py --init "$INIT" --out_dir "$RUNS/frame" --label D --rule gradient \
-        --sigma_noise robust
+        --sigma_noise "$(sigma_of "$RUNS/init")"
     ;;
 calls)
     runs=()

@@ -12,9 +12,8 @@ With --rule library, denoise keeps its defaults: at most 15 iterations, and a
 stop at a change of 0.2 percent.  With --rule gradient, it stops on the
 gradient statistic at --gradient_threshold, with a cap of
 --max_iterations, which needs the patched library (gradient_rule.patch).
---sigma_noise robust sets the noise level to option 2's estimate from the
-frame: the median absolute difference of adjacent voxels divided by
-0.6745 sqrt(2), as in robust_sigma.py.
+--sigma_noise sets the noise level.  For version D, the stage script passes
+option 2's estimate from robust_sigma.json, the value that MACE4D run D uses.
 
 The output is written as a sample in the format of mace4d_stopping.py, so that
 mace4d_calls.py computes its distance from the MAP estimate:
@@ -39,7 +38,6 @@ import mbirtorch as mt
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mace4d_stopping import check_library, json_value, library_state  # noqa: E402
-from robust_sigma import MAD_TO_SIGMA, median_absolute_difference  # noqa: E402
 
 SEED = 0
 
@@ -59,7 +57,7 @@ def main():
     parser.add_argument('--gradient_threshold', type=float, default=0.01)
     parser.add_argument('--max_iterations', type=int, default=None,
                         help='Defaults to 15 for the library rule and 200 for the gradient rule.')
-    parser.add_argument('--sigma_noise', default=None, help="A value, 'robust', or omitted for automatic.")
+    parser.add_argument('--sigma_noise', type=float, default=None, help='Omitted for automatic.')
     parser.add_argument('--device', default='cuda:0')
     args = parser.parse_args()
 
@@ -69,12 +67,6 @@ def main():
     init = np.load(args.init, mmap_mode='r')
     frame_index = init.shape[0] // 2 if args.frame is None else args.frame
     frame = np.array(init[frame_index], dtype=np.float32)
-    if args.sigma_noise is None:
-        sigma_noise = None
-    elif args.sigma_noise == 'robust':
-        sigma_noise = median_absolute_difference([frame]) * MAD_TO_SIGMA
-    else:
-        sigma_noise = float(args.sigma_noise)
 
     denoiser = mt.QGGMRFDenoiser(frame.shape)
     denoiser.configure_devices(devices=[args.device])
@@ -83,7 +75,7 @@ def main():
     np.random.seed(SEED)              # the partition is drawn from the global state
     synchronize(args.device)
     tick = time.time()
-    denoiser.initialize_denoiser(image=frame, sigma_noise=sigma_noise)
+    denoiser.initialize_denoiser(image=frame, sigma_noise=args.sigma_noise)
     synchronize(args.device)
     init_seconds = time.time() - tick
     partition = denoiser.denoise_data['partition']
@@ -122,7 +114,7 @@ def main():
     np.savez(os.path.join(args.out_dir, 'samples', f'frame_{args.label}.npz'), meta=json.dumps(meta),
              input=frame, output=output, partition=partition.cpu().numpy().astype(np.int64))
     record = dict(label=args.label, library=state, init=args.init, frame=frame_index, shape=list(frame.shape),
-                  device=args.device, sigma_noise_setting=args.sigma_noise, sigma_noise=sigma_noise,
+                  device=args.device, sigma_noise=args.sigma_noise,
                   sigma_y=params['sigma_y'], sigma_x=params['sigma_x'],
                   r=params['sigma_x'] / params['sigma_y'], rule=args.rule, max_iterations=max_iterations,
                   iterations=iterations, init_seconds=init_seconds, compile_seconds=compile_seconds,
