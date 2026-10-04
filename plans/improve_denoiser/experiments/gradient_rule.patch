@@ -1,0 +1,291 @@
+diff --git a/mbirtorch/denoising.py b/mbirtorch/denoising.py
+index 0594122..33ff3f2 100644
+--- a/mbirtorch/denoising.py
++++ b/mbirtorch/denoising.py
+@@ -110,11 +110,15 @@ def vcd_subset_denoiser(flat_image, flat_error_image, pixel_indices,
+                         fm_constant, qggmrf_params, image_shape):
+     """One VCD subset update for the identity forward model (the analog of
+     vcd_subset_updater).  Mutates both state tensors in place and returns
+-    (flat_image, flat_error_image, ell1, alpha)."""
++    (flat_image, flat_error_image, ell1, alpha, grad_sq).
++
++    ``grad_sq`` is the sum, over the voxels of the subset, of the squared
++    gradient of the cost at each voxel just before its update."""
+     prior_grad, prior_hess = _qggmrf.qggmrf_gradient_and_hessian_at_indices(
+         flat_image, image_shape, pixel_indices, qggmrf_params)
+ 
+     cur_error_image = flat_error_image[pixel_indices]
++    grad_sq = torch.sum((prior_grad - fm_constant * cur_error_image) ** 2)
+     delta_recon_at_indices = _identity_update_direction(
+         cur_error_image, fm_constant, prior_grad, prior_hess)
+ 
+@@ -141,7 +145,7 @@ def vcd_subset_denoiser(flat_image, flat_error_image, pixel_indices,
+     cur_error_image = cur_error_image - alpha * delta_sinogram
+     flat_error_image.index_copy_(0, pixel_indices, cur_error_image)
+     ell1_for_subset = torch.sum(torch.abs(delta_recon_at_indices))
+-    return flat_image, flat_error_image, ell1_for_subset, alpha
++    return flat_image, flat_error_image, ell1_for_subset, alpha, grad_sq
+ 
+ 
+ def vcd_subset_denoiser_batched(flat_image, flat_error_image, pixel_indices,
+@@ -158,14 +162,17 @@ def vcd_subset_denoiser_batched(flat_image, flat_error_image, pixel_indices,
+     num_slices), are mutated in place.
+ 
+     Returns:
+-        (flat_image, flat_error_image, ell1, alpha): the two state tensors,
+-        the ell-1 norm of each volume's step, shape (num_volumes,), and the
+-        step size of each volume, shape (num_volumes,).
++        (flat_image, flat_error_image, ell1, alpha, grad_sq): the two state
++        tensors, the ell-1 norm of each volume's step, shape (num_volumes,),
++        the step size of each volume, shape (num_volumes,), and the sum over
++        the subset's voxels of the squared gradient of the cost, taken
++        before the update, shape (num_volumes,).
+     """
+     prior_grad, prior_hess = _qggmrf.qggmrf_gradient_and_hessian_batched(
+         flat_image, image_shape, pixel_indices, qggmrf_params)
+ 
+     cur_error_image = flat_error_image[:, pixel_indices]
++    grad_sq = torch.sum((prior_grad - fm_constant * cur_error_image) ** 2, dim=(1, 2))
+     delta_recon_at_indices = _identity_update_direction(
+         cur_error_image, fm_constant, prior_grad, prior_hess)
+ 
+@@ -193,7 +200,7 @@ def vcd_subset_denoiser_batched(flat_image, flat_error_image, pixel_indices,
+     cur_error_image = cur_error_image - delta_scaled
+     flat_error_image.index_copy_(1, pixel_indices, cur_error_image)
+     ell1_for_subset = torch.sum(torch.abs(delta_scaled), dim=(1, 2))
+-    return flat_image, flat_error_image, ell1_for_subset, alpha
++    return flat_image, flat_error_image, ell1_for_subset, alpha, grad_sq
+ 
+ 
+ def _is_stack(image):
+@@ -638,7 +645,8 @@ class QGGMRFDenoiser(TomographyModel):
+     def denoise(self, image, sigma_noise=None, use_ror_mask=None, init_image=None,
+                 max_iterations=15, stop_threshold_change_pct=0.2, first_iteration=0,
+                 logfile_path='~/.mbirtorch/logs/recon.log', print_logs=True,
+-                output_sharded=False, do_initialization=True):
++                output_sharded=False, do_initialization=True,
++                stop_threshold_gradient=None):
+         """
+         Compute the MAP denoiser assuming AWGN and the 3D qGGMRF prior.
+ 
+@@ -674,6 +682,13 @@ class QGGMRFDenoiser(TomographyModel):
+                 100 * ||delta||_1 / ||image||_1 drops below this.  0 guarantees
+                 exactly max_iterations.
+             first_iteration (int, optional): iteration label offset for logs.
++            stop_threshold_gradient (float, optional): when set, it replaces
++                ``stop_threshold_change_pct``.  The sweep stops when sigma_y
++                times the rms gradient of the cost falls below this value.
++                The gradient at each voxel is taken just before the voxel's
++                update, during the sweep.  In units of sigma_y, the rms
++                gradient is an upper bound on the rms distance to the MAP
++                estimate.  Only the single-device sweep supports it.
+             logfile_path (str, optional): Path to the output log file ('~' expands to the
+                 user's home directory).  If None or empty, no log file is written.
+                 Defaults to '~/.mbirtorch/logs/recon.log'.
+@@ -724,9 +739,13 @@ class QGGMRFDenoiser(TomographyModel):
+ 
+         image_t = self._shard_recon(image)
+         init_t = image_t if init_image is None else self._shard_recon(init_image)
++        gradient_values = np.full(max_iters, np.nan)
+ 
+         self.logger.info('Starting VCD iterations')
+         if isinstance(image_t, _sharding.Shards):
++            if stop_threshold_gradient is not None:
++                raise NotImplementedError(
++                    'stop_threshold_gradient is supported on one device only.')
+             flat_image, nmae_update, alpha_values, num_iters = self._denoise_sharded(
+                 image_t, init_t, partition, fm_constant, qggmrf_params,
+                 tuple(image_shape), max_iters, stop_thresh, first_iteration, verbose)
+@@ -743,16 +762,21 @@ class QGGMRFDenoiser(TomographyModel):
+             nmae_update = np.zeros(max_iters)
+             alpha_values = np.zeros(max_iters)
+             num_iters = 0
++            # The rms of the gradient is taken over the voxel updates of one
++            # iteration.
++            num_updates = int(partition.numel()) * int(image_shape[2])
+             with torch.no_grad():
+                 for i in range(max_iters):
+                     ell1_accum = 0.0
+                     alpha_accum = 0.0
++                    grad_sq_accum = 0.0
+                     for k in range(partition.shape[0]):
+-                        flat_image, flat_error_image, ell1_subset, alpha_subset = \
++                        flat_image, flat_error_image, ell1_subset, alpha_subset, grad_sq_subset = \
+                             subset_denoiser(flat_image, flat_error_image, partition[k],
+                                             fm_constant, qggmrf_params, tuple(image_shape))
+                         ell1_accum = ell1_accum + ell1_subset
+                         alpha_accum = alpha_accum + alpha_subset
++                        grad_sq_accum = grad_sq_accum + grad_sq_subset
+ 
+                     # A zero image gives nan rather than raising
+                     # ZeroDivisionError.
+@@ -761,11 +785,19 @@ class QGGMRFDenoiser(TomographyModel):
+                             else float('nan'))
+                     nmae_update[i] = nmae
+                     alpha_values[i] = float(alpha_accum) / partition.shape[0]
++                    # sigma_y times the rms gradient, and fm_constant is 1 / sigma_y^2.
++                    gradient = float(np.sqrt(float(grad_sq_accum) / (num_updates * fm_constant)))
++                    gradient_values[i] = gradient
+                     num_iters += 1
+                     if verbose >= 1 and (i % 5) == 0:
+-                        self.logger.info('After iteration {} of a max of {}: Pct change={:.4f}'
+-                                         .format(i + first_iteration, max_iters, 100 * nmae))
+-                    if nmae < stop_thresh:
++                        self.logger.info('After iteration {} of a max of {}: Pct change={:.4f}, '
++                                         'gradient statistic={:.4g}'
++                                         .format(i + first_iteration, max_iters, 100 * nmae,
++                                                 gradient))
++                    if stop_threshold_gradient is None:
++                        if nmae < stop_thresh:
++                            break
++                    elif gradient < stop_threshold_gradient:
+                         break
+             denoised = flat_image.reshape(tuple(image_shape))
+ 
+@@ -780,6 +812,7 @@ class QGGMRFDenoiser(TomographyModel):
+         self.close_log_file()
+         notes = 'Reconstruction completed: {}\n\n'.format(datetime.datetime.now())
+         denoiser_dict = self.get_recon_dict(recon_params, notes=notes)
++        denoiser_dict['gradient_statistic'] = [float(v) for v in gradient_values[:num_iters]]
+         return (denoised if output_sharded else self._gather_recon(denoised)), denoiser_dict
+ 
+     def _denoise_sharded(self, image_sh, init_sh, partition, fm_constant,
+@@ -1058,7 +1091,7 @@ class QGGMRFDenoiser(TomographyModel):
+     def denoise_stack(self, stack, sigma_noise=None, init_stack=None,
+                       max_iterations=15, stop_threshold_change_pct=0.2,
+                       batch_size=None, overwrite_input=False,
+-                      do_initialization=True):
++                      do_initialization=True, stop_threshold_gradient=None):
+         """
+         Denoise a stack of same-shaped volumes with shared parameters, each
+         volume as :meth:`denoise` would denoise it alone.
+@@ -1122,6 +1155,10 @@ class QGGMRFDenoiser(TomographyModel):
+                 reuses what a previous call or a direct call to
+                 :meth:`initialize_denoiser` settled, so that every call is the
+                 same operator.  Defaults to True.
++            stop_threshold_gradient (float, optional): when set, it replaces
++                ``stop_threshold_change_pct``.  A volume stops when sigma_y
++                times the rms gradient of its cost falls below this value, as
++                in :meth:`denoise`.
+ 
+         Returns:
+             (denoised_stack, info): the denoised volumes, numpy for numpy input
+@@ -1130,6 +1167,8 @@ class QGGMRFDenoiser(TomographyModel):
+             it; and a dict
+             with 'num_iterations' (one count per volume), 'nmae_pct' (one list
+             per volume holding the percent change at each of its iterations),
++            'gradient_statistic' (one list per volume holding sigma_y times
++            the rms gradient at each of its iterations),
+             'regularization_params', and 'batch_size'.
+ 
+         Raises:
+@@ -1236,6 +1275,7 @@ class QGGMRFDenoiser(TomographyModel):
+ 
+         num_iterations = np.zeros(num_volumes, dtype=int)
+         nmae_pct = [[] for _ in range(num_volumes)]
++        gradient_statistic = [[] for _ in range(num_volumes)]
+         with torch.no_grad():
+             for b0 in range(0, num_volumes, batch_size):
+                 b1 = min(b0 + batch_size, num_volumes)
+@@ -1262,10 +1302,10 @@ class QGGMRFDenoiser(TomographyModel):
+                 # The residual carries the data term, so the input is not
+                 # read again.
+                 del flat
+-                counts, history = self._sweep_stack(
++                counts, history, gradients = self._sweep_stack(
+                     flat_image, flat_error_image, partition, fm_constant,
+                     qggmrf_params, image_shape, max_iterations, stop_thresh,
+-                    subset_denoiser)
++                    subset_denoiser, stop_threshold_gradient)
+                 real = b1 - b0
+                 result = flat_image[:real].reshape((real,) + image_shape)
+                 if single:
+@@ -1276,6 +1316,7 @@ class QGGMRFDenoiser(TomographyModel):
+                     out[b0:b1] = result.cpu().numpy()
+                 num_iterations[b0:b1] = counts[:real]
+                 nmae_pct[b0:b1] = history[:real]
++                gradient_statistic[b0:b1] = gradients[:real]
+ 
+         if verbose >= 1:
+             self.logger.info(
+@@ -1283,6 +1324,7 @@ class QGGMRFDenoiser(TomographyModel):
+                 'volume.'.format(num_volumes, batch_size,
+                                  int(num_iterations.min()), int(num_iterations.max())))
+         info = dict(num_iterations=num_iterations, nmae_pct=nmae_pct,
++                    gradient_statistic=gradient_statistic,
+                     regularization_params=regularization_params,
+                     batch_size=batch_size)
+         return out, info
+@@ -1290,18 +1332,20 @@ class QGGMRFDenoiser(TomographyModel):
+     @staticmethod
+     def _sweep_stack(flat_image, flat_error_image, partition, fm_constant,
+                      qggmrf_params, image_shape, max_iters, stop_thresh,
+-                     subset_denoiser):
++                     subset_denoiser, stop_gradient=None):
+         """Run the batched sweep in place on one batch of flat volumes.
+ 
+         Each volume runs until its own change falls below ``stop_thresh`` or
+-        until ``max_iters``.  A volume that has stopped keeps its place in
+-        the batch and takes a step of zero.  The loop ends when no volume is
+-        active.
++        until ``max_iters``.  When ``stop_gradient`` is set, a volume runs
++        instead until sigma_y times its rms gradient falls below it.  A volume
++        that has stopped keeps its place in the batch and takes a step of
++        zero.  The loop ends when no volume is active.
+ 
+         Returns:
+-            (num_iterations, nmae_pct): the iteration count of each volume,
+-            and one list per volume of the percent change at each of its
+-            iterations.
++            (num_iterations, nmae_pct, gradient_statistic): the iteration
++            count of each volume, one list per volume of the percent change
++            at each of its iterations, and one list per volume of sigma_y
++            times its rms gradient at each of its iterations.
+         """
+         num_vols = int(flat_image.shape[0])
+         device = flat_image.device
+@@ -1309,27 +1353,38 @@ class QGGMRFDenoiser(TomographyModel):
+         active = torch.ones(num_vols, dtype=torch.bool, device=device)
+         counts = np.zeros(num_vols, dtype=int)
+         history = [[] for _ in range(num_vols)]
++        gradients = [[] for _ in range(num_vols)]
++        # The rms of the gradient is taken over the voxel updates of one
++        # iteration, and fm_constant is 1 / sigma_y^2.
++        num_updates = int(partition.numel()) * int(image_shape[2])
+         for i in range(max_iters):
+             ell1_accum = torch.zeros(num_vols, dtype=flat_image.dtype, device=device)
++            grad_sq_accum = torch.zeros(num_vols, dtype=flat_image.dtype, device=device)
+             for k in range(partition.shape[0]):
+-                flat_image, flat_error_image, ell1_subset, _alpha = subset_denoiser(
+-                    flat_image, flat_error_image, partition[k], fm_constant,
+-                    qggmrf_params, tuple(image_shape), active)
++                flat_image, flat_error_image, ell1_subset, _alpha, grad_sq_subset = \
++                    subset_denoiser(flat_image, flat_error_image, partition[k], fm_constant,
++                                    qggmrf_params, tuple(image_shape), active)
+                 ell1_accum = ell1_accum + ell1_subset
++                grad_sq_accum = grad_sq_accum + grad_sq_subset
+             # The stopping test needs Python numbers, so there is one host read per
+             # iteration.  The ratio is formed in float64, and a zero volume gives nan.
+-            stats = torch.stack([ell1_accum, stack_ell1(flat_image)])
++            stats = torch.stack([ell1_accum, stack_ell1(flat_image), grad_sq_accum])
+             stats = stats.cpu().numpy().astype(np.float64)
+             with np.errstate(divide='ignore', invalid='ignore'):
+                 nmae = stats[0] / stats[1]
++            gradient = np.sqrt(stats[2] / (num_updates * float(fm_constant)))
+             for j in np.flatnonzero(active_host):
+                 history[j].append(100.0 * float(nmae[j]))
++                gradients[j].append(float(gradient[j]))
+                 counts[j] = i + 1
+-            active_host &= ~(nmae < stop_thresh)
++            if stop_gradient is None:
++                active_host &= ~(nmae < stop_thresh)
++            else:
++                active_host &= ~(gradient < stop_gradient)
+             if not active_host.any():
+                 break
+             active = torch.tensor(active_host, device=device)
+-        return counts, history
++        return counts, history, gradients
+ 
+ 
+ def median_filter3d(x, max_block_gb=4.0, return_min_max=False):
