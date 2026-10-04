@@ -18,7 +18,7 @@ Reads the run folders of mace4d_stopping.py and writes:
                             absolute value
   slices.png                the middle frame's middle slice along each spatial
                             axis, for every run, and each run's difference
-                            from the baseline run
+                            from the baseline run, on a color scale per run
 
 Run with numpy and matplotlib:
     python mace4d_compare.py --runs A=<dir> B=<dir> ... --baseline B --out <dir>
@@ -142,13 +142,10 @@ def slices(labels, runs, baseline, path):
     base = cuts(images[baseline])
     vmax = float(np.percentile(np.concatenate([c.ravel() for c in base]), 99.5))
     fig, axes = plt.subplots(2 * len(labels), 3, figsize=(12, 4.2 * len(labels)), squeeze=False)
-    spread = 0.0
     planes = {label: cuts(images[label]) for label in labels}
-    for label in labels:
-        spread = max(spread, max(float(np.percentile(np.abs(c - b), 99.5))
-                                 for c, b in zip(planes[label], base)))
-    spread = spread or 1.0
     for i, label in enumerate(labels):
+        # Each run's differences have their own color scale, which the titles state.
+        spread = max(float(np.percentile(np.abs(c - b), 99.5)) for c, b in zip(planes[label], base)) or 1.0
         for j, (cut, ref) in enumerate(zip(planes[label], base)):
             axes[2 * i, j].imshow(cut.T, cmap='gray', vmin=0, vmax=vmax, origin='lower')
             axes[2 * i, j].set_title(f'{label}, frame {t}, axis {j + 1} middle')
