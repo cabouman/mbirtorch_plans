@@ -22,12 +22,13 @@
 #   core_from <stage>, extra_from <stage>
 #             the stages of core or of extra from <stage> on, to resume after a failure
 # The composite stages stop at the first stage that fails.  The setup of $ROOT
-# (src, plans, wt_A, wt_B, venv_A, venv_B) is in mace4d_stopping.md.
+# (src, plans, wt_A, wt_B, venv_A, venv_B) is in mace4d_stopping.md.  On another
+# cluster, set DENOISER_STOP_ROOT to the folder that holds that setup.
 
 set -eo pipefail
 STAGE=${1:?give a stage}
 
-ROOT=/scratch/gautschi/buzzard/denoiser_stop
+ROOT=${DENOISER_STOP_ROOT:-/scratch/gautschi/buzzard/denoiser_stop}
 EXP=$ROOT/plans/plans/improve_denoiser/experiments
 DATA=/depot/bouman/data/Lilly/4DCT/Phantom_30s_Run1_Dec2024/
 RUNS=$ROOT/runs

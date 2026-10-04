@@ -108,7 +108,9 @@ items:
   scripts stop when mbirtorch is not imported from the expected worktree.
 
 The stages run inside an allocation, except `setup_c`, which runs on the
-login node.  From the login node, in the folder above, the command is:
+login node.  On another cluster, the same layout goes in another folder,
+which the environment variable `DENOISER_STOP_ROOT` names.  From the login
+node, in the folder above, the command is:
 
     srun --jobid=<job> --overlap -N 1 -n 1 --cpus-per-task=56 --gpus=4 \
         bash plans/plans/improve_denoiser/experiments/mace4d_stopping.sh <stage> < /dev/null
