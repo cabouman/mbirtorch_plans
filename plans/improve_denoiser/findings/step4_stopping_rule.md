@@ -192,8 +192,10 @@ inherits the three biases.
    Two cheaper options were not tested in full.  At the automatic \( r \) of
    0.10, a threshold of 0.03 would have stopped the sampled calls after 67
    to 85 iterations instead of 111 to 138.  They would have stopped 0.017 to
-   0.019 from their MAP estimates.  The effect of this threshold on the
-   final image was not measured.  The remedy that question 12 of
+   0.019 from their MAP estimates.  From the timing of the runs with the
+   gradient rule, the wall time would rise by about 12% instead of 21%
+   **[inferred]**.  The effect of this threshold on the final image was not
+   measured.  The remedy that question 12 of
    `plans/mace4d/decisions.md` planned, a tolerance that tightens with the
    outer loop, was not tested either.  In MACE4D, \( \sigma_y \) is a
    parameter of the denoiser's strength, not the measured noise of its
@@ -495,7 +497,8 @@ MACE4D's outer loop.  A **call** is the denoising of one volume.  MACE4D
 denoises its volumes in batches, and each volume of a batch stops on its
 own.
 
-The six versions differ in one setting at a time:
+Every version uses the VCD solver.  The six versions differ in one setting
+at a time:
 - A: the `prerelease` branch, without the scaling fix of PR #14, with
   MACE4D's rule.
 - B: the `greg_dev` branch, with the scaling fix and MACE4D's rule.

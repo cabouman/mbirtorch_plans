@@ -13,9 +13,10 @@ robust estimate.
 
 ## Versions
 
-Every version is one MACE4D reconstruction.  The versions differ in the
-library, in the denoiser's stopping rule, in the denoisers' noise level, or in
-the denoiser warm start.
+Every version is one MACE4D reconstruction, and every version uses the VCD
+solver of the denoiser.  The versions differ in the library, in the
+denoiser's stopping rule, in the denoisers' noise level, or in the denoiser
+warm start.
 
 | Version | mbirtorch | Denoiser stopping rule | Noise level of the denoisers | Warm start |
 |---|---|---|---|---|
@@ -237,6 +238,15 @@ Both are summed over the GPUs.  For B's 15 iterations, the line predicts
 adds little or no time per iteration **[inferred]**.  The line rests on two
 points, and B lies outside them.  The one-frame check tests the claim
 again.
+
+The same line gives an estimate for a threshold of 0.03.  The replay of the
+sampled calls of C shows that 0.03 would stop each call after 60% to 66% of
+the iterations that 0.01 needs.  The mean over all calls would then be about
+67 iterations.  At 67 iterations, the line gives a denoiser time of 140 s per
+MACE iteration, 69 s more than that of B.  Divided among the 4 GPUs, this
+adds 17 s to each of the 10 MACE iterations.  So the wall time would be
+about 12% above that of B **[inferred]**.  The same calculation for C gives
+a wall time 1% above the measured one.
 
 The warm start raised the peak allocated memory from 7.59 GB to 9.36 GB per
 GPU.  It also added 13 s to the denoiser time of each MACE iteration in run
