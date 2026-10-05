@@ -14,8 +14,7 @@ in `tex_output/`.  The deck reads its figures from `images/`.
 `make_figures.py` writes the four charts as PDF into `images/` from numbers
 in the records it names, copies two images from their sources, and draws the
 fusion image from the cluster's slice arrays.  The repository ignores PNG
-files, so the two copied images live only in the working tree; the fusion
-image is committed, because its source is on the cluster:
+files, so the three PNG images live only in the working tree:
 
 | image | source |
 |---|---|
@@ -27,7 +26,8 @@ image is committed, because its source is on the cluster:
 | `quality_nrmse_vs_time_512.png` | `surveys/leap_comparison/experiments/results/` |
 | `ornl_fusion_zoom.png` | written by `make_figures.py <path>` from the slice arrays `/scratch/gautschi/buzzard/leap_ornl/out/msf/ornl_sigma002_slices.npz` on gautschi (keys `standard`, `postproc`, `fusion`), from the run `surveys/leap_comparison/experiments/ornl/msf_ornl.md` records; a 240-voxel window at the top edge of the part |
 
-To redraw the fusion image, copy the `.npz` file from the cluster to the Mac
-and pass its path as the script's one argument.  Without the argument the
-script writes or copies the other six images and leaves the committed fusion
-image as it is.
+The fusion image shows a real scan, so it was removed from this public
+repository on 2026-10-05.  To draw it, copy the `.npz` file from the cluster
+to the Mac and pass its path as the script's one argument.  Without the
+argument, the script writes or copies the other six images and leaves any
+fusion image in `images/` as it is.
