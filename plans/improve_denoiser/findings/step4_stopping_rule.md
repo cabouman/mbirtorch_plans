@@ -256,9 +256,9 @@ estimate uses at most about five million pairs.  On a 4-core CPU, it took
 **The solver.**  Step 5 of the plan evaluates a faster solver than VCD.
 Greg agreed that this step can wait.
 
-**The implementation.**  In the mbirtorch repository, PR #15 merged into
-`greg_dev` on 2026-10-05.  PR #17 into `greg_dev` implements the stopping rule
-and the noise estimate.  It has run on CPU only.
+**The implementation.**  In the mbirtorch repository, PR #15 and PR #17
+merged into `greg_dev` on 2026-10-05.  PR #17 implements the stopping rule
+and the noise estimate.  Its tests ran on CPU only.
 
 ## Why the exact gradient is an upper bound on the distance
 
