@@ -11,6 +11,3 @@ tex_output/
 
 # The chart PDFs that make_figures.py writes are kept; they are the deck's figures.
 !images/*.pdf
-
-# The fusion image is committed: its source is on the cluster.
-!images/ornl_fusion_zoom.png
