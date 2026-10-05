@@ -23,10 +23,10 @@ and `experiments/noise_estimate.md`.  These measurements ran on CPU on
 compiles the denoiser update once for all noise levels.
 
 The record of the GPU test is `experiments/mace4d_stopping.md`.  The test
-ran on 2026-10-04 on 4 H100s of gautschi.  It used `greg_dev` at 5f62506,
-with and without a patch that adds the gradient rule, and the `prerelease`
-branch.  Paths that start with `mbirtorch/` or `tests/` are in the mbirtorch
-repository.
+ran on 2026-10-04 on 4 H100s of gautschi.  It used two branches, `greg_dev`
+at 5f62506 and `prerelease`.  Some runs added a patch with the gradient rule
+to `greg_dev`.  Paths that start with `mbirtorch/` or `tests/` are in the
+mbirtorch repository.
 
 ## Terms
 
@@ -44,7 +44,8 @@ The page uses these terms:
   VCD iteration updates every voxel once, one subset of voxels at a time, with
   16 subsets by default.
 - **distance**: the rms difference between an image and the MAP estimate, in
-  units of \( \sigma_y \).
+  units of \( \sigma_y \).  The **largest distance** is the largest absolute
+  difference at one voxel, in the same units.
 - **change**: the rms change of the image in one iteration, in units of
   \( \sigma_y \).
 - **exact gradient**: \( \sigma_y \) times the rms gradient of the cost at
@@ -62,7 +63,8 @@ The page uses these terms:
   iterations, as `MACE4DModel` sets it for its stack denoisers.
 - **gradient rule**: a rule that stops when the gradient statistic falls
   below a threshold.
-- **warm start**: a call of the denoiser that starts from its previous output
+- **warm start**: the MACE4D option `denoiser_warm_start`.  With it, each
+  call of a stack denoiser starts from the denoiser's previous output
   instead of its input.
 - **fdk noise**: noise with the spectrum of an FDK image within each slice,
   and independent from slice to slice.  **fdk_z noise** is fdk noise with a
@@ -76,10 +78,10 @@ that the measurements suggest but did not test.
 
 ## Summary
 
-The current defaults stopped close to the MAP estimate in only one setting.
-On the 3D test volume, with noise independent between slices and \( r \)
-from 0.19 to 0.4, they stopped 0.01 to 0.04 from the MAP estimate.  In every
-other case tested, they stopped farther away:
+On the CPU, the current defaults stopped close to the MAP estimate in only
+one setting.  On the 3D test volume, with noise independent between slices
+and \( r \) from 0.19 to 0.4, they stopped 0.01 to 0.04 from the MAP
+estimate.  In every other case tested, they stopped farther away:
 
 - With fdk_z noise, at the automatic \( r \) of 0.17, they stopped 0.07 away.
 - On a 2D slice, at the automatic \( r \) of 0.16, they stopped 0.17 away.
@@ -95,9 +97,9 @@ removes the dependence on the offset.  It does not remove the dependence on
 about as \( 1 / r^2 \).  So a fixed threshold on the change stops farther
 from the MAP estimate as \( r \) falls.
 
-A rule on the gradient statistic stopped every case at nearly the same
-distance.  In units of \( \sigma_y \), the exact gradient is an upper bound
-on the distance **[derived]**.  The gradient statistic was at least 1.27
+The gradient rule stopped every case at nearly the same distance.  In units
+of \( \sigma_y \), the exact gradient is an upper bound on the distance
+**[derived]**.  The gradient statistic was at least 1.27
 times the distance at every iteration of every case **[measured]**.  The VCD
 sweep could compute the gradient statistic with one more sum per subset.  Its
 cost was not timed on the CPU.  With a threshold of 0.01, all 13 cases
@@ -106,13 +108,13 @@ iterations then ranged from 9 at \( r = 0.4 \) to 515 at \( r = 0.05 \).
 
 The GPU test found the same behavior inside MACE4D on a real 4D scan.
 Without the warm start, MACE4D's rule stopped every call at its cap of 15
-iterations, 0.08 to 0.17 from the MAP estimate.  The gradient rule at 0.01
-stopped every sampled call 0.0052 to 0.0063 from it.  The gradient rule
-raised the wall time of MACE4D by 21%, and it changed the final image by
-5.8%.  With the gradient rule, the
-denoiser warm start changed the final image by 0.6%, against 9.7% with
-MACE4D's rule.  The gradient statistic added little or no time per
-iteration **[inferred]**.
+iterations.  The sampled calls then stood 0.08 to 0.17 from their MAP
+estimates.  The gradient rule at 0.01 stopped every sampled call 0.0052 to
+0.0063 from its MAP estimate.  At the automatic \( r \) of 0.10, the
+gradient rule raised the wall time of MACE4D by 21%, and it changed the
+final image by 5.8%.  With the gradient rule, the denoiser warm start
+changed the final image by 0.6%, against 9.7% with MACE4D's rule.  The
+gradient statistic added little or no time per iteration **[inferred]**.
 
 The number of iterations needed depends on \( r \), on the noise, and on
 whether the image is 2D or 3D.  At \( r = 0.1 \), the 2D slice needed 131
@@ -135,12 +137,12 @@ inherits the three biases.
 
 ## Decisions for Greg
 
-1. **Replace the percent-change rule with a rule on the gradient
-   statistic.**  The change would apply to the three code paths that run the
-   VCD loop: `denoise` on one device, `denoise` on several devices, and
-   `denoise_stack`.  The parameter `stop_threshold_change_pct` would need a
-   new name, such as `stop_threshold`, because its unit changes from percent
-   to \( \sigma_y \).  A threshold of 0 would still run exactly
+1. **Replace the percent-change rule with the gradient rule.**  The change
+   would apply to the three code paths that run the VCD loop: `denoise` on
+   one device, `denoise` on several devices, and `denoise_stack`.  The
+   parameter `stop_threshold_change_pct` would need a new name, such as
+   `stop_threshold`, because its unit changes from percent to
+   \( \sigma_y \).  A threshold of 0 would still run exactly
    `max_iterations`.  Two callers in the package pass the old parameter.
    MACE4D passes 0.05, and the MACE denoiser agent passes 0.  I propose to
    update both, and to make the old name raise an error that names the new
@@ -151,35 +153,64 @@ inherits the three biases.
    distance was less than a tenth of the MAP estimate's own rms error over
    the flat region of the test volume.  At the automatic \( r \) of the test
    images, the rule ran 18 to 64 iterations, against at most 15 today.  At
-   \( r = 0.1 \), it ran 104 to 151 iterations.  The cap of 200 is enough
-   for \( r \ge 0.1 \) in every case tested.  At \( r = 0.05 \), the cap
-   would stop the loop 0.04 from the MAP estimate.  A log line would report
-   each call that reaches `max_iterations`.  On one frame of the real scan,
-   49 million voxels on one H100, the rule ran 8 more iterations than the
-   current defaults.  These iterations took about 0.06 s, against 8 to 16 s
-   for the compilation before the first call.
+   \( r = 0.1 \), it ran 104 to 151 iterations.  The cap of 200 was enough
+   for \( r \ge 0.1 \) in every tested call that started from its input.
+   With the MACE4D warm start, most calls of the second MACE iteration
+   reached the cap, as the section on the GPU test reports.  At
+   \( r = 0.05 \), the cap would stop the loop 0.04 from the MAP estimate.
+   A log line would report each call that reaches `max_iterations`.  One
+   frame of the real scan has 49 million voxels.  On one H100, the rule ran
+   8 more iterations on it than the current defaults, and these iterations
+   took 0.03 s.  The compilation before the first call took 8 to 16 s.
 3. **Use the gradient rule in MACE4D.**  I propose that the stack denoisers
-   of `MACE4DModel` use the gradient rule with the same defaults, 0.01 and
-   200 iterations.  The denoiser warm start would stay off by default.  In
-   the GPU test, the rule brought every sampled call to within 0.0063 of its
-   MAP estimate.  It also made the final image nearly independent of the
-   warm start.  It raised the wall time by 21% at the automatic noise level,
-   and it changed the final image by 5.8%.  The scan has no reference image,
-   so the test cannot say whether the new image is closer to the object.
-   The test made the measurement that question 12 of
-   `plans/mace4d/decisions.md` planned for Stage 8.  Question 12 describes a
-   threshold whose meaning changes when the warm start is on.  The threshold
-   of the gradient rule has the same meaning with the warm start on or off.
+   of `MACE4DModel` use the gradient rule at 0.01, with a cap of 200, and
+   that the denoiser warm start stay off by default.  The GPU test gives two
+   reasons:
+   - With the gradient rule, every sampled call stopped within 0.0063 of
+     its MAP estimate.  With MACE4D's rule, every call stopped at the cap,
+     and the sampled calls were 0.08 to 0.17 away.
+   - The final image no longer depended on the warm start.  The warm start
+     changed it by 0.63% with the gradient rule, against 9.7% with MACE4D's
+     rule.
+
+   The test also found three costs and unknowns:
+   - The wall time rose by 21% at the automatic \( r \) of 0.10.  The
+     denoiser time rose by a factor of 2.8, and the prox time did not
+     change.  So the increase of the wall time depends on the ratio of the
+     two, which differs from scan to scan **[inferred]**.  At
+     \( r = 0.157 \), the increase was 5.5%, so the cost also depends on
+     decision 4.
+   - The final image changed by 5.8%.  It became smoother along axis 3, the
+     axis of 728 voxels, and between frames.  It became rougher along the
+     other two axes.  If the automatic \( \sigma_x \) was tuned while the
+     denoisers stopped at 15 iterations, it may need new tuning
+     **[inferred]**.  The scan has no reference image, so the test cannot
+     say whether the new image is closer to the object.
+   - MACE did not converge in 10 iterations.  So the difference between the
+     consensus equilibria with the two rules is not known.
+
+   Two cheaper options were not tested in full.  At the automatic \( r \) of
+   0.10, a threshold of 0.03 would have stopped the sampled calls after 67
+   to 85 iterations instead of 111 to 138.  They would have stopped 0.017 to
+   0.019 from their MAP estimates.  The effect of this threshold on the
+   final image was not measured.  The remedy that question 12 of
+   `plans/mace4d/decisions.md` planned, a tolerance that tightens with the
+   outer loop, was not tested either.  In MACE4D, \( \sigma_y \) is a
+   parameter of the denoiser's strength, not the measured noise of its
+   input.  So the reason given in decision 2 for 0.01 does not apply there
+   directly **[inferred]**.
 4. **The automatic noise estimate.**  I propose no change in this step.  Any
    fix to the estimate would change the default \( r \), because the
    automatic \( \sigma_x \) comes from the same statistic.  The estimate also
    sets the default noise level of the MACE4D denoisers.  So a fix needs its
    own measurement of image quality.  The options are at the end of the
    section on the noise estimate.  The GPU test adds two facts.  On the real
-   scan, the automatic estimate was 1.66 times the robust estimate of option
-   2.  With option 2's noise level, the gradient rule raised the wall time of
-   MACE4D by 5.5% instead of 21%.  The final image then differed by 2.2% from
-   the image with MACE4D's rule and the automatic noise level.
+   scan, the automatic estimate was 1.66 times option 2's noise level.  With
+   option 2's noise level, the gradient rule raised the wall time of MACE4D
+   by 5.5% instead of 21%, because \( r \) was larger.  The final image then
+   differed by 6.6% from the image with the automatic noise level.  So
+   option 2 gives a different image, not a cheaper way to reach the same
+   image.
 
 A rule that needs no new statistic is an alternative to decision 1.  It
 estimates the remaining distance from the factor by which the change shrinks
@@ -380,19 +411,21 @@ of `plans/mace4d/decisions.md` found that, with the denoiser warm start on,
 the percent-change rule at 0.2 stopped each call after two or three
 iterations.  The calls stopped before they had finished.  The MACE4D plan
 then lowered the threshold to 0.05 as a stopgap.  Question 12 planned a
-measurement in Stage 8, which the GPU test made.  Its planned remedy is an
-inner tolerance that tightens with the outer loop.
+measurement for a later stage of the MACE4D plan, and the GPU test made that
+measurement.  Question 12's planned remedy is an inner tolerance that
+tightens with the outer loop.
 
 The gradient statistic does not depend on the warm start in this way.  At the
 start of a warm-started call, the exact gradient is an upper bound on the
 distance from the previous output to the MAP estimate for the new input
-**[derived]**.  So a call with a rule on the gradient statistic stops only
-when its distance to that MAP estimate is below the threshold
-**[measured]**.  The size of the call's steps does not matter.  In the GPU
-test, the warm-started calls with the gradient rule stopped at the same
-distances as the calls that started from their input.  A tolerance that
-tightens with the outer loop could be a threshold on the gradient statistic
-**[inferred]**.
+**[derived]**.  So a call with the gradient rule stops only when its
+distance to that MAP estimate is below the threshold **[measured]**.  The
+size of the call's steps does not matter.  In the GPU test, the 6 sampled
+warm-started calls of MACE iterations 5 and 10 stopped 0.0061 to 0.0063 from
+their MAP estimates.  The calls that started from their input stopped 0.0055
+to 0.0063 away.  At MACE iteration 2, though, most warm-started calls reached
+the cap of 200 before the threshold.  A tolerance that tightens with the
+outer loop could be a threshold on the gradient statistic **[inferred]**.
 
 ## The automatic noise estimate
 
@@ -457,6 +490,11 @@ the Lilly 4DCT phantom scan on 4 H100s.  The scan has 99 frames of 260 by
 image.  The record is `experiments/mace4d_stopping.md`, and the tables are
 in `experiments/results/mace4d_stopping/`.
 
+This section uses two more terms.  A **MACE iteration** is one iteration of
+MACE4D's outer loop.  A **call** is the denoising of one volume.  MACE4D
+denoises its volumes in batches, and each volume of a batch stops on its
+own.
+
 The six versions differ in one setting at a time:
 - A: the `prerelease` branch, without the scaling fix of PR #14, with
   MACE4D's rule.
@@ -467,10 +505,11 @@ The six versions differ in one setting at a time:
 
 In the table, the iterations per call are a mean over MACE iterations 2 to
 10.  Each run sampled 9 calls, at MACE iterations 1, 5, and 10.  The
-distance at the stop is the range over these calls.  The last column is the
-rms difference between the run's final image and B's, divided by the rms of
-a final image.  The rms of every final image was 0.0097 to 0.0099, so the
-choice of image changes the ratio by less than 2%.
+distance at the stop is the range over these calls.  The wall time covers
+the whole reconstruction.  The last column is the rms difference between
+the run's final image and B's, divided by the rms of a final image.  The rms
+of every final image was 0.0097 to 0.0099, so the choice of image changes
+the ratio by less than 2%.
 
 | Version | \( r \) | Iterations per call | Distance at the stop | Wall time (s) | Wall time relative to B | Difference of the final image from B |
 |---|---:|---:|---|---:|---:|---:|
@@ -482,62 +521,84 @@ choice of image changes the ratio by less than 2%.
 | Cw | 0.102 | 109 | 0.0055 to 0.0063 | 1790 | +26.2% | 6.2% |
 
 MACE4D's rule never stopped a call of A or B before its cap.  After 15
-iterations, the sampled calls were 0.08 to 0.17 from their MAP estimates,
-and up to 7.5 away at the worst voxel.  The gradient rule brought every
-sampled call of C to 0.0055 to 0.0063 from its MAP estimate.  At the
-automatic \( r \) of 0.10, it needed a mean of 106 iterations per call, and
-it raised the wall time by 21%.  The number of iterations grew about as
-\( 1/r^2 \), as on the CPU.  At \( r = 0.157 \), with option 2's noise
-level, the rule needed 44 iterations, and the wall time rose by 5.5%.
+iterations, the sampled calls were 0.08 to 0.17 from their MAP estimates.
+Their largest distance was up to 7.5.
+
+The gradient rule brought every sampled call of C to 0.0055 to 0.0063 from
+its MAP estimate.  At the automatic \( r \) of 0.10, it needed a mean of 106
+iterations per call, and it raised the wall time by 21%.  The denoiser time
+rose by a factor of 2.8, and the prox time did not change.  So the increase
+of the wall time depends on the ratio of the two, which differs from scan
+to scan **[inferred]**.  At \( r = 0.157 \), with option 2's noise level, the
+rule needed 44 iterations, and the wall time rose by 5.5%.  These counts are
+consistent with growth as \( 1/r^2 \), as on the CPU.
 
 The gradient statistic added little or no time per iteration
-**[inferred]**.  A line through the denoiser times of C and D predicts 67 s
-per MACE iteration for B's 15 iterations, and B took 71 s.  B does not
-compute the statistic.  On one frame denoised alone, an iteration of C took
-7.3 ms, and an iteration of B took 9.5 ms.
+**[inferred]**.  B does not compute the statistic, and C and D do.  A line
+through the denoiser times of C and D predicts 67 s per MACE iteration for
+B's 15 iterations, and B took 71 s.  On one frame denoised alone, a line
+through the sweep times of C and D predicts 114.5 ms for B, and B took
+113.5 ms.
 
-The scaling fix did not change the time or the final image of MACE4D.  On
-one frame denoised alone, at \( r = 0.25 \), it mattered.  Without the fix,
-the output was 10.2 from the MAP estimate at its worst voxel.  With the fix,
-it was 0.30 away.
+The scaling fix changed the wall time of MACE4D by 1.3% and its final image
+by 0.074%.  On one frame denoised alone, at \( r = 0.25 \), the fix
+mattered.  Without the fix, the largest distance was 10.2.  With the fix, it
+was 0.30.  On that frame, the current defaults stopped 0.019 from the MAP
+estimate, close to the CPU results at a similar \( r \).
 
-The gradient rule changed the final image more than the last MACE iteration
-did.  C differed from B by 5.8%, and the last MACE iteration of B changed
-the image by 1.15%.  The largest value in the final image fell by 24%, from
-0.257 in B to 0.195 in C.  The test has no reference image, so it cannot say
-which image is closer to the object.
+The gradient rule changed the final image by 5.8%.  The last MACE iteration
+of B changed the image by 1.15%.  The image became smoother along axis 3,
+the axis of 728 voxels, and between frames.  The adjacent-voxel statistic of
+option 2 fell by 20% along axis 3 and by 12% between frames.  It rose by 3%
+to 7.5% along the other two axes.  The test has no reference image, so it
+cannot say which image is closer to the object.
+
+No run had converged after 10 MACE iterations.  In the last MACE iteration
+of B, the change of the image shrank by 11%.  If it kept shrinking at that
+rate, the remaining changes of B would add up to about 10% **[inferred]**.
+So the difference between the consensus equilibria of B and C is not known.
 
 The gradient rule made the final image nearly independent of the warm
 start.  With MACE4D's rule, the warm start changed the final image by 9.7%.
-With the gradient rule, it changed the final image by 0.63%.  The warm start
-did not save time with the gradient rule.  At MACE iteration 2, most
-warm-started calls ran to the cap of 200.  Over the 10 MACE iterations, Cw
-took 4.5% longer than C.
+With the gradient rule, it changed the final image by 0.63%.
 
-With the warm start, the percent-change rule at 0.2 would have stopped 4 of
-the 6 sampled calls of Bw at MACE iterations 5 and 10 after 1 to 9
+The warm start did not save time with the gradient rule.  At MACE iteration
+2, 914 of the 1248 warm-started calls reached the cap of 200.  Their
+gradient statistic was then at a median of 0.012.  Over the 10 MACE
+iterations, Cw took 4.5% longer than C.
+
+With MACE4D's rule, the warm start makes the percent-change rule at 0.2
+stop calls early.  Bw had 6 sampled calls at MACE iterations 5 and 10.  The
+percent-change rule at 0.2 would have stopped 4 of them after 1 to 9
 iterations.  Question 12 of `plans/mace4d/decisions.md` describes this
-behavior.
+behavior.  It also plans a measurement of each setting's distance from a
+converged reference, per call and in the final result.  The test made that
+measurement, with run C as the reference for the final result.  The final
+image of B was 5.8% from that of C, Bw 6.8%, and Cw 0.63%.
 
 Option 2's noise level was 0.00362, and the automatic estimate was 0.00599.
-So on this scan, the automatic estimate was 1.66 times the robust one.  On
-this volume, the automatic estimate compares voxels 10 apart, because the
-volume is large.  The section on the noise estimate shows that edges raise
-such an estimate.  It also shows that noise correlated between neighbors
-lowers the robust estimate.  So the test does not show which estimate is
-closer to the true noise level.
+So on this scan, the automatic estimate was 1.66 times option 2's noise
+level.  With option 2's noise level, the final image differed from C's by
+6.6%.  So option 2 gives a different image, not a cheaper way to reach C's
+image.  On this volume, the automatic estimate compares voxels 10 apart,
+because the volume is large.  The section on the noise estimate shows that
+edges raise such an estimate.  It also shows that noise correlated between
+neighbors lowers option 2's estimate.  So the test does not show which
+estimate is closer to the true noise level.
 
 ## Limits of this evidence
 
 - The convergence cases used one phantom and one partition seed.
 - The noise models are simple.  Most cases use fdk noise that is independent
-  from slice to slice, so the 3D volume converges faster than a real FDK
-  volume would **[inferred]**.  The fdk_z cases add one level of correlation
-  between slices.
+  from slice to slice.  The fdk_z cases add one level of correlation between
+  slices.  On one real FDK frame at \( r = 0.25 \), the current defaults
+  needed 16 iterations to reach a distance of 0.01.  The 3D test volume with
+  fdk noise at \( r = 0.26 \) needed 15.
 - The MACE test used one 2D problem of 64 by 64 by 1 voxels.
-- The GPU test used one scan, one seed, and 10 MACE iterations.  Its final
-  images have no reference, so the test shows how much the versions differ,
-  not which image is closer to the object.
+- The GPU test used one scan, one seed, and 10 MACE iterations, after which
+  no run had converged.  It sampled 9 calls per run, all on the middle
+  planes.  Its final images have no reference, so the test shows how much
+  the versions differ, not which image is closer to the object.
 - `denoise` on several devices was not run.  It uses the same VCD update, so
   its convergence per iteration should be similar **[inferred]**.
 - Above about 17 million voxels, the noise estimate reads a subsample whose
