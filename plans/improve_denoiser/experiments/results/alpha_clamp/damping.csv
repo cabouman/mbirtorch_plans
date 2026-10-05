@@ -1,0 +1,3 @@
+case,damping,damping_factor_range,subsets,max_alpha,alpha_p99,fraction_above_1p5,cost
+"cone prox, sharpness -1, noisy",default,0.252 to 0.265,4820,1.6715370416641235,1.5041419243812562,0.01058091286307054,10143.478854658135
+"cone prox, sharpness -1, noisy",off,,4820,1.0270540714263916,1.0036059963703157,0.0,10143.478191240194

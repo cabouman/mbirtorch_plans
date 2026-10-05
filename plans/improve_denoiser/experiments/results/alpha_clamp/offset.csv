@@ -1,0 +1,16 @@
+case,offset,iteration,subsets,mean_alpha_over_max_alpha,largest_alpha_without_clamp,fraction_above_1p5_without_clamp
+"cone prox, sharpness -1, noisy, input = start + offset",0.01,4,128,0.9599949518839518,3.361518144607544,0.4609375
+"cone prox, sharpness -1, noisy, input = start + offset",0.01,5,128,0.677548885345459,1.038529396057129,0.0
+"cone prox, sharpness -1, noisy, input = start + offset",0.01,6,128,0.7373928229014078,1.0774534940719604,0.0
+"cone prox, sharpness -1, noisy, input = start + offset",0.01,7,128,0.9009097417195638,1.2892606258392334,0.0
+"cone prox, sharpness -1, noisy, input = start + offset",0.01,8,128,0.8495728174845377,1.7598488330841064,0.078125
+"cone prox, sharpness -1, noisy, input = start + offset",0.03,4,128,0.9810701211293539,3.5632314682006836,0.6953125
+"cone prox, sharpness -1, noisy, input = start + offset",0.03,5,128,0.6783398787180582,1.053922414779663,0.0
+"cone prox, sharpness -1, noisy, input = start + offset",0.03,6,128,0.735797643661499,1.0654006004333496,0.0
+"cone prox, sharpness -1, noisy, input = start + offset",0.03,7,128,0.8940096696217855,1.1466611623764038,0.0
+"cone prox, sharpness -1, noisy, input = start + offset",0.03,8,128,0.8494192759195963,1.6175411939620972,0.0078125
+"cone prox, sharpness -1, noisy, input = start + offset",0.1,4,128,0.9829039573669434,3.590832233428955,0.7421875
+"cone prox, sharpness -1, noisy, input = start + offset",0.1,5,128,0.6784137090047201,1.0589711666107178,0.0
+"cone prox, sharpness -1, noisy, input = start + offset",0.1,6,128,0.7357501188913981,1.0649751424789429,0.0
+"cone prox, sharpness -1, noisy, input = start + offset",0.1,7,128,0.8934728304545084,1.1343632936477661,0.0
+"cone prox, sharpness -1, noisy, input = start + offset",0.1,8,128,0.8493029276529948,1.5391408205032349,0.0078125

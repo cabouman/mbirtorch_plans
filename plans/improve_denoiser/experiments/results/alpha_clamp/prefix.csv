@@ -1,0 +1,5 @@
+case,iterations,compared_with,same_alpha,same_fm_rmse
+"translation recon, sharpness 1, noisy",5,40,True,True
+"translation recon, sharpness 1, noisy",20,40,True,True
+"cone recon, sharpness 1, noisy",5,40,True,True
+"cone recon, sharpness 1, noisy",20,40,True,True
