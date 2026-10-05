@@ -220,6 +220,38 @@ per iteration.  At a threshold of 0.01, it stopped 0.009 to 0.015 from the
 MAP estimate.  At 0.03, it stopped 0.015 to 0.079 away.  This rule has no
 bound, and on some iterations its estimate was 0.30 times the distance.
 
+## Greg's decisions
+
+Greg gave his decisions on 2026-10-05.  He grouped them by topic, so his
+numbers differ from the list above.  His first item, the stopping rule,
+covers decisions 1 to 3.  His second item, the noise estimate, is decision 4.
+His third item is step 5 of the plan.
+
+**The stopping rule.**  Greg accepted the gradient rule at a threshold of
+0.03, with an iteration cap.  He did not give a value for the cap.  The cap
+is 200, the value that decision 2 proposed.  Greg's answer did not address
+the scope or the parameter name, so they follow decisions 1 and 3.  The rule
+applies to the three code paths of the VCD loop and to the stack denoisers
+of `MACE4DModel`.  The parameter takes the new name `stop_threshold`.  The
+denoiser warm start of MACE4D stays off by default.  A threshold of 0.03 is
+the cheaper option of decision 3.  Its effect on the final image of MACE4D
+was not measured.
+
+**The noise estimate.**  Greg leans toward option 2, with voxels 10 apart
+instead of adjacent voxels, if it can be computed efficiently.  The script
+`experiments/noise_separation.py` then compared separations of 1, 2, 3, 5,
+and 10 voxels on the synthetic volumes.  On the flat volume, pairs 5 voxels
+apart gave the true level to within 0.4%, as pairs 10 apart did.  On the
+phantom with white noise, the estimate from pairs 5 apart was 1.04 to 1.08
+of the true level, against 1.08 to 1.13 for pairs 10 apart.  Edges cause
+this excess.  If a real scan's noise is correlated over more voxels than the
+test noise, pairs 5 apart could give a low estimate **[inferred]**.  I
+proposed pairs 5 apart as an alternative to Greg's 10, and the choice is
+open.  The cost of the estimate will be measured when it is implemented.
+
+**The solver.**  Step 5 of the plan evaluates a faster solver than VCD.
+Greg agreed that this step can wait.
+
 ## Why the exact gradient is an upper bound on the distance
 
 In units of \( \sigma_y \), the cost is
