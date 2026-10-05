@@ -13,9 +13,11 @@ Reads the run folders of mace4d_stopping.py and writes:
                             and the fraction that reached the cap
   recon_differences.csv     per pair of runs: the relative rms difference of
                             the final 4D images, the smallest, median, and
-                            largest relative rms difference of a frame, and
-                            the largest absolute difference over the largest
-                            absolute value
+                            largest relative rms difference of a frame, the
+                            largest absolute difference over the largest
+                            absolute value, and, in image units, the rms
+                            difference, the rms of the second image, and the
+                            largest absolute difference
   slices.png                the middle frame's middle slice along each spatial
                             axis, for every run, and each run's difference
                             from the baseline run, on a color scale per run
@@ -104,8 +106,10 @@ def differences(labels, runs):
     pairs = list(itertools.combinations(labels, 2))
     num, den, worst, peak = ({pair: 0.0 for pair in pairs} for _ in range(4))
     per_frame = {pair: [] for pair in pairs}
+    voxels = 0
     for t in range(images[labels[0]].shape[0]):
         frames = {label: np.asarray(images[label][t], dtype=np.float64) for label in labels}
+        voxels += frames[labels[0]].size
         for a, b in pairs:
             xt, yt = frames[a], frames[b]
             d2 = float(np.sum((xt - yt) ** 2))
@@ -122,7 +126,10 @@ def differences(labels, runs):
                          frame_relative_rms_min=float(np.nanmin(frame_values)),
                          frame_relative_rms_median=float(np.nanmedian(frame_values)),
                          frame_relative_rms_max=float(np.nanmax(frame_values)),
-                         max_abs_over_max=worst[a, b] / peak[a, b]))
+                         max_abs_over_max=worst[a, b] / peak[a, b],
+                         rms_difference=float(np.sqrt(num[a, b] / voxels)),
+                         rms_second=float(np.sqrt(den[a, b] / voxels)),
+                         max_abs_difference=worst[a, b]))
     return rows
 
 
