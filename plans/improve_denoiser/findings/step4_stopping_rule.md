@@ -237,8 +237,8 @@ denoiser warm start of MACE4D stays off by default.  A threshold of 0.03 is
 the cheaper option of decision 3.  Its effect on the final image of MACE4D
 was not measured.
 
-**The noise estimate.**  Greg leans toward option 2, with voxels 10 apart
-instead of adjacent voxels, if it can be computed efficiently.  The script
+**The noise estimate.**  Greg leaned toward option 2, with voxels 10 apart
+instead of adjacent voxels, if it could be computed efficiently.  The script
 `experiments/noise_separation.py` then compared separations of 1, 2, 3, 5,
 and 10 voxels on the synthetic volumes.  On the flat volume, pairs 5 voxels
 apart gave the true level to within 0.4%, as pairs 10 apart did.  On the
@@ -246,11 +246,19 @@ phantom with white noise, the estimate from pairs 5 apart was 1.04 to 1.08
 of the true level, against 1.08 to 1.13 for pairs 10 apart.  Edges cause
 this excess.  If a real scan's noise is correlated over more voxels than the
 test noise, pairs 5 apart could give a low estimate **[inferred]**.  I
-proposed pairs 5 apart as an alternative to Greg's 10, and the choice is
-open.  The cost of the estimate will be measured when it is implemented.
+proposed pairs 5 apart as an alternative to Greg's 10, and Greg chose pairs 5
+apart later on 2026-10-05.  Option 2 replaces the estimate of `sigma_noise`
+only, so the automatic \( \sigma_x \) does not change.  The implemented
+estimate uses at most about five million pairs.  On a 4-core CPU, it took
+0.06 s on a volume of 17 million voxels and 0.10 to 0.12 s on a volume of
+227 million voxels **[measured]**.
 
 **The solver.**  Step 5 of the plan evaluates a faster solver than VCD.
 Greg agreed that this step can wait.
+
+**The implementation.**  In the mbirtorch repository, PR #15 merged into
+`greg_dev` on 2026-10-05.  PR #17 into `greg_dev` implements the stopping rule
+and the noise estimate.  It has run on CPU only.
 
 ## Why the exact gradient is an upper bound on the distance
 
