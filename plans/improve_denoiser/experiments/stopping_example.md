@@ -5,8 +5,10 @@ Script: `stopping_example.py`, with the modules `qggmrf_map3d.py` and
 threads, 2026-10-15.  The denoiser code is the same at 296f738, the head of
 `prerelease` when this record was written.  Results: `results/stopping_example/`, one CSV and one
 settings file per case.  The tables below are the script's output.  The
-script also draws `stopping_example.png` in the same folder, with the stops
-of Tables 1 and 2.  This repository does not keep the figure.
+script also draws three figures in the same folder.  `stopping_example.png`
+shows the stops of Tables 1 and 2.  `stopping_images_warm_r0.1.png` and
+`stopping_images_r0.05.png` show the images of two cases where each rule
+stops.  This repository does not keep the figures.
 
 ## Question
 
@@ -142,6 +144,42 @@ A warm start can stop the percent change after one iteration.  With
 \( r = 0.1 \), the warm start began 0.113 from the MAP estimate.  The percent
 change stopped after 1 iteration, 0.108 away, so the distance fell by only 5%.
 The gradient rule ran 46 iterations and stopped 0.015 away.
+
+### Images of two cases
+
+Greg asked on 2026-10-15 for images in which the results of the two rules
+differ visibly.  The script draws the middle slice of two cases of Table 1:
+the warm start at \( r = 0.1 \), in `stopping_images_warm_r0.1.png`, and the
+cold start at \( r = 0.05 \), in `stopping_images_r0.05.png`.  The top row of
+each figure shows the start of the call, the image where the percent change
+at 0.2 stops, the image where the gradient rule at 0.03 stops, and the MAP
+estimate.  The gray window is 900 to 1100, where water is 1000.  The bottom
+row shows each of the first three images minus the MAP estimate.
+
+Both images at a stop come from `denoise` on `prerelease`.  The image of the
+percent change uses the defaults of `denoise`: a threshold of 0.2 and at most
+15 iterations.  `prerelease` has no gradient rule, so the image of the
+gradient rule comes from `denoise` run for the number of iterations at which
+the gradient rule stops in Table 1.  The distances of both images agree with
+Table 1 to the three decimals shown there.
+
+In the warm start at \( r = 0.1 \), the input of the call is the noisy image
+plus a smooth random change with an rms of 0.2 \( \sigma_y \), or 36 HU.  The
+call starts from the MAP estimate for the noisy image alone.  The change
+appears in the MAP estimate of the call as light and dark patches.  The
+percent change stopped after 1 iteration, and its image looks the same as the
+start of the call: it lacks the patches.  Its difference from the MAP
+estimate has an rms of 19.6 HU.  The gradient rule stopped after 46
+iterations, and its image shows the patches of the MAP estimate.  Its
+difference has an rms of 2.7 HU.
+
+In the cold start at \( r = 0.05 \), the prior is strong, and the MAP
+estimate blurs the edges of the ellipse and of the inserts.  The percent
+change stopped after 12 iterations.  Its image has more noise and sharper
+edges than the MAP estimate.  Its difference from the MAP estimate has an rms
+of 33.3 HU.  The largest differences are at the edge of the ellipse and in
+the inserts.  The gradient rule stopped after 258 iterations, and its image
+looks the same as the MAP estimate.  Its difference has an rms of 3.3 HU.
 
 ### Offsets
 

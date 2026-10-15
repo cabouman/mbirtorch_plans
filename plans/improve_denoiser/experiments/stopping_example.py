@@ -50,7 +50,9 @@ results/stopping_example/<case>.csv, with its settings in
 estimates are cached in the system's temporary folder.  The analysis at the
 end reads the files and prints the tables of stopping_example.md.  It also
 applies the rules to the real-data replays of mace4d_stopping.md, and it draws
-results/stopping_example/stopping_example.png.
+results/stopping_example/stopping_example.png.  Last, it draws the middle slice
+of each case in IMAGE_CASES where each rule stops, in
+results/stopping_example/stopping_images_<case>.png.
 
 Run from any folder except one that holds a folder named mbirtorch, with the
 prerelease branch of mbirtorch installed:
@@ -101,6 +103,11 @@ RESULTS = HERE / 'results' / 'stopping_example'
 CACHE = Path(tempfile.gettempdir()) / 'improve_denoiser_cache'
 DISTANCE_TARGETS = (0.03, 0.01)  # Table 3 gives the iterations to reach these distances
 CAP = 15                        # the default max_iterations of denoise on prerelease
+IMAGE_CASES = {                 # the cases that draw_images draws, with a note on each figure
+    'warm_r0.1': 'The light and dark patches of the MAP estimate come from the change.',
+    'r0.05': 'With r\u00a0=\u00a00.05, the prior is strong, and the MAP estimate blurs the edges.',
+}
+IMAGE_HALF_WIDTH = 100.0        # the gray window of draw_images is water +- this, in HU
 
 
 def subset_gradient_squared(flat_image, flat_error_image, pixel_indices, fm_constant,
@@ -147,12 +154,29 @@ def warm_perturbation(shape, sigma_y):
     return field * (WARM_RMS * sigma_y / field.std())
 
 
-def run_case(name, sigma, r, warm):
-    """Run one case and write its record."""
+def case_inputs(sigma, r, warm):
+    """Return the denoiser and the arrays of one case: the denoiser, its partition,
+    the input of the call, the starting image, the MAP estimate, and the solver's
+    information about the MAP estimate."""
     _, noisy, _ = make_phantom(SHAPE, noise=NOISE, sigma=sigma)
-    shape = noisy.shape
     sigma_x = r * sigma
     denoiser, partition = settle(noisy, sigma, sigma_x)
+    sigma_y = float(denoiser.get_params('sigma_y'))
+    p, q, T = (float(v) for v in denoiser.get_params(['p', 'q', 'T']))
+    previous_map, previous_info = map_estimate(f'cold_r{r:g}', noisy, sigma_y, sigma_x, p, q, T)
+    if warm:
+        call_input = noisy + warm_perturbation(noisy.shape, sigma_y)
+        reference, info = map_estimate(f'warm_r{r:g}', call_input, sigma_y, sigma_x, p, q, T,
+                                       init=previous_map)
+        return denoiser, partition, call_input, previous_map, reference, info
+    return denoiser, partition, noisy, noisy, previous_map, previous_info
+
+
+def run_case(name, sigma, r, warm):
+    """Run one case and write its record."""
+    denoiser, partition, call_input, start_image, reference, info = case_inputs(sigma, r, warm)
+    shape = call_input.shape
+    sigma_x = r * sigma
     sigma_y = float(denoiser.get_params('sigma_y'))
     p, q, T = (float(v) for v in denoiser.get_params(['p', 'q', 'T']))
     max_alpha = float(denoiser.get_params('max_alpha'))
@@ -160,16 +184,6 @@ def run_case(name, sigma, r, warm):
     print(f'{name}: sigma_y {sigma_y:.1f}, sigma_x {sigma_x:.2f}, r {r}, q {q}, T {T}, '
           f'max_alpha {max_alpha}, positivity {positivity}, {partition.shape[0]} subsets',
           flush=True)
-
-    # The input of this call, its starting image, and its MAP estimate.
-    previous_map, previous_info = map_estimate(f'cold_r{r:g}', noisy, sigma_y, sigma_x, p, q, T)
-    if warm:
-        call_input = noisy + warm_perturbation(shape, sigma_y)
-        start_image = previous_map
-        reference, info = map_estimate(f'warm_r{r:g}', call_input, sigma_y, sigma_x, p, q, T,
-                                       init=previous_map)
-    else:
-        call_input, start_image, reference, info = noisy, noisy, previous_map, previous_info
     print(f'  reference: {info}', flush=True)
 
     num_slices = shape[2]
@@ -511,6 +525,113 @@ def plot():
     print(f'\nFigure: {path}')
 
 
+def draw_images(name):
+    """Draw the middle slice of one case where the percent change at 0.2 and the
+    gradient rule at 0.03 stop, beside the starting image and the MAP estimate, and
+    the difference of each from the MAP estimate.  The figure goes to
+    RESULTS / 'stopping_images_<name>.png'.
+
+    Both images come from denoise itself, with the partition of the case.  The
+    first uses the defaults of denoise on prerelease: a threshold of 0.2 on the
+    percent change, and at most CAP iterations.  prerelease has no gradient rule,
+    so the second runs the number of iterations at which the gradient rule stops
+    in the case's record."""
+    import textwrap
+
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    sigma, r, warm = next((s, r, w) for n, s, r, w in CASES if n == name)
+    data, _ = load(name)
+    gradient_stop, gradient_distance = stop(data, 'gradient_statistic', 0.03)
+    denoiser, _, call_input, start_image, reference, _ = case_inputs(sigma, r, warm)
+    sigma_y = float(denoiser.get_params('sigma_y'))
+
+    def denoised(max_iterations, threshold):
+        output, info_dict = denoiser.denoise(
+            call_input.astype(np.float32), sigma_noise=sigma_y,
+            init_image=start_image.astype(np.float32), max_iterations=max_iterations,
+            stop_threshold_change_pct=threshold, logfile_path=None, print_logs=False,
+            do_initialization=False)
+        iterations = len(info_dict['recon_params']['stop_threshold_change_pct'])
+        return np.asarray(output, dtype=np.float64), iterations
+
+    percent_image, percent_stop = denoised(CAP, 0.2)
+    gradient_image, _ = denoised(gradient_stop, 0.0)
+
+    def rms_hu(image):
+        return float(np.sqrt(np.mean((image - reference) ** 2)))
+
+    def iterations(count):
+        return f'{count} iteration{"" if count == 1 else "s"}'
+
+    print(f'Images of {name}: the percent change stopped denoise after '
+          f'{iterations(percent_stop)}, {rms_hu(percent_image) / sigma_y:.3f} sigma_y from '
+          f'the MAP estimate.  The gradient rule stops after {iterations(gradient_stop)}, '
+          f'{rms_hu(gradient_image) / sigma_y:.3f} sigma_y away '
+          f'(the record gives {gradient_distance:.3f}).', flush=True)
+
+    # Each column: the title of the image, the name in the title of its difference
+    # from the MAP estimate, and the image.
+    columns = [('Start of the call', 'Start', start_image),
+               (f'Percent change < 0.2:\nstops after {iterations(percent_stop)}',
+                'Percent change', percent_image),
+               (f'Gradient statistic < 0.03:\nstops after {iterations(gradient_stop)}',
+                'Gradient rule', gradient_image),
+               ('MAP estimate of this call', None, reference)]
+    # The notes beside the differences.  A no-break space keeps a number on the line of
+    # its unit when textwrap breaks the lines.
+    if warm:
+        change_hu = WARM_RMS * sigma_y
+        notes = [f'The input of this call is the noisy image plus a smooth random change '
+                 f'with an rms of {WARM_RMS:g}\u00a0$\\sigma_y$ ({change_hu:.0f}\u00a0HU).',
+                 'The call starts from the MAP estimate for the noisy image alone.']
+    else:
+        notes = ['The input of this call is the noisy image, and the call starts from it.']
+    notes += [IMAGE_CASES[name], 'Each rms is over the whole volume.']
+    middle = SHAPE[2] // 2
+    window = (1000.0 - IMAGE_HALF_WIDTH, 1000.0 + IMAGE_HALF_WIDTH)
+    # The color range of the differences is 3 times the rms difference of the percent
+    # change image, rounded up to a multiple of 10 HU.
+    limit = 10.0 * np.ceil(0.3 * rms_hu(percent_image))
+    ink = '#0b0b0b'
+    figure = plt.figure(figsize=(13.5, 7.9))
+    figure.subplots_adjust(left=0.02, right=0.94, top=0.86, bottom=0.03)
+    grid = figure.add_gridspec(2, 5, width_ratios=[1, 1, 1, 1, 0.05], hspace=0.3,
+                               wspace=0.08)
+    for column, (title, difference_name, image) in enumerate(columns):
+        axis = figure.add_subplot(grid[0, column])
+        shown = axis.imshow(image[:, :, middle], cmap='gray', vmin=window[0],
+                            vmax=window[1], interpolation='nearest')
+        axis.set_title(title, color=ink, fontsize=11)
+        axis.set_xticks([])
+        axis.set_yticks([])
+        if difference_name is None:
+            continue
+        axis = figure.add_subplot(grid[1, column])
+        contrast = axis.imshow(image[:, :, middle] - reference[:, :, middle], cmap='RdBu_r',
+                               vmin=-limit, vmax=limit, interpolation='nearest')
+        axis.set_title(f'{difference_name} minus MAP:\nrms {rms_hu(image):.1f} HU '
+                       f'({rms_hu(image) / sigma_y:.3f} $\\sigma_y$)', color=ink, fontsize=11)
+        axis.set_xticks([])
+        axis.set_yticks([])
+    axis = figure.add_subplot(grid[1, 3])
+    axis.axis('off')
+    axis.text(0.06, 0.5, '\n\n'.join(textwrap.fill(note, 34) for note in notes),
+              transform=axis.transAxes, va='center', ha='left', color=ink, fontsize=10.5)
+    figure.colorbar(shown, cax=figure.add_subplot(grid[0, 4]),
+                    label='image value (water 1000, air 0)')
+    figure.colorbar(contrast, cax=figure.add_subplot(grid[1, 4]), label='difference (HU)')
+    start = 'warm start' if warm else 'cold start'
+    figure.suptitle(f'Middle slice of the 3D phantom: white noise of {sigma:g} HU, '
+                    f'r = {r:g}, {start}', x=0.02, ha='left', color=ink, fontsize=13)
+    path = RESULTS / f'stopping_images_{name}.png'
+    figure.savefig(path, dpi=130, bbox_inches='tight', facecolor='white')
+    plt.close(figure)
+    print(f'Figure: {path}')
+
+
 def main():
     torch.manual_seed(0)
     for name, sigma, r, warm in CASES:
@@ -520,6 +641,8 @@ def main():
     analyze()
     analyze_mace4d()
     plot()
+    for name in IMAGE_CASES:
+        draw_images(name)
 
 
 if __name__ == '__main__':
