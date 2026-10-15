@@ -1,0 +1,37 @@
+{
+ "name": "sigma20_r0.2",
+ "sigma": 20.0,
+ "r": 0.2,
+ "warm": false,
+ "shape": [
+  256,
+  256,
+  32
+ ],
+ "noise": "white",
+ "sigma_y": 20.0,
+ "sigma_x": 4.0,
+ "p": 2.0,
+ "q": 1.2,
+ "T": 1.0,
+ "max_alpha": 1.5,
+ "positivity_flag": false,
+ "subsets": 16,
+ "reference": {
+  "iterations": 53,
+  "evaluations": 62,
+  "message": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH",
+  "distance_bound": 2.3075186715749725e-08,
+  "seconds": 34.980151414871216
+ },
+ "start_distance": 0.8854821696004604,
+ "warm_blur": null,
+ "warm_rms": null,
+ "check_iterations": 15,
+ "check_image_difference_sigma": 0.0,
+ "check_percent_change_relative_difference": 1.9397867402409703e-16,
+ "mbirtorch_version": "0.1.2",
+ "mbirtorch_file": "/tmp/claude-0/-home-claude/b44687c2-9b6f-5075-a42d-b8440d40ebd0/scratchpad/wt_prerelease/mbirtorch/__init__.py",
+ "torch_version": "2.14.1+cu130",
+ "torch_threads": 4
+}
