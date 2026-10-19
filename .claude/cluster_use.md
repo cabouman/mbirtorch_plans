@@ -1,57 +1,366 @@
-# Using the Purdue RCAC clusters (for the group's Claude sessions)
+# Using the group's GPU clusters (for the group's Claude sessions)
 
-Two clusters, one shared group storage.  **gautschi = H100, gilbreth = A100.**  Slurm
-account `bouman` on both.  This guide is for a Claude session working on behalf of **any
-member of the group** who has the `bouman` queue on gautschi.  Conventions:
+The group has four GPU clusters at three sites.  Gautschi (H100) and Gilbreth (A100) are
+Purdue's RCAC clusters.  Perlmutter (A100) is at NERSC, and Delta (A100, A40, H200) is at
+NCSA.  This guide is for a Claude session working on behalf of any member of the group.  Its
+first part covers all four clusters: what each offers, how to log in, how to choose a queue,
+and how a person gets access.  The later parts give the details for each site, Perlmutter and
+Delta first and the long RCAC part last.  The tools this guide names are in
+[`tools/clusters/`](../tools/clusters/README.md).  Conventions:
 
-- **mbirtorch is the supported library.  mbirjax (JAX) is legacy** — maintenance is
+- **mbirtorch is the supported library.  mbirjax (JAX) is legacy.**  Its maintenance is
   expected to end after 2026.  Material that exists only for mbirjax is marked *(legacy)*
   and kept so old results can still be read; the
   [sunset checklist](#legacy-mbirjax-sunset-checklist) at the end lists everything that
   still points at it.
-- `<user>` is your Purdue career account; on the cluster the same thing is `$USER`.
-  Home (`~`) and scratch (`/scratch/<cluster>/<user>`) are **per account and mode 700** —
-  nobody else in the group can read them.  Anything meant for another member goes through
-  depot.
+- `<user>` is the person's user name at a site, and it can differ between sites.  Greg is
+  `buzzard` at Purdue and NERSC and `gbuzzard` at NCSA.  On a cluster the same name is `$USER`.
+- Home and scratch directories are **per account**, and on RCAC they are mode 700.  Anything
+  meant for another member goes through shared project storage: depot on RCAC,
+  `/work/*/bjda` and `/projects/bjda` on Delta.
 - Greg's paths (`/home/buzzard/…`, `/scratch/gautschi/buzzard/…`) appear only where they
   are the real location of something shared: his two nightlies and some staged data.
-- The account is shared.  **Coordinate before heavy or long batch use** — everyone's
-  interactive sessions, the nightlies and every batch job draw on one queue and, on
-  gautschi, one metered GPU-hour balance.
-- **Live facts beat this guide's numbers.**  A weekly probe writes the cluster's current
-  driver, module, env-version, quota and balance facts to
+- Every allocation is shared.  **Coordinate before heavy or long batch use.**  On gautschi,
+  everyone's interactive sessions, the nightlies and every batch job draw on one queue and
+  one metered GPU-hour balance.  Perlmutter and Delta have fixed budgets of hours.
+- **Live facts beat this guide's numbers.**  For RCAC, a weekly probe writes the cluster's
+  current driver, module, env-version, quota and balance facts to
   `/depot/bouman/data/cluster_status/gautschi_facts.txt` (see
   [Keeping it checked](#keeping-it-checked-the-weekly-probe)).  Read it, and
-  `probe_status.txt` beside it, before trusting a dated value here.
+  `probe_status.txt` beside it, before trusting a dated value here.  For queue waits on all
+  four clusters, refresh the queue page ([Choosing a machine and a queue](#choosing-a-machine-and-a-queue)).
+- **Cloud sessions cannot reach the clusters.**  A Claude session in the cloud has no ssh
+  keys and cannot answer a Duo prompt.  It can read this guide and write job scripts.  It
+  leaves running them to a session on the person's laptop.
 
 ## Contents
 
-- [First-time setup (once per person)](#first-time-setup-once-per-person)
-- [The workflows that matter](#the-workflows-that-matter)
-- [SSH access](#ssh-access)
-- [Watching a job](#watching-a-job)
-- [Remote GUI windows (slice_viewer, PyCharm) — VERIFIED 2026-07-25](#remote-gui-windows-slice_viewer-pycharm-verified-2026-07-25)
-- [gautschi — H100 (the nightly-regression cluster)](#gautschi-h100-the-nightly-regression-cluster)
-  - [The node preamble, and which CUDA version actually matters](#the-node-preamble-and-which-cuda-version-actually-matters)
-  - [The nightly regression system (runs on gautschi)](#the-nightly-regression-system-runs-on-gautschi)
-- [gilbreth — A100 (lightly used by our group)](#gilbreth-a100-lightly-used-by-our-group)
-- [Scratch — fast, big, PURGE-ELIGIBLE](#scratch-fast-big-purge-eligible)
-- [Home — a 25 GB quota that fails SILENTLY](#home-a-25-gb-quota-that-fails-silently)
-- [Depot — durable, group-shared (mounted on BOTH clusters)](#depot-durable-group-shared-mounted-on-both-clusters)
-- [Moving data on and off](#moving-data-on-and-off)
-- [Nested ssh — run on a worker node without waiting in the queue](#nested-ssh-run-on-a-worker-node-without-waiting-in-the-queue)
-- [Repos, data, and resources](#repos-data-and-resources)
-- [Running a specific library state](#running-a-specific-library-state)
-- [Job preflight — two lines that catch the two worst failures](#job-preflight-two-lines-that-catch-the-two-worst-failures)
-- [Failure signatures → what they actually mean](#failure-signatures-what-they-actually-mean)
-- [Don't](#dont)
-- [Keeping it checked — the weekly probe](#keeping-it-checked-the-weekly-probe)
-- [Legacy mbirjax — sunset checklist](#legacy-mbirjax-sunset-checklist)
+- [The four clusters at a glance](#the-four-clusters-at-a-glance)
+- [Logging in](#logging-in)
+- [Choosing a machine and a queue](#choosing-a-machine-and-a-queue)
+- [Accounts and access](#accounts-and-access)
+- [Perlmutter (NERSC)](#perlmutter-nersc)
+- [Delta (NCSA)](#delta-ncsa)
+- RCAC (Gautschi and Gilbreth):
+  - [RCAC first-time setup (once per person)](#rcac-first-time-setup-once-per-person)
+  - [The workflows that matter](#the-workflows-that-matter)
+  - [SSH access](#ssh-access)
+  - [Watching a job](#watching-a-job)
+  - [Remote GUI windows (slice_viewer, PyCharm) — VERIFIED 2026-07-25](#remote-gui-windows-slice_viewer-pycharm-verified-2026-07-25)
+  - [gautschi — H100 (the nightly-regression cluster)](#gautschi-h100-the-nightly-regression-cluster)
+    - [The node preamble, and which CUDA version actually matters](#the-node-preamble-and-which-cuda-version-actually-matters)
+    - [The nightly regression system (runs on gautschi)](#the-nightly-regression-system-runs-on-gautschi)
+  - [gilbreth — A100 (lightly used by our group)](#gilbreth-a100-lightly-used-by-our-group)
+  - [Scratch — fast, big, PURGE-ELIGIBLE](#scratch-fast-big-purge-eligible)
+  - [Home — a 25 GB quota that fails SILENTLY](#home-a-25-gb-quota-that-fails-silently)
+  - [Depot — durable, group-shared (mounted on BOTH clusters)](#depot-durable-group-shared-mounted-on-both-clusters)
+  - [Moving data on and off](#moving-data-on-and-off)
+  - [Nested ssh — run on a worker node without waiting in the queue](#nested-ssh-run-on-a-worker-node-without-waiting-in-the-queue)
+  - [Repos, data, and resources](#repos-data-and-resources)
+  - [Running a specific library state](#running-a-specific-library-state)
+  - [Job preflight — two lines that catch the two worst failures](#job-preflight-two-lines-that-catch-the-two-worst-failures)
+  - [Failure signatures → what they actually mean](#failure-signatures-what-they-actually-mean)
+  - [Don't](#dont)
+  - [Keeping it checked — the weekly probe](#keeping-it-checked-the-weekly-probe)
+  - [Legacy mbirjax — sunset checklist](#legacy-mbirjax-sunset-checklist)
 
-## First-time setup (once per person)
+## The four clusters at a glance
 
-Everything below assumes these are done.  The allocation itself (what was bought, how
-access is granted, GPU-hour accounting) is described in `.claude/gpu-resources.md`.
+| | Gautschi | Gilbreth | Perlmutter | Delta |
+|---|---|---|---|---|
+| site | Purdue RCAC | Purdue RCAC | NERSC (DOE) | NCSA (NSF ACCESS) |
+| GPUs per node | 8× H100 80 GB (`ai`); L40 48 GB (`smallgpu`) | A100 40 GB: 4× SXM4 or 2× PCIe | 4× A100, 40 GB or 80 GB | 4× A100 40 GB, 8× A100 80 GB, 4× A40 48 GB, 8× H200 141 GB |
+| Slurm account | `bouman` | `bouman` | `m5193_g` | `bjda-delta-gpu` |
+| allocation | H100 GPU-hours bought by the group | 4 GPUs at a time | Xiao Wang's project m5193: 415 GPU node-hours | Charlie's ACCESS project ELE260090: 2,999 GPU-hours, to 2027-10-11 |
+| charged by | GPU-hour (`-q preemptible`: 0.25×) | not metered | node-hour | GPU-hour × a partition rate from 0.25 to 6 |
+| balance | `slist` | none | `iris` | `accounts` |
+| login | ssh key | ssh key | 24-hour key: `gpu-login nersc` | password + Duo, then a 4-hour shared connection: `gpu-login delta` |
+| on the allocation | the group | the group | Greg and Charlie | Charlie, Greg and six other members |
+| longest job | 14 days | 14 days | 2 days | 2 days |
+
+The numbers are from 2026-10-19 unless a section below gives another date.
+
+## Logging in
+
+Every session starts with `gpu-login status`.  The command prints one line per cluster and
+never prompts, so a Claude session can run it at any time:
+
+```
+gautschi    ok     key login works
+gilbreth    ok     key login works
+perlmutter  ok     key valid 22.7 h more (until Tue 14:24)
+delta       ok     shared connection open (for 01:21:01; it closes 4 h after its last use)
+```
+
+It exits 1 when a login needs the person.  The two kinds of login differ:
+
+- **RCAC** (Gautschi, Gilbreth) uses ssh keys, so there is nothing to renew.  A line that
+  says `slow` means an RCAC login node took more than 60 s to answer, which happens.  Retry.
+- **Perlmutter** needs a key from NERSC's `sshproxy`, valid for 24 hours.  The person runs
+  `gpu-login nersc` and types the 6-digit code from their authenticator app.
+- **Delta** needs one password + Duo login.  The person runs `gpu-login delta` and taps
+  Approve on the phone.  That login opens a shared connection, and every later `ssh delta`
+  or `scp … delta:` reuses it with no prompt.  It closes 4 hours after its last use.
+
+The person types every password and every one-time code.  Claude never types, stores or asks
+for one.  When a login is down, Claude runs what it can, then tells the person the one command
+that would fix it.  Pass `-o BatchMode=yes` to ssh so that a missing login fails at once
+instead of waiting at a password prompt.  With it, a lapsed login shows up as `Permission
+denied` from `ssh perlmutter` (the key expired: `gpu-login nersc`) or from `ssh delta` (the
+shared connection closed: `gpu-login delta`).
+
+The ssh names `gautschi`, `gilbreth`, `perlmutter` and `delta` come from `~/.ssh/config`.  A
+new laptop gets them, `gpu-login` and the queue skill from
+[`tools/clusters/install.sh`](../tools/clusters/README.md).
+
+## Choosing a machine and a queue
+
+The `queues` skill builds a page that compares every GPU queue on the four clusters.  Ask for
+"the queue page".  The skill reads each queue over ssh and submits nothing.  For each queue,
+the page shows:
+
+- the GPUs free and the jobs waiting;
+- the longest job allowed;
+- Slurm's estimate of when a typical job would start;
+- the person's own recent waits in that queue.
+
+The page then names the three queues with the shortest expected wait for each job length.
+Slurm's estimate assumes every running job uses its whole time limit, so it is usually too
+long.  For example, on 2026-10-19 Slurm estimated 12.8 hours for Perlmutter's debug queue,
+and a test job there waited 7.5 minutes.
+
+Cost matters as well as the wait.  Gilbreth is not metered.  On Delta, the rate per GPU-hour
+depends on the partition: the `-interactive` partitions cost twice the regular rate, and an
+H200 costs three times an A100 40 GB (see [Delta](#delta-ncsa)).  A Perlmutter job in the
+debug or regular queue is charged for the whole node.
+
+## Accounts and access
+
+Each site grants access its own way.  A person needs an account at the site and a place on
+the allocation, and each step below says who acts.
+
+### Purdue RCAC (Gautschi, Gilbreth)
+
+*Compiled 2026-08-06 from the RCAC account portal (rcac.purdue.edu/account), order history,
+and live `slist` on each cluster.*
+
+| Cluster  | Resource              | Queue      | Amount            | Balance     | Ends       |
+|----------|-----------------------|------------|-------------------|-------------|------------|
+| Gautschi | H100 GPU-hours        | `bouman`   | 32,850 SU         | run `slist` | ~2030      |
+| Gilbreth | A100 node (dedicated) | `bouman-g` | 2 GPUs, 128 cores | no cap      | ~late 2026 |
+| Gilbreth | A100 GPU access       | `bouman-n` | 2 GPUs, 24 cores  | no cap      | Dec 2029   |
+| Gilbreth | old annual sub        | `bouman-e` | expired           | —           | Sep 2021   |
+
+The Gautschi balance is not recorded here because it moves with every job and every order:
+`slist` read 2,716.4 on 2026-08-06 and 21,857.1 on 2026-09-03.  Run `slist` on a gautschi
+login node.  The ~late-2026 node retirement is inferred (see below).  Live `slist` on Gilbreth
+reports the group's allocation as **4× A100-40GB total** under Slurm account `bouman`
+(Total/Queued/Running/Free = 4/8/4/4 on 2026-09-03, so other members were using it).
+
+**Gautschi (H100, metered by GPU-hours).**
+
+- Purchases: two "Quarter-GPU hours for 5 years" orders ($7,813 each, Mar 2025 and Oct 2025)
+  plus an IPAI 1:1 match (Nov 2025, $0).  A third quarter-GPU order (#17563, $7,813) was
+  pending business office approval as of Jul 30 2026 and will add hours when it completes.
+- A quarter GPU = 2,190 GPU-hours/year.
+- Charging: `normal` QOS burns 1 GPU-hour per GPU per hour; `preemptible` QOS burns 0.25×
+  (the job can be preempted).
+- Submit: `sbatch -A bouman -p ai --gres=gpu:1 ...` (add `-q preemptible` for the 0.25× rate).
+
+**Gilbreth (A100-40GB, metered by GPU count).**
+
+- No hour metering: the subscription caps how many GPUs the group can use at once (4 total),
+  not total usage.
+- Purchases: dedicated A100 node, Nov 2021, $17,530 (queue `bouman-g`); 2× "A100-40GB GPU
+  Access (5 years)", Dec 2024, $14,000 (queue `bouman-n`).
+- Submit: `sbatch -A bouman -p a100-40gb --gres=gpu:1 ...`.  The Slurm account is `bouman`
+  on Gilbreth as well (`slist` and `sacctmgr`, 2026-09-03); `bouman-g` and `bouman-n` are the
+  portal's names for the two purchases and appear only when requesting access.
+- The dedicated node's retirement date is not shown in the portal; ~late 2026 is inferred
+  from the standard 5-year node lifetime.  Confirm with rcac-help@purdue.edu.
+
+**Getting a person onto RCAC.**
+
+1. **Purdue career account** with BoilerKey/Duo two-factor.
+2. **Be added to the group's queue(s).**  Two paths:
+   - The person logs into rcac.purdue.edu/account → **Request Access** and requests the
+     relevant queue (`bouman` on Gautschi; `bouman-g`/`bouman-n` on Gilbreth, portal names
+     that both map to Slurm account `bouman`); the PI approves.
+   - Or the PI adds them directly: rcac.purdue.edu/account → Groups → Charles Bouman Group →
+     **Members** tab.  (RCAC restored the group-manager role Aug 2026 after a
+     portal-migration glitch had hidden these controls.)
+3. **Log in.**  Changes can take ~1 day to propagate, plus a log-out/log-in after group
+   changes.  Then follow [RCAC first-time setup](#rcac-first-time-setup-once-per-person).
+4. **Verify access:** run `slist` on the cluster.  The group account should appear.
+
+**Other RCAC resources (non-GPU).**  Negishi: two 64-core CPU shares ($4,200 each, Sep/Oct
+2023), queue `bouman-n`.  Research Data Depot storage: multiple 1 TB subscriptions, renewed
+annually.
+
+### NERSC Perlmutter
+
+The group uses NERSC project **m5193**, whose PI is Xiao Wang (ORNL).  He added Greg
+on 2026-04-30.  The project's GPU account `m5193_g` had 415.1 node-hours, of which 3.2 were
+used on 2026-10-19.  The CPU account `m5193` had 614.  To add a person, ask Xiao Wang.  Some
+members' NERSC accounts are also on other projects.  Charge group work to `m5193_g` only, and
+always pass `-A`.
+
+**First-time setup (once per person; the person does every step).**
+
+1. Log in to Iris, NERSC's account page, at <https://iris.nersc.gov>.  An unknown password
+   is reset with "Forgot password" there.
+2. Add an MFA token if there is none: Iris → **MFA** tab → type a description → **+ Add
+   Token**, then scan the QR code with an authenticator app (Google Authenticator, Duo Mobile
+   and others work).  Click **Test** beside the token to check it.
+3. Install `sshproxy` on the laptop: `sshproxy-<version>-macos-universal.pkg` from
+   <https://portal.nersc.gov/cfs/mfa/>.
+4. Run `tools/clusters/install.sh`, store the NERSC password in the Keychain, and run
+   `gpu-login nersc` ([`tools/clusters/README.md`](../tools/clusters/README.md)).
+
+### NCSA Delta (ACCESS project ELE260090)
+
+Delta's GPU-hours come from Charlie's NSF ACCESS project **ELE260090**: 2,999 GPU-hours from
+2026-10-12 to 2027-10-11.  Charlie and Greg are its Allocation Managers.  They add and remove
+people at <https://allocations.access-ci.org>, under "Users + Roles" on the project.
+
+A person needs two separate logins:
+
+- The **ACCESS** login is for the ACCESS web site only.  A new person registers at
+  <https://operations.access-ci.org> and sends the ACCESS user name to Charlie or Greg.
+- The **NCSA** login is for Delta itself.  NCSA creates it and emails the login name 1 to 3
+  business days after the person is added to the project.  The NCSA login name may differ
+  from the ACCESS user name.
+
+**First-time setup (once per person; the person does every step).**
+
+1. **Find NCSA's email** with the login name.  Search every mail folder, including Junk:
+   for Charlie, ACCESS and NCSA mail went to Junk and to an "unknown sender" folder.
+2. **Set the NCSA password** at <https://identity.ncsa.illinois.edu/reset>.  It emails a reset
+   code, which can also land in Junk.  Save the new password in a password manager before
+   submitting it.  Charlie had to reset twice because the first password was not saved.
+3. **Set up NCSA Duo** at <https://duo.security.ncsa.illinois.edu>.  NCSA Duo is separate
+   from Purdue's Duo.  Choose **Launch Device Management Portal** and add the **Duo Mobile
+   app on a phone**.  A security key (YubiKey) or Touch ID works only in a web browser, not
+   for `ssh`: Charlie first set up only those, and `ssh` failed.  To add the phone later,
+   log in at the same page and choose "Manage Backup Codes and Tokens", then "Other options",
+   then "Manage devices".  Also save the backup codes from "Manage Backup Codes and Tokens".
+4. Run `ssh delta` once by hand to accept Delta's host key.  Then store the NCSA password in
+   the Keychain and run `gpu-login delta`
+   ([`tools/clusters/README.md`](../tools/clusters/README.md)).
+
+## Perlmutter (NERSC)
+
+Perlmutter's GPU nodes each have 4 A100 GPUs and one 64-core AMD CPU.  Some nodes have 40 GB
+GPUs and some 80 GB, and a job lands on either unless it asks: `-C "gpu&hbm40g"` or
+`-C "gpu&hbm80g"`.  Login is `ssh perlmutter`, which works while the `gpu-login nersc` key is
+valid.
+
+**Submitting.**  This test job ran on 2026-10-19 (scripts in
+[`tools/clusters/gpu_test/`](../tools/clusters/gpu_test/)):
+
+```bash
+sbatch -A m5193_g -C gpu -q debug -N 1 --gpus=2 -c 64 -t 00:05:00 job.sh
+```
+
+The queue is chosen with `-q`, and the names are `debug`, `regular`, `preempt`, `shared` and
+`interactive`.  The names `gpu_debug` and `gpu_shared` are rejected at submit time, although
+Slurm reports them as the QoS names.
+
+| `-q` | longest job | notes |
+|---|---|---|
+| `debug` | 30 min | for tests.  Waits were 1 to 2 min on 2026-10-12 and 7.5 min on 2026-10-19. |
+| `interactive` | 4 h | an interactive allocation (`salloc`) |
+| `regular` | 2 days | whole nodes.  It had over 7,800 jobs waiting on 2026-10-12 and 6,037 on 2026-10-19. |
+| `preempt` | 2 days | can be stopped early |
+| `shared` | 2 days | part of a node; needs 32 CPUs per GPU.  It had over 1,400 jobs waiting on 2026-10-12. |
+
+**Charging.**  The `debug` and `regular` queues give the job a whole node, and the project is
+charged node-hours for it.  The test job above asked for 2 GPUs and saw all 4.  So a debug or
+regular job should use all 4 GPUs.
+
+**Paths and quotas.**
+
+| path | quota | notes |
+|---|---|---|
+| home, `/global/homes/<first letter>/<user>` | 40 GB | |
+| scratch, `$SCRATCH` = `/pscratch/sd/<first letter>/<user>` | 20 TB | for job output and data.  NERSC purges scratch files that have not been accessed for 8 weeks. |
+| `/global/common/software/m5193` | | group-writable for project m5193.  NERSC recommends this file system for software and Python environments: it is not purged. |
+
+**Python.**  NERSC's PyTorch module works on the GPU nodes: `module load pytorch/2.13.0` gives
+torch 2.13.0+cu130 (driver 580.178.04, CUDA 13.0, on 2026-10-19).  For mbirtorch, Charlie
+layered a venv over the module:
+
+```bash
+module load pytorch/2.13.0
+python -m venv --system-site-packages $SCRATCH/envs/mbirtorch
+source $SCRATCH/envs/mbirtorch/bin/activate
+pip install -e <path to the mbirtorch clone>
+```
+
+A venv on scratch is purged after 8 weeks without use, so a long-lived one belongs under
+`/global/common/software/m5193/<user>/`.
+
+## Delta (NCSA)
+
+Delta's login is `ssh delta`, which works while the `gpu-login delta` connection is open.  The
+connection is to one login node (for example `dt-login02`), and every later ssh reuses it.
+The Slurm account is `bjda-delta-gpu`, and `accounts` on a login node shows its balance:
+2,994 of 2,999 GPU-hours were left on 2026-10-19.
+
+**Submitting.**  This test job ran on 2026-10-19 (scripts in
+[`tools/clusters/gpu_test/`](../tools/clusters/gpu_test/)):
+
+```bash
+sbatch -A bjda-delta-gpu -p gpuA100x4-interactive -N 1 --gpus-per-node=2 \
+       --cpus-per-task=16 --mem=64g -t 00:05:00 job.sh
+```
+
+Every partition has `DefaultTime=00:30:00` and `DefMemPerCPU=1000` MB.  So always pass `-t`
+and `--mem`.
+
+**Charging.**  Delta charges each job at the largest of three amounts: its GPUs, its CPUs and
+its memory, each times a rate that depends on the partition.  (In Slurm terms,
+`PriorityFlags=MAX_TRES` with per-partition `TRESBillingWeights`.)  The table gives the rate
+per GPU-hour and the CPUs and memory that each GPU includes.  A job that asks for more CPUs or
+memory per GPU than the table shows is charged as if it had more GPUs.
+
+| partition | GPUs per node | rate per GPU-hour | included per GPU | longest job |
+|---|---|---|---|---|
+| `gpuA40x4` | 4× A40 48 GB | 0.5 | 16 CPUs, 62 GB | 2 days |
+| `gpuA100x4` | 4× A100 40 GB | 1 | 16 CPUs, 62 GB | 2 days |
+| `gpuA100x8` | 8× A100 80 GB | 1.5 | 16 CPUs, 250 GB | 2 days |
+| `gpuH200x8` | 8× H200 141 GB | 3 | 12 CPUs, 250 GB | 2 days, 1 node |
+| `*-interactive` | same nodes | 2× the partition's rate | same | 1 hour |
+| `*-preempt` (A40, A100 40 GB) | same nodes | 0.5× the partition's rate | same | 2 days; can be stopped early |
+
+For example, the test job above used 2 GPUs on `gpuA100x4-interactive` and was billed 4
+GPU-hours per hour (`billing=4000` in `sacct`).  These results indicate that short tests on an
+interactive partition cost twice what the same job costs in the regular partition.  The trade
+is the wait, which was 2 minutes for that job.
+
+**Storage.**  Each project folder has a subfolder per member, for example
+`/work/nvme/bjda/<user>`.
+
+| path | quota | notes |
+|---|---|---|
+| home, `/u/<user>` | 100 GB | |
+| `/work/nvme/bjda` | 500 GB, shared by the project | the fastest; for data that jobs read |
+| `/work/hdd/bjda` | 1 TB, shared | |
+| `/projects/bjda` | 500 GB, shared | |
+
+Whether Delta purges any of these was not checked.
+
+**Python.**  NCSA's PyTorch module works on the A100 nodes: `module load pytorch-conda/2.12`
+gives torch 2.12.1+cu130 with Python 3.12 (driver 595.71.05, on 2026-10-19).  The module's
+banner says it needs the RH9.6 nodes and that `pytorch-conda/2.8` is for the older RH9.4 nodes.
+The system `python3` on the login nodes is 3.9.
+
+## RCAC first-time setup (once per person)
+
+This section and every section after it are about the two RCAC clusters, Gautschi and
+Gilbreth.  Everything below assumes these steps are done.  The allocation itself (what was
+bought, how access is granted, GPU-hour accounting) is in
+[Accounts and access](#purdue-rcac-gautschi-gilbreth).
 
 1. **Get onto the queue.**  Request `bouman` on gautschi (and on gilbreth) at
    <https://www.rcac.purdue.edu/account/request>, or have the PI add you from the group's
@@ -341,7 +650,7 @@ mbirjax viewer squats on ~77 GB of an H100 at 0% utilization;
 - **GPU-hours are metered** here (gilbreth is not): `slist` shows the account balance
   (21,857 H100 GPU-hours on 2026-09-03).  QoS `normal` burns one GPU-hour per GPU per hour;
   `-q preemptible` burns 0.25× but the job can be preempted.  Purchase history and
-  top-ups: `.claude/gpu-resources.md`.
+  top-ups: [Accounts and access](#purdue-rcac-gautschi-gilbreth).
 - **The `ai` partition REFUSES `--mem`** — do not pass it.  Host memory is strictly
   proportional to CPUs, and CPUs to GPUs:
 
@@ -526,7 +835,7 @@ dashboards; only he can read the logs or edit the scrontab entries).
   **treat the concurrent-GPU limit as unconfirmed; needs investigation.**  No GPU-hour
   metering here: the subscription caps concurrency, not total use.  The slurm account is
   `bouman` here too (`slist`, `sacctmgr`, 2026-09-03); the `bouman-g`/`bouman-n` names in
-  `gpu-resources.md` are the portal's purchase queues, used only when requesting access.
+  [Accounts and access](#purdue-rcac-gautschi-gilbreth) are the portal's purchase queues, used only when requesting access.
 - Partition `a100-40gb` **silently mixes two hardware classes** — A100-**SXM4** (features
   `N`/`nvlink`, 4 GPU/node, 400 W) and A100-**PCIe** (`G`, 2 GPU/node, 250 W).  Their
   clocks differ, so **wall times are not comparable across them** — pin one class with
@@ -721,7 +1030,7 @@ shadowing all fail the same way, by running code you did not think you were runn
 
 | symptom | cause / fix |
 |---|---|
-| `sbatch: error: ... Invalid account or account/partition combination specified`, or `slist` does not list `bouman` | you are not on the queue yet, or the change has not propagated (up to a day, plus a log-out/log-in).  Setup step 1; `.claude/gpu-resources.md`. |
+| `sbatch: error: ... Invalid account or account/partition combination specified`, or `slist` does not list `bouman` | you are not on the queue yet, or the change has not propagated (up to a day, plus a log-out/log-in).  Setup step 1; [Accounts and access](#purdue-rcac-gautschi-gilbreth). |
 | `Permission denied` creating a file under `/depot/bouman/data/` or `/depot/bouman/www/` | missing unix group (`bouman-data` / `bouman-www`).  Ask Greg to add you; log out and back in. |
 | `conda env list` no longer shows an env, its directory holds only `conda-meta/`, and `conda create`/`conda remove` on that name fail with `DirectoryNotACondaEnvironmentError` | the scratch purge hollowed out an env under a scratch-linked `~/.conda` (60 days unused).  `rm -rf ~/.conda/envs/<name>`, then rebuild with the project's `clean_install_all.sh`. |
 | an env that worked last month raises `ImportError`/`ModuleNotFoundError` for one rarely-used module, everything else fine, same result on every node | the same purge, partial: files of that env not touched in 60 days are gone.  Rebuild; do not chase a packaging bug. |

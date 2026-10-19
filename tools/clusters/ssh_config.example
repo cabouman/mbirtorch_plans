@@ -1,0 +1,31 @@
+# ~/.ssh/config stanzas for the group's GPU clusters.  install.sh appends the ones that are
+# missing, with the user names filled in; or copy them by hand and replace the <...> names.
+# The short names (gautschi, gilbreth, perlmutter, delta) are what gpu-login, the queues skill
+# and .claude/cluster_use.md use.
+
+# Purdue RCAC: key login (cluster_use.md, "RCAC first-time setup", step 2).  If you made a
+# separate key for RCAC, add "IdentityFile ~/.ssh/id_rcac" and "IdentitiesOnly yes".
+Host gautschi
+    HostName gautschi.rcac.purdue.edu
+    User <purdue_user>
+
+Host gilbreth
+    HostName gilbreth.rcac.purdue.edu
+    User <purdue_user>
+
+# NERSC Perlmutter: the key comes from `gpu-login nersc` (sshproxy) and lasts 24 hours.
+Host perlmutter
+    HostName perlmutter.nersc.gov
+    User <nersc_user>
+    IdentityFile ~/.ssh/nersc
+    IdentitiesOnly yes
+
+# NCSA Delta: one password + Duo login (`gpu-login delta`) opens a shared connection that
+# every later ssh/scp reuses with no prompt; it closes 4 hours after its last use.
+Host delta
+    HostName login.delta.ncsa.illinois.edu
+    User <ncsa_user>
+    ControlMaster auto
+    ControlPath ~/.ssh/cm/%r@%h:%p
+    ControlPersist 4h
+    ServerAliveInterval 60

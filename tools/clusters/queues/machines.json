@@ -1,0 +1,59 @@
+{
+  "gilbreth": {
+    "title": "Gilbreth (Purdue)",
+    "ssh": "gilbreth",
+    "login_help": "Keys work; no login needed. If this fails, check the gilbreth/gautschi stanzas in ~/.ssh/config.",
+    "queues": [
+      {"name": "a100-40gb, normal", "partition": "a100-40gb", "qos": "normal", "gpu": "A100 40GB",
+       "test": "-A bouman -p a100-40gb -q normal --exclude=gilbreth-g000 -N1 -n8 --gres=gpu:2 --mem=120G -t 4:00:00"},
+      {"name": "a100-40gb, standby", "partition": "a100-40gb", "qos": "standby", "gpu": "A100 40GB",
+       "test": "-A bouman -p a100-40gb -q standby --exclude=gilbreth-g000 -N1 -n8 --gres=gpu:2 --mem=120G -t 4:00:00"}
+    ]
+  },
+  "gautschi": {
+    "title": "Gautschi (Purdue)",
+    "ssh": "gautschi",
+    "login_help": "Keys work; no login needed. If this fails, check the gilbreth/gautschi stanzas in ~/.ssh/config.",
+    "queues": [
+      {"name": "smallgpu", "partition": "smallgpu", "qos": "smallgpu-qpart", "job_qos": "", "gpu": "L40 48GB",
+       "test": "-A bouman -p smallgpu -N1 -n64 --gres=gpu:1 -t 4:00:00"},
+      {"name": "ai", "partition": "ai", "qos": "ai-qpart", "job_qos": "", "gpu": "H100 80GB",
+       "test": "-A bouman -p ai -N1 -n14 --gres=gpu:1 -t 4:00:00"}
+    ]
+  },
+  "perlmutter": {
+    "title": "Perlmutter (NERSC)",
+    "ssh": "perlmutter",
+    "login_help": "Run `gpu-login nersc` in a terminal (password from the Keychain + the 6-digit code; the key lasts 24 hours).",
+    "queues": [
+      {"name": "debug", "partition": "gpu_ss11", "qos": "gpu_debug", "gpu": "A100 40GB or 80GB",
+       "test": "-A m5193_g -C gpu -q debug -N1 --gpus-per-node=4 -t 30:00"},
+      {"name": "regular", "partition": "gpu_ss11", "qos": "gpu_regular", "gpu": "A100 40GB or 80GB",
+       "test": "-A m5193_g -C gpu -q regular -N1 --gpus-per-node=4 -t 4:00:00"},
+      {"name": "preempt", "partition": "gpu_ss11", "qos": "gpu_preempt", "gpu": "A100 40GB or 80GB",
+       "test": "-A m5193_g -C gpu -q preempt -N1 --gpus-per-node=4 -t 4:00:00"}
+    ]
+  },
+  "delta": {
+    "title": "Delta (NCSA, ACCESS)",
+    "ssh": "delta",
+    "login_help": "Run `gpu-login delta` in a terminal and tap Approve on the phone (the connection stays open 4 hours).",
+    "account": "auto",
+    "queues": [
+      {"name": "gpuA100x4-interactive", "partition": "gpuA100x4-interactive", "qos": "", "gpu": "A100 40GB, 4 per node",
+       "test": "-A $ACC -p gpuA100x4-interactive -N1 --gpus-per-node=4 --cpus-per-task=16 --mem=120G -t 1:00:00"},
+      {"name": "gpuA100x4", "partition": "gpuA100x4", "qos": "", "gpu": "A100 40GB, 4 per node",
+       "test": "-A $ACC -p gpuA100x4 -N1 --gpus-per-node=4 --cpus-per-task=16 --mem=120G -t 4:00:00"},
+      {"name": "gpuA100x4-preempt", "partition": "gpuA100x4-preempt", "qos": "", "gpu": "A100 40GB, 4 per node",
+       "test": "-A $ACC -p gpuA100x4-preempt -N1 --gpus-per-node=4 --cpus-per-task=16 --mem=120G -t 4:00:00"},
+      {"name": "gpuA100x8-interactive", "partition": "gpuA100x8-interactive", "qos": "", "gpu": "A100 80GB, 8 per node",
+       "test": "-A $ACC -p gpuA100x8-interactive -N1 --gpus-per-node=4 --cpus-per-task=16 --mem=120G -t 1:00:00"},
+      {"name": "gpuA100x8", "partition": "gpuA100x8", "qos": "", "gpu": "A100 80GB, 8 per node",
+       "test": "-A $ACC -p gpuA100x8 -N1 --gpus-per-node=4 --cpus-per-task=16 --mem=120G -t 4:00:00"},
+      {"name": "gpuH200x8-interactive", "partition": "gpuH200x8-interactive", "qos": "", "gpu": "H200 141GB, 8 per node",
+       "test": "-A $ACC -p gpuH200x8-interactive -N1 --gpus-per-node=4 --cpus-per-task=16 --mem=120G -t 1:00:00"},
+      {"name": "gpuH200x8", "partition": "gpuH200x8", "qos": "", "gpu": "H200 141GB, 8 per node",
+       "test": "-A $ACC -p gpuH200x8 -N1 --gpus-per-node=4 --cpus-per-task=16 --mem=120G -t 4:00:00"}
+    ]
+  }
+}
