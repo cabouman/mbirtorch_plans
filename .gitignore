@@ -19,3 +19,7 @@ __pycache__/
 *.snm
 *.pdf
 
+
+# Tool configuration and job scripts, not results (tools/clusters/README.md).
+!tools/clusters/queues/machines.json
+!tools/clusters/gpu_test/*.sbatch

@@ -5,8 +5,9 @@ Plans, surveys, findings, and experiment scripts for the
 The documents here are the record of why the code is the way it is and what was measured.
 The code itself, its docstrings, and its user documentation live in the mbirtorch repository.
 
-New to the group's clusters?  Read [`.claude/cluster_use.md`](.claude/cluster_use.md) and
-[`.claude/gpu-resources.md`](.claude/gpu-resources.md).  The collaboration style is in
+New to the group's clusters (Gautschi, Gilbreth, Perlmutter, Delta)?  Read
+[`.claude/cluster_use.md`](.claude/cluster_use.md); its tools are in
+[`tools/clusters/`](tools/clusters/README.md).  The collaboration style is in
 [`.claude/claude_prompt.md`](.claude/claude_prompt.md), the writing style in
 [`.claude/writing_style.md`](.claude/writing_style.md), and the engineering rules distilled
 from past programs in [`.claude/lessons.md`](.claude/lessons.md).

@@ -1,0 +1,259 @@
+#!/usr/bin/env python3
+"""Check and renew the logins to the group's GPU clusters.
+
+    gpu-login            same as `status`
+    gpu-login status     one line per machine; exit 1 if any login needs you (DOWN or renew)
+    gpu-login nersc      Perlmutter: run sshproxy (password from the Keychain; you type the code)
+    gpu-login delta      Delta: open the shared ssh connection (password from the Keychain,
+                         Duo push; you tap Approve)
+    gpu-login all        renew whatever `status` says needs it
+
+Host and user names come from ~/.ssh/config (Host gautschi, gilbreth, perlmutter, delta; see
+ssh_config.example).  Passwords come from the macOS Keychain items `nersc-password` and
+`delta-password`, which you add once with
+    security add-generic-password -U -s <item> -a <user> -w
+Without them, or off macOS, each login falls back to typing everything at the prompt.  Nothing
+here stores a one-time code or an MFA secret, so NERSC stays two-factor: the code comes from
+your phone each day.
+
+`status` never reads the Keychain and never prompts, so a Claude session can run it at any
+time.  `nersc`, `delta` and `all` are for the human, in a terminal.
+"""
+import datetime as dt
+import getpass
+import os
+import re
+import shutil
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
+
+RCAC_HOSTS = ('gautschi', 'gilbreth')
+NERSC_CERT = os.path.expanduser('~/.ssh/nersc-cert.pub')
+CM_DIR = os.path.expanduser('~/.ssh/cm')
+RENEW_HOURS = 2.0  # `all` renews a NERSC key with less than this left
+RCAC_TIMEOUT_S = 60  # an RCAC login node sometimes takes ~90 s to answer; that is not a login problem
+
+
+def ssh_config(host):
+    """Return ssh's resolved settings for a host alias as a dict (`ssh -G`)."""
+    r = subprocess.run(['ssh', '-G', host], capture_output=True, text=True)
+    out = {}
+    for line in r.stdout.splitlines():
+        key, _, val = line.partition(' ')
+        out.setdefault(key, val)
+    return out
+
+
+def has_stanza(host):
+    """True when ~/.ssh/config maps the alias to a real host name."""
+    return ssh_config(host).get('hostname', host) != host
+
+
+def ssh_user(host):
+    return ssh_config(host).get('user') or getpass.getuser()
+
+
+def keychain_password(item, user):
+    """Return the Keychain password for (item, user), or None when there is none."""
+    if sys.platform != 'darwin':
+        return None
+    r = subprocess.run(['security', 'find-generic-password', '-s', item, '-a', user, '-w'],
+                       capture_output=True, text=True)
+    return r.stdout.rstrip('\n') if r.returncode == 0 else None
+
+
+def fmt_hours(h):
+    return f'{h * 60:.0f} min' if h < 1 else f'{h:.1f} h'
+
+
+# ---- status checks: each returns (ok, needs_renewal, detail); ok is None when the machine
+# did not answer in time, which no login would fix ----
+
+def check_rcac(host):
+    if not has_stanza(host):
+        return False, False, f'no "Host {host}" in ~/.ssh/config (see ssh_config.example)'
+    try:
+        r = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20', '-o', 'LogLevel=ERROR',
+                            host, 'true'], capture_output=True, text=True, timeout=RCAC_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        return None, False, f'no answer in {RCAC_TIMEOUT_S} s (a slow login node; keys need no renewing, retry later)'
+    if r.returncode == 0:
+        return True, False, 'key login works'
+    return False, False, 'key login failed: ' + (r.stderr.strip().splitlines() or ['?'])[-1]
+
+
+def nersc_hours_left():
+    """Return (hours left, expiry) for the sshproxy key, or (None, None) when there is none."""
+    if not os.path.exists(NERSC_CERT):
+        return None, None
+    r = subprocess.run(['ssh-keygen', '-L', '-f', NERSC_CERT], capture_output=True, text=True)
+    m = re.search(r'Valid: from \S+ to (\S+)', r.stdout)
+    if not m:
+        return None, None
+    expiry = dt.datetime.strptime(m.group(1), '%Y-%m-%dT%H:%M:%S')
+    return (expiry - dt.datetime.now()).total_seconds() / 3600, expiry
+
+
+def check_nersc():
+    if not has_stanza('perlmutter'):
+        return False, False, 'no "Host perlmutter" in ~/.ssh/config (see ssh_config.example)'
+    hours, expiry = nersc_hours_left()
+    if hours is None:
+        return False, True, 'no sshproxy key; run: gpu-login nersc'
+    if hours <= 0:
+        return False, True, f'key expired {expiry:%a %H:%M}; run: gpu-login nersc'
+    detail = f'key valid {fmt_hours(hours)} more (until {expiry:%a %H:%M})'
+    if hours < RENEW_HOURS:
+        return True, True, detail + '; renew soon: gpu-login nersc'
+    return True, False, detail
+
+
+def delta_master_pid():
+    """Return the pid of Delta's shared-connection master, or None when it is not running."""
+    r = subprocess.run(['ssh', '-O', 'check', 'delta'], capture_output=True, text=True)
+    m = re.search(r'Master running \(pid=(\d+)\)', r.stdout + r.stderr)
+    return int(m.group(1)) if m else None
+
+
+def check_delta():
+    if not has_stanza('delta'):
+        return False, False, 'no "Host delta" in ~/.ssh/config (see ssh_config.example)'
+    pid = delta_master_pid()
+    if pid is None:
+        return False, True, 'no shared connection; run: gpu-login delta'
+    r = subprocess.run(['ps', '-o', 'etime=', '-p', str(pid)], capture_output=True, text=True)
+    age = r.stdout.strip() or '?'
+    persist = ssh_config('delta').get('controlpersist', '')
+    idle = f'{int(persist) / 3600:g} h' if persist.isdigit() else 'a while'
+    return True, False, f'shared connection open (for {age}; it closes {idle} after its last use)'
+
+
+def status():
+    """Print one line per machine; return the dict of (ok, needs_renewal, detail)."""
+    checks = {h: (check_rcac, (h,)) for h in RCAC_HOSTS}
+    checks['perlmutter'] = (check_nersc, ())
+    checks['delta'] = (check_delta, ())
+    with ThreadPoolExecutor(len(checks)) as pool:
+        futures = {name: pool.submit(fn, *args) for name, (fn, args) in checks.items()}
+        results = {name: f.result() for name, f in futures.items()}
+    for name, (ok, renew, detail) in results.items():
+        state = 'slow' if ok is None else 'renew' if (ok and renew) else 'ok' if ok else 'DOWN'
+        print(f'{name:11s} {state:6s} {detail}')
+    return results
+
+
+# ---- logins: for the human, in a terminal ----
+
+EXPECT_NERSC = r'''
+set timeout 90
+set sent 0
+spawn sshproxy -u $env(GPU_LOGIN_USER)
+expect {
+  -re {OTP: ?} {
+    if {$sent} { puts "\nThe password or code was rejected."; exit 1 }
+    send -- "$env(GPU_LOGIN_SECRET)\r"; set sent 1; exp_continue
+  }
+  eof
+}
+catch wait result
+exit [lindex $result 3]
+'''
+
+EXPECT_DELTA = r'''
+set timeout 120
+set sent 0
+spawn ssh -fN delta
+expect {
+  -re {\(yes/no} {
+    puts "\nFirst connection to Delta: run `ssh delta` once by hand to accept its host key."; exit 1
+  }
+  -re {(?i)password: ?$} {
+    if {$sent} { puts "\nPassword rejected: update the Keychain item delta-password."; exit 1 }
+    send -- "$env(GPU_LOGIN_SECRET)\r"; set sent 1; exp_continue
+  }
+  -re {(?i)passcode or option[^\n]*: ?} { send "1\r"; puts "\n(Tap Approve on your phone.)"; exp_continue }
+  -re {(?i)permission denied|connection closed} { puts "\nLogin failed."; exit 1 }
+  eof
+}
+catch wait result
+exit [lindex $result 3]
+'''
+
+
+def run_expect(script, user, secret):
+    """Run an expect script with the user and secret passed in the environment, not on argv."""
+    env = dict(os.environ, GPU_LOGIN_USER=user, GPU_LOGIN_SECRET=secret)
+    return subprocess.run(['expect', '-c', script], env=env).returncode
+
+
+def login_nersc():
+    if not shutil.which('sshproxy'):
+        print('sshproxy is not installed.  Get sshproxy-<version>-macos-universal.pkg from\n'
+              'https://portal.nersc.gov/cfs/mfa/ and run the installer.')
+        return False
+    user = ssh_user('perlmutter')
+    pw = keychain_password('nersc-password', user)
+    if pw is None or not shutil.which('expect'):
+        print(f'No Keychain item nersc-password for {user}: at the prompt, type your NERSC password\n'
+              'followed immediately by the 6-digit code.  (To store the password:\n'
+              f'  security add-generic-password -U -s nersc-password -a {user} -w )')
+        ok = subprocess.run(['sshproxy', '-u', user]).returncode == 0
+    else:
+        code = input('NERSC code (6 digits from your authenticator app): ').strip()
+        if not re.fullmatch(r'\d{6}', code):
+            print('That is not 6 digits; nothing was sent.')
+            return False
+        ok = run_expect(EXPECT_NERSC, user, pw + code) == 0
+    print('perlmutter  ' + check_nersc()[2])
+    return ok
+
+
+def login_delta():
+    if delta_master_pid() is not None:
+        print('delta       ' + check_delta()[2])
+        return True
+    os.makedirs(CM_DIR, mode=0o700, exist_ok=True)
+    user = ssh_user('delta')
+    pw = keychain_password('delta-password', user)
+    if pw is None or not shutil.which('expect'):
+        print(f'No Keychain item delta-password for {user}: type your NCSA password, then 1 for a\n'
+              'Duo push.  (To store the password:\n'
+              f'  security add-generic-password -U -s delta-password -a {user} -w )')
+        subprocess.run(['ssh', '-fN', 'delta'])
+    else:
+        run_expect(EXPECT_DELTA, user, pw)
+    ok, _, detail = check_delta()
+    print('delta       ' + detail)
+    return ok
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else 'status'
+    try:
+        if cmd == 'status':
+            results = status()
+            return 0 if all(ok is not False and not renew for ok, renew, _ in results.values()) else 1
+        if cmd == 'nersc':
+            return 0 if login_nersc() else 1
+        if cmd == 'delta':
+            return 0 if login_delta() else 1
+        if cmd == 'all':
+            nersc_ok, nersc_renew, _ = check_nersc()
+            ok = True
+            if not nersc_ok or nersc_renew:
+                ok = login_nersc() and ok
+            if delta_master_pid() is None:
+                ok = login_delta() and ok
+            print()
+            status()
+            return 0 if ok else 1
+    except KeyboardInterrupt:
+        print()
+        return 130
+    print(__doc__)
+    return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main())
