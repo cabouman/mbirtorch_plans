@@ -44,6 +44,12 @@ Per-laptop settings live in `~/.config/gpu-queues/config.json`:
 - Slurm estimate: start time of a typical test job (`sbatch --test-only`) minus now.  Slurm
   assumes every running job uses its full time limit, so this is usually pessimistic.
 - My recent waits: actual waits of the user's own jobs in that queue over the last 30 days.
+- Maintenance: a Slurm maintenance reservation (`MAINT` flag, at most 30 days long) that is
+  active or starts within 7 days and covers at least 10% of a queue's nodes.  It is shown in
+  the queue's row and in a note at the top, in the laptop's local time.  Nodes in an active
+  reservation, or whose maintenance starts within 60 minutes, do not count as free.  A queue
+  drops out of "best bet" for job lengths that would run into a window covering at least half
+  of its nodes.  When reporting, name any such window in the three-line summary.
 
 ## Logins
 

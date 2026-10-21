@@ -38,7 +38,14 @@ JSON_PATH = os.path.join(OUT_DIR, 'queues.json')
 HTML_PATH = os.path.join(OUT_DIR, 'queues.html')
 SSH_TIMEOUT_S = 120
 
-BAD_STATES = ('drain', 'drng', 'down', 'resv', 'maint', 'comp', 'fail', 'unk', 'inval', 'plnd')
+# Node states (sinfo StateCompact, matched as substrings) whose GPUs do not count as free.
+BAD_STATES = ('drain', 'drng', 'down', 'resv', 'maint', 'comp', 'fail', 'unk', 'inval', 'plnd',
+              'boot', 'pow', 'futr')
+MAINT_HORIZON_DAYS = 7   # report maintenance that is active or starts within this many days
+MAINT_MIN_COVERAGE = 0.1  # ignore maintenance on less than this fraction of a queue's nodes
+MAINT_BLOCKS = 0.5       # a queue drops out of "best bet" when maintenance covers this much of it
+MAINT_MAX_DAYS = 30      # a longer MAINT reservation is a hold on a few broken or test nodes, not a window
+MAINT_SOON_MINUTES = 60  # nodes whose maintenance starts sooner than this do not count as free
 
 
 def remote_script(machine):
@@ -64,6 +71,11 @@ def remote_script(machine):
         lines.append('echo "END|"')
     lines.append('sacct -u $USER -S now-30days -X -P -n -o Partition,QOS,State,Submit,Start 2>/dev/null '
                  '| sed "s/^/ACCT|/"')
+    # Maintenance reservations, each followed by its expanded node list.
+    lines.append('scontrol show res -o 2>/dev/null | grep "Flags=[^ ]*MAINT" | while read -r line; do '
+                 'echo "RES|$line"; '
+                 'nl=$(printf "%s" "$line" | grep -o " Nodes=[^ ]*" | cut -d= -f2); '
+                 'echo "RESNODES|$(scontrol show hostnames "$nl" 2>/dev/null | tr "\\n" " ")"; done')
     return '\n'.join(lines) + '\n'
 
 
@@ -121,9 +133,51 @@ def parse_slurm_date(s):
         return None
 
 
+def to_local(t, remote_now, now):
+    """Convert a cluster-clock time to the laptop's clock, using the two clocks' offset rounded to 15 min."""
+    offset = round((now - remote_now).total_seconds() / 900) * 900
+    return t + dt.timedelta(seconds=offset)
+
+
+def fmt_when(t, now):
+    """Format a time as 'Wed Oct 21 09:00', adding the year when it is not this year."""
+    return t.strftime('%a %b %d %H:%M' if t.year == now.year else '%a %b %d %Y %H:%M')
+
+
+def is_window(r):
+    """True for a maintenance window: a MAINT reservation with known times lasting at most MAINT_MAX_DAYS."""
+    return bool(r['start'] and r['end']) and (r['end'] - r['start']).total_seconds() <= MAINT_MAX_DAYS * 86400
+
+
+def maintenance_for(hosts, reservations, remote_now, now):
+    """Return the first maintenance window that matters for a queue with these node names, or None.
+
+    A window matters when it has not ended, starts within MAINT_HORIZON_DAYS, and covers at least
+    MAINT_MIN_COVERAGE of the queue's nodes.  Times in the result are on the laptop's clock."""
+    if not hosts:
+        return None
+    found = []
+    for r in reservations:
+        start, end = r['start'], r['end']
+        if not is_window(r) or end <= remote_now:
+            continue
+        if (start - remote_now).total_seconds() > MAINT_HORIZON_DAYS * 86400:
+            continue
+        coverage = len(hosts & r['hosts']) / len(hosts)
+        if coverage < MAINT_MIN_COVERAGE:
+            continue
+        found.append((start, {
+            'name': r['name'], 'coverage': round(coverage, 3), 'active': start <= remote_now,
+            'starts_in_minutes': max(int((start - remote_now).total_seconds() // 60), 0),
+            'start': fmt_when(to_local(start, remote_now, now), now),
+            'end': fmt_when(to_local(end, remote_now, now), now),
+        }))
+    return min(found, key=lambda x: x[0])[1] if found else None
+
+
 def parse_output(machine, text, now):
     """Turn the tagged lines into per-queue records."""
-    queues, acct_rows, account = [], [], ''
+    queues, acct_rows, account, reservations = [], [], '', []
     cur = None
     remote_now = now
     for line in text.splitlines():
@@ -133,6 +187,14 @@ def parse_output(machine, text, now):
         if tag == 'NOW':
             # Estimates are measured against the cluster's own clock, which may be in another time zone.
             remote_now = parse_slurm_date(val.strip()) or now
+        elif tag == 'RES':
+            fields = dict(re.findall(r'(\w+)=(\S*)', val))
+            reservations.append({'name': fields.get('ReservationName', ''),
+                                 'start': parse_slurm_date(fields.get('StartTime', '')),
+                                 'end': parse_slurm_date(fields.get('EndTime', '')), 'hosts': set()})
+        elif tag == 'RESNODES':
+            if reservations:
+                reservations[-1]['hosts'] = set(val.split())
         elif tag == 'ACCOUNT':
             account = val.strip()
         elif tag == 'QUEUE':
@@ -159,20 +221,28 @@ def parse_output(machine, text, now):
         elif tag == 'ACCT':
             acct_rows.append(val.split('|'))
 
+    # Nodes about to go into maintenance can take only jobs that end first, so they do not count as free.
+    soon = set()
+    for r in reservations:
+        if r['start'] and 0 <= (r['start'] - remote_now).total_seconds() <= MAINT_SOON_MINUTES * 60:
+            soon |= r['hosts']
+
     spec_by_name = {q['name']: q for q in machine['queues']}
     records = []
     for q in queues:
         spec = spec_by_name.get(q['name'], {})
         total = free = 0
+        hosts = set()
         for n in q['nodes']:
             parts = n.split()
             if len(parts) < 4:
                 continue
             host, gres, used, state = parts[0], parts[1], parts[2], parts[3]
+            hosts.add(host)
             t = parse_gpu_count(gres)
             u = parse_gpu_count(used)
             total += t
-            if not any(b in state.lower() for b in BAD_STATES):
+            if host not in soon and not any(b in state.lower() for b in BAD_STATES):
                 free += max(t - u, 0)
         limits = [x for x in (parse_time(q['maxp']), parse_time(q['maxq'])) if x is not None]
         max_minutes = min(limits) if limits else None
@@ -210,6 +280,7 @@ def parse_output(machine, text, now):
             'waiting': q['pd'], 'running': q['r'], 'max_job': fmt_minutes(max_minutes),
             'max_minutes': max_minutes, 'slurm_estimate': est_text, 'slurm_estimate_minutes': est_minutes,
             'recent_waits': recent, 'recent_wait_minutes': waits,
+            'maintenance': maintenance_for(hosts, reservations, remote_now, now),
         })
     return records, account
 
@@ -279,6 +350,22 @@ def wait_class(mins):
     return 'bad'
 
 
+def maint_text(mt):
+    """Describe a maintenance window in one line, with times on the laptop's clock."""
+    pct = f'{mt["coverage"] * 100:.0f}% of nodes'
+    if mt['active']:
+        return f'maintenance until {mt["end"]} ({pct})'
+    return f'maintenance {mt["start"]} to {mt["end"]} ({pct}); starts in {fmt_minutes(mt["starts_in_minutes"])}'
+
+
+def blocked_by_maintenance(q, need):
+    """True when maintenance covers most of the queue and a job of `need` minutes would run into it."""
+    mt = q.get('maintenance')
+    if not mt or mt['coverage'] < MAINT_BLOCKS:
+        return False
+    return mt['active'] or mt['starts_in_minutes'] < need
+
+
 def render(data):
     rows = []
     for key, m in data['machines'].items():
@@ -293,7 +380,8 @@ def render(data):
     best = []
     for label, need in JOB_LENGTHS:
         ok = [r for r in rows if r['fresh'] and r['wait'] is not None
-              and (r['q']['max_minutes'] is None or r['q']['max_minutes'] >= need)]
+              and (r['q']['max_minutes'] is None or r['q']['max_minutes'] >= need)
+              and not blocked_by_maintenance(r['q'], need)]
         ok.sort(key=lambda r: r['wait'])
         if ok:
             cells = ''.join(f'<td class="{wait_class(r["wait"])}">{esc(r["machine"])} {esc(r["q"]["name"])}: '
@@ -308,9 +396,29 @@ def render(data):
         cls = ' class="stale"' if not r['fresh'] else (f' class="{wait_class(r["wait"])}"' if r['wait'] is not None else '')
         gpus = f'{q["gpus_free"]} of {q["gpus_total"]}' if q['gpus_total'] else ''
         wait = f'{fmt_minutes(r["wait"])} ({r["src"]})' if r['wait'] is not None else 'unknown'
-        body.append(f'<tr{cls}><td>{esc(q["max_job"])}</td><td>{esc(r["machine"])}</td><td>{esc(q["name"])}</td>'
+        mt = q.get('maintenance')
+        name = esc(q['name']) + (f'<div class="maint">{esc(maint_text(mt))}</div>' if mt else '')
+        body.append(f'<tr{cls}><td>{esc(q["max_job"])}</td><td>{esc(r["machine"])}</td><td>{name}</td>'
                     f'<td>{esc(q["gpu"])}</td><td class="num">{gpus}</td><td class="num">{q["waiting"]}</td>'
                     f'<td>{wait}</td><td class="muted">{esc(r["read_at"])}</td></tr>')
+
+    windows = {}  # (machine, reservation) -> (window, queue names)
+    for m in data['machines'].values():
+        for q in m['queues']:
+            mt = q.get('maintenance')
+            if mt and m['fresh']:
+                key = (m['title'].split(' (')[0], mt['name'])
+                w = windows.setdefault(key, [mt, []])
+                w[1].append(q['name'])
+                if mt['coverage'] > w[0]['coverage']:
+                    w[0] = mt
+    maint_note = ''
+    if windows:
+        items = ''.join(f'<li><b>{esc(mach)}</b>: {esc(maint_text(mt))}.  Queues: {esc(", ".join(names))}.</li>'
+                        for (mach, _), (mt, names) in windows.items())
+        maint_note = (f'<h2>Maintenance</h2><ul class="maint-note">{items}</ul>'
+                      '<p class="muted">Times are on this laptop\'s clock.  A queue drops out of "best bet" for '
+                      'job lengths that would run into a window covering most of its nodes.</p>')
 
     stale = [m for m in data['machines'].values() if not m['fresh']]
     stale_note = ''
@@ -340,11 +448,14 @@ tr.ok td, td.ok {{ background: var(--ok); }}
 tr.bad td, td.bad {{ background: var(--bad); }}
 tr.stale td {{ color: var(--muted); }}
 .stale-note {{ color: var(--stale); }}
+.maint, .maint-note {{ color: var(--stale); }}
+.maint {{ font-size: 12px; }}
 .legend {{ max-width: 80ch; padding-left: 20px; }}
 .legend li {{ margin: 4px 0; }}
 </style>
 <h1>GPU Queues</h1>
 <p class="muted">Updated {esc(data["updated"])}. Legend at the bottom.</p>
+{maint_note}
 <h2>Best bet by job length</h2>
 <div class="wrap"><table>
 <thead><tr><th>Job length</th><th>First choice</th><th>Second</th><th>Third</th></tr></thead>
@@ -366,6 +477,7 @@ tr.stale td {{ color: var(--muted); }}
 <li><b>GPUs free</b>: GPUs not in use on nodes that are up and not reserved. Free GPUs with jobs waiting usually means the waiting jobs need more than what is free.</li>
 <li><b>Waiting</b>: jobs queued in that queue right now, from everyone.</li>
 <li><b>Best bet</b>: the three queues with the shortest expected wait among those that allow your job length, machines you are logged into only.</li>
+<li><b>Maintenance</b>: a Slurm maintenance reservation that is active or starts within {MAINT_HORIZON_DAYS} days and covers at least {MAINT_MIN_COVERAGE * 100:.0f}% of a queue's nodes. Nodes in an active reservation, or whose maintenance starts within {MAINT_SOON_MINUTES} minutes, do not count as free. Reservations longer than {MAINT_MAX_DAYS} days hold a few broken or test nodes and are not shown.</li>
 </ul>
 """
 
@@ -384,6 +496,8 @@ def main():
         for q in m['queues']:
             print(f'  {q["name"]:28s} free {q["gpus_free"]:>3}/{q["gpus_total"]:<3} wait {q["waiting"]:>4} '
                   f'run {q["running"]:>4} max {q["max_job"]:10s} est {q["slurm_estimate"][:40]:40s} {q["recent_waits"]}')
+            if q.get('maintenance'):
+                print(f'  {"":28s} {maint_text(q["maintenance"])}')
     print('wrote', HTML_PATH)
     url = load_config().get('artifact_url')
     print('artifact_url', url if url else 'NOT SET (publish a new artifact and record its URL in ' + CONFIG_PATH + ')')
