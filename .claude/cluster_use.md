@@ -15,9 +15,16 @@ Delta first and the long RCAC part last.  The tools this guide names are in
   still points at it.
 - `<user>` is the person's user name at a site, and it can differ between sites.  Greg is
   `buzzard` at Purdue and NERSC and `gbuzzard` at NCSA.  On a cluster the same name is `$USER`.
-- Home and scratch directories are **per account**, and on RCAC they are mode 700.  Anything
+- Home and scratch directories are **per account**, and on RCAC (`~`, `/scratch/<cluster>/<user>`)
+  they are mode 700.  Anything
   meant for another member goes through shared project storage: depot on RCAC,
   `/work/*/bjda` and `/projects/bjda` on Delta.
+  **The career account need not match your local machine's login — Greg's cluster
+  username is `buzzard` on BOTH clusters, while his Mac login is `gbuzzard`.**  Using the
+  wrong username fails with `Permission denied (publickey,…)` before any key is even
+  considered, which looks exactly like a key problem and cost a session an hour of key
+  debugging on 2026-10-12.  So: `ssh buzzard@gautschi.rcac.purdue.edu` for Greg, with the
+  default key and **no `-i`** (VERIFIED 2026-10-12; see SSH access).
 - Greg's paths (`/home/buzzard/…`, `/scratch/gautschi/buzzard/…`) appear only where they
   are the real location of something shared: his two nightlies and some staged data.
 - Every allocation is shared.  **Coordinate before heavy or long batch use.**  On gautschi,
@@ -378,7 +385,8 @@ bought, how access is granted, GPU-hour accounting) is in
    ```
    RCAC's own example uses an RSA key (`~/.ssh/id_rsa.pub`); if a newer key type is
    refused, regenerate with `-t rsa -b 4096`.  A `~/.ssh/config` stanza is worth having:
-   it pins the key and makes the short names used later in this guide work.
+   it pins the key **and the username** and makes the short names used later in this
+   guide work.
    ```
    Host gautschi
        HostName gautschi.rcac.purdue.edu
@@ -394,6 +402,12 @@ bought, how access is granted, GPU-hour accounting) is in
    With several keys and no stanza, ssh offers them in turn and a key that is not in
    `authorized_keys` is a confusing failure — Greg's account hit exactly this (his default
    `~/.ssh/id_rsa` works, his `id_rsa_gau` is rejected), so on that account pass no `-i`.
+   **Re-verified 2026-10-12 with the username spelled out:**
+   `ssh -o BatchMode=yes buzzard@gautschi.rcac.purdue.edu` succeeds with the default key;
+   forcing `-i ~/.ssh/id_rsa_gau` is still refused (that key's origin is unknown and it is
+   not in `authorized_keys`; candidate for deletion from the Mac).  The same denial message
+   also appears for a **wrong username** (`gbuzzard@…`), so check the username before
+   debugging keys — see the failure table.
 3. **ThinLinc desktop** — needed only for workflows with a window (1 and 3 below).  Web
    client at <https://desktop.gautschi.rcac.purdue.edu/>, or the native client from
    <https://www.cendio.com/thinlinc/download> pointed at the same host; Purdue password +
@@ -1030,6 +1044,7 @@ shadowing all fail the same way, by running code you did not think you were runn
 
 | symptom | cause / fix |
 |---|---|
+| `Permission denied (publickey,…)` on BOTH clusters although local keys look fine and worked before | **wrong USERNAME** — the career account (Greg: `buzzard`) need not match the laptop login (Greg's Mac: `gbuzzard`), and ssh defaults to the local login when no user is given.  The message is identical to a key failure.  Spell out `<user>@`, and pass no `-i` (2026-10-12). |
 | `sbatch: error: ... Invalid account or account/partition combination specified`, or `slist` does not list `bouman` | you are not on the queue yet, or the change has not propagated (up to a day, plus a log-out/log-in).  Setup step 1; [Accounts and access](#purdue-rcac-gautschi-gilbreth). |
 | `Permission denied` creating a file under `/depot/bouman/data/` or `/depot/bouman/www/` | missing unix group (`bouman-data` / `bouman-www`).  Ask Greg to add you; log out and back in. |
 | `conda env list` no longer shows an env, its directory holds only `conda-meta/`, and `conda create`/`conda remove` on that name fail with `DirectoryNotACondaEnvironmentError` | the scratch purge hollowed out an env under a scratch-linked `~/.conda` (60 days unused).  `rm -rf ~/.conda/envs/<name>`, then rebuild with the project's `clean_install_all.sh`. |
