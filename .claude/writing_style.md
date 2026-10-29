@@ -39,6 +39,11 @@ destroyed.)
  * Escaping-safe macros only inside math: \cr for row separators, \lbrace and \rbrace for set braces, \lVert and \rVert for norms, \quad or backslash-space for spacing. 
  * For long or publication-quality derivations, Claude should offer a KaTeX widget, an HTML artifact, or local typesetting with your MacTeX install.
 
+**Math in HTML pages** (blueprints, findings pages, reports):
+ * Write equations and math symbols in MathML.  Browsers typeset MathML without any script, so the page opens with no network connection.  Do not use MathJax or KaTeX.
+ * Put an equation with several parts on several lines, as an `mtable` with one row per part, aligned at the equals sign.
+ * Use the notation of the mbirtorch documentation, `docs/source/theory.rst` in the mbirtorch repository.  There `y` is the sinogram, `x` the image, `A` the projector, `Λ` the sinogram weights, `σ_y` the noise level, `h` the prior, `ρ` the qGGMRF potential, and `b_{s,r}` its pair weights.  Define any other symbol where it first appears.
+
 ## Structure
 
 * Order sections and paragraphs as a conceptual narrative: the big idea
