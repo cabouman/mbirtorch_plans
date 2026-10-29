@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blueprints: Time-resolved 4D reconstruction, Software Architecture</title>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --fg: #1f2328; --muted: #5f6670; --line: #d9d7d0;
+  --accent: #2b6cb0; --done: #2f855a; --todo: #b7791f;
+  --fill-a: #e3eefb; --fill-b: #dff4f7; --fill-c: #fdf3df;
+  --sans: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15171b; --surface: #1d2025; --fg: #e6e4df; --muted: #a0a6ae; --line: #343a42;
+  --accent: #7fb0ea; --done: #7cc99a; --todo: #e2b05a;
+  --fill-a: #1b2d44; --fill-b: #0f3238; --fill-c: #3a2f17; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15171b; --surface: #1d2025; --fg: #e6e4df; --muted: #a0a6ae; --line: #343a42;
+  --accent: #7fb0ea; --done: #7cc99a; --todo: #e2b05a;
+  --fill-a: #1b2d44; --fill-b: #0f3238; --fill-c: #3a2f17; color-scheme: dark }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 900px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+.crumb { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+.crumb a { color: var(--accent); text-decoration: none; }
+h1 { font-size: 30px; font-weight: 700; margin: 0 0 4px; }
+h2 { font-size: 22px; font-weight: 700; margin: 40px 0 10px; }
+p { max-width: 70ch; margin: 0 0 10px; }
+.lead { color: var(--muted); font-size: 17px; }
+code { font-family: var(--mono); font-size: 0.9em; }
+ul, ol { max-width: 75ch; } li { margin: 4px 0; }
+pre, .eq { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; font-family: var(--mono); font-size: 14px; overflow-x: auto; margin: 10px 0; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; margin: 12px 0; font-size: 15px; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
+th { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+figure { margin: 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; overflow-x: auto; }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; }
+svg text { font-family: var(--sans); fill: var(--fg); font-size: 14px; }
+svg .box-a { fill: var(--fill-a); stroke: var(--accent); }
+svg .box-b { fill: var(--fill-b); stroke: var(--muted); }
+svg .box-c { fill: var(--fill-c); stroke: var(--todo); }
+svg .arrow { stroke: var(--muted); fill: none; stroke-width: 1.5; }
+svg .dashed { stroke-dasharray: 5 4; }
+.chip { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 8px; border-radius: 3px; border: 1px solid; vertical-align: middle; }
+.chip.done { color: var(--done); border-color: var(--done); }
+.chip.todo { color: var(--todo); border-color: var(--todo); }
+.ask { border-left: 4px solid var(--todo); background: var(--surface); padding: 10px 16px; max-width: 75ch; margin: 16px 0; }
+ol.questions { list-style: none; padding-left: 0; }
+ol.questions li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+ol.questions input { width: 18px; height: 18px; margin-top: 4px; accent-color: var(--done); }
+ol.questions li.decided { color: var(--muted); }
+math { font-family: "STIX Two Math", "Latin Modern Math", "Cambria Math", math; font-size: 1.05em; }
+.eq math { font-size: 18px; }
+mtd { padding: 0.25em 0.3em; }
+mtd.l { text-align: left; }
+mtd.r { text-align: right; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="crumb"><a href="index.html">Blueprints: Time-resolved 4D reconstruction</a> &rsaquo; Software Architecture</p>
+<h1>2. Software Architecture</h1>
+<p class="lead">This blueprint says which objects compute the time-resolved reconstruction, what each object does, and which object holds each quantity. It extends the MACE4D code in mbirtorch.</p>
+
+<h2>1. Objects</h2>
+<p>The user holds one object, the time-resolved model. It owns one CT model for each interval between frame times, and it owns one motion object. For each run, it builds one MACE object with the five agents of the Theory blueprint. After each outer pass, it asks the motion object for a new <math><mi>d</mi></math> and replaces the two temporal agents with new ones that use it. The names on this page are working names, and the User API blueprint settles the public names.</p>
+<figure>
+<svg viewBox="0 0 820 230" width="820" height="230" role="img" aria-label="The time-resolved model owns the interval models and the motion object, and it builds one MACE object with five agents for each run. The temporal agents are replaced in each outer pass. The data-fit agents use the interval models, and the temporal agents use the motion object.">
+  <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+  <rect x="10" y="85" width="170" height="60" rx="6" class="box-a"/>
+  <text x="22" y="110">time-resolved model</text>
+  <text x="22" y="130" font-size="13">holds the parameters</text>
+  <rect x="250" y="15" width="210" height="56" rx="6" class="box-b"/>
+  <text x="264" y="40">interval models</text>
+  <text x="264" y="60" font-size="13">one CT model per interval</text>
+  <rect x="250" y="160" width="210" height="56" rx="6" class="box-b"/>
+  <text x="264" y="185">motion object</text>
+  <text x="264" y="205" font-size="13">labels, springs, <tspan font-style="italic">d</tspan></text>
+  <rect x="540" y="50" width="270" height="130" rx="6" class="box-c"/>
+  <text x="554" y="74">MACE, five agents</text>
+  <text x="554" y="96" font-size="13">data fit, even and odd intervals</text>
+  <text x="554" y="116" font-size="13">3D qGGMRF on each frame</text>
+  <text x="554" y="136" font-size="13">temporal prior, even and odd pairs</text>
+  <text x="554" y="164" font-size="13">temporal agents replaced each pass</text>
+  <path d="M180,100 L248,50" class="arrow" marker-end="url(#ah)"/>
+  <text x="198" y="66" font-size="12">owns</text>
+  <path d="M180,130 L248,180" class="arrow" marker-end="url(#ah)"/>
+  <text x="198" y="174" font-size="12">owns</text>
+  <path d="M180,115 L538,115" class="arrow" marker-end="url(#ah)"/>
+  <text x="300" y="108" font-size="12">builds</text>
+  <path d="M540,70 L462,45" class="arrow dashed" marker-end="url(#ah)"/>
+  <text x="486" y="48" font-size="12">uses</text>
+  <path d="M540,165 L462,190" class="arrow dashed" marker-end="url(#ah)"/>
+  <text x="486" y="196" font-size="12">uses</text>
+</svg>
+<figcaption>The data-fit agents use the interval models, and the temporal agents use the motion object.</figcaption>
+</figure>
+
+<h2>2. Existing code that the design depends on</h2>
+<ul>
+<li><code>MACE</code> in <code>mace.py</code> holds one input array for each agent, the consensus average, an accumulator for the next average, and the sum that updates the inputs. With five agents, these are eight full 4D arrays. They are on the device of the initial array, which <code>MACE4DModel</code> puts on the host. An agent may split its work into tasks, and each task has a region of the array and may name a device. MACE folds in an agent's output only in the regions that its tasks return.</li>
+<li><code>ForwardProxAgent</code> calls <code>TomographyModel.prox_map</code>, which runs VCD on one volume. It configures its model on one device. Each VCD subset update does one sparse back projection and one or two sparse forward projections.</li>
+<li><code>TomographyModel.vcd_partition_iterator</code> passes the recon to the subset updater without reading it. A subset updater for two frames can therefore use it unchanged.</li>
+<li><code>HyperplaneAgent</code> denoises stacks of 3D volumes taken from the 4D array. It accepts only the spatial axes 1, 2, and 3.</li>
+<li><code>construct_time_frame_models</code> in <code>utilities.py</code> builds one CT model for each MACE4D frame. It assumes that the views are in time order and that the angle changes at a constant rate. It drops the views at the end of the scan that cannot fill a whole frame.</li>
+</ul>
+
+<h2>3. The time-resolved model</h2>
+<div class="tablewrap"><table>
+<tr><th>Method</th><th>What it does</th></tr>
+<tr><td><code>TimeResolvedModel(ct_model, labels, part_kinds, frames_per_rotation)</code></td><td>It builds one CT model for each interval, the frame times, the hat weights of each view, and the motion object. It reads <math><mi>V</mi></math> from the angle step of <code>ct_model</code>. This version uses <math><msub><mi>τ</mi><mi>j</mi></msub><mo>=</mo><mi>j</mi></math>, with the views in time order at a constant angle step.</td></tr>
+<tr><td><code>set_params(**kwargs)</code></td><td>It sets the MACE, prior, and outer-loop parameters. These include <math><msub><mi>σ</mi><mi>y</mi></msub></math>, <math><msub><mi>σ</mi><mi>p</mi></msub></math>, the temporal weight <math><msub><mi>b</mi><mtext>t</mtext></msub></math>, its starting fraction, the number of passes over which it rises, the tolerance <math><mi>ε</mi></math>, the maximum number <math><mi>N</mi></math> of outer passes, and the iteration counts of the temporal tasks and of the registration.</td></tr>
+<tr><td><code>set_device_pool(devices)</code> and <code>devices</code></td><td>They set and report the devices, as in <code>MACE4DModel</code>.</td></tr>
+<tr><td><code>recon(sinogram, weights, start_recon, start_model, ...)</code></td><td>It runs the outer loop and returns the frames, <math><mi>d</mi></math>, and a dict of run information. <code>start_recon</code> is the MACE4D reconstruction, and <code>start_model</code> is the <code>MACE4DModel</code> that made it.</td></tr>
+</table></div>
+<p><b>Step size.</b> The time-resolved model sets one <math><msub><mi>σ</mi><mi>y</mi></msub></math> from the full sinogram, unless <code>set_params</code> gives it, and one <math><msub><mi>σ</mi><mi>p</mi></msub></math>. It turns off the automatic regularization of every interval model, and it passes <math><msub><mi>σ</mi><mi>p</mi></msub></math> to every agent. As a result, the five agents are proximal maps with one step size, as the Theory blueprint requires. The 3D denoiser uses the spatial neighbor weights of <code>ct_model</code>.</p>
+<p><b>Starting point.</b> The time of a MACE4D frame is the center of its view window in <code>start_model.view_slices</code>. <code>recon</code> checks that the MACE4D frames cover the whole scan. It interpolates <code>start_recon</code> linearly to the frame times <math><msub><mi>t</mi><mi>k</mi></msub></math> to get the starting frames. The motion object computes the starting <math><mi>d</mi></math>. It registers each moving part of each MACE4D frame to MACE4D frame 0, and it starts each search from the result for the previous MACE4D frame. It then interpolates the result to the frame times.</p>
+<p><b>Outer loop.</b> Each outer pass runs MACE at the current <math><mi>d</mi></math>. The motion object then registers frames 1 to <math><mi>K</mi><mo>−</mo><mn>1</mn></math>, and frame 0 keeps <math><mi>d</mi><mo>=</mo><mn>0</mn></math>. The weight <math><msub><mi>b</mi><mtext>t</mtext></msub></math> rises linearly to its final value over the number of passes that <code>set_params</code> sets. Once it has reached that value, <code>recon</code> stops when no translation has changed by more than <math><mi>ε</mi></math> in Euclidean length, or after <math><mi>N</mi></math> passes. It then returns the frames of the last pass and the <math><mi>d</mi></math> that pass used. Otherwise it stores the new <math><mi>d</mi></math>, replaces the two temporal agents, and starts the next pass.</p>
+
+<h2>4. Internal objects</h2>
+<div class="tablewrap"><table>
+<tr><th>Object</th><th>Status</th><th>What it does</th></tr>
+<tr><td><code>construct_interval_models</code> in <code>utilities.py</code></td><td>new</td><td>It returns one CT model and one view slice for each interval, the frame times, and the hat weights of each view. It drops the views after the last full interval, as <code>construct_time_frame_models</code> drops the views that cannot fill a frame.</td></tr>
+<tr><td><code>_prox_map_two_frames</code> in <code>time_resolved.py</code></td><td>new, private</td><td>It computes the proximal map of section 5 for one interval, and only <code>_IntervalDataFitAgent</code> calls it. It calls the sparse projections, the Hessian diagonal, the pixel partitions, and the partition iterator of the interval's <code>TomographyModel</code>, and it leaves <code>tomography_model.py</code> unchanged. It may also reuse private helpers of <code>tomography_model.py</code> for the line search.</td></tr>
+<tr><td><code>_IntervalDataFitAgent</code> in <code>time_resolved.py</code></td><td>new, two instances</td><td>It runs one task for each interval of its parity, on the device of that interval's model. Each task returns two frames. Each interval model is configured on one device, as <code>ForwardProxAgent</code> configures its model, and each thread gets its own compiled helpers. The warm starts are kept on the host.</td></tr>
+<tr><td><code>HyperplaneAgent</code> in <code>mace.py</code></td><td>extended</td><td>With axis 0, it denoises each frame as a 3D volume with the existing qGGMRF stack denoiser. It rejects a temporal filter with axis 0.</td></tr>
+<tr><td><code>_TemporalPairAgent</code> in <code>time_resolved.py</code></td><td>new, two instances</td><td>It runs one task for each pair of frames of its parity, on any device. Each task solves the two-frame proximal map of the terms of <math><msub><mi>h</mi><mtext>t</mtext></msub></math> for its pair, with the motion object. It replaces <math><mi>ρ</mi></math> by its quadratic surrogate and runs conjugate gradients with <math><msub><mi>M</mi><mi>k</mi></msub></math> and its adjoint.</td></tr>
+<tr><td><code>RigidSpringMotion</code> in <code>motion.py</code></td><td>new</td><td>It holds the labels and <math><mi>d</mi></math>. It computes the labels of frame <math><mi>k</mi></math>, the operator <math><msub><mi>M</mi><mi>k</mi></msub></math> and its adjoint, the set <math><msub><mi>S</mi><mi>k</mi></msub></math>, the template, the registration, and the starting <math><mi>d</mi></math>. The registration runs Gauss-Newton with the surrogate weights of <math><mi>ρ</mi></math>.</td></tr>
+<tr><td><code>MACE</code> in <code>mace.py</code></td><td>reused</td><td>It runs the consensus iteration over the five agents. <code>recon</code> keeps one MACE object for the run and replaces its two temporal agents between passes.</td></tr>
+</table></div>
+<p>MACE folds in only the regions that an agent's tasks return. Each data-fit agent and each temporal agent therefore adds one task that returns its input unchanged for the frames that its intervals or pairs do not cover. These frames are frame 0 for the odd agents, and frame <math><mi>K</mi><mo>−</mo><mn>1</mn></math> for the even agents when <math><mi>K</mi></math> is odd. Each agent checks that its tasks cover every frame exactly once. The data-fit agents keep their warm starts across outer passes, because their proximal maps do not depend on <math><mi>d</mi></math>.</p>
+
+<h2>5. The two-frame data-fit proximal map</h2>
+<p>The two-frame proximal map is the interval form of the data-fit proximal map that MACE4D uses now. In MACE4D, the data-fit agent of each frame is a <code>ForwardProxAgent</code>, which calls <code>TomographyModel.prox_map</code> on the model of that frame. The MACE input of frame <math><mi>t</mi></math> is <math><msub><mi>v</mi><mi>t</mi></msub></math>, and <math><msub><mi>𝒲</mi><mi>t</mi></msub></math> is the set of views in its angular window. All of these views are compared with one volume.</p>
+<div class="eq"><math display="block">
+<msub><mover><mi>x</mi><mo>^</mo></mover><mi>t</mi></msub><mo>=</mo>
+<munder><mrow><mi>arg</mi><mspace width="0.17em"></mspace><mi>min</mi></mrow><mi>x</mi></munder>
+<mrow><mo>{</mo>
+<mfrac><mn>1</mn><mrow><mn>2</mn><msubsup><mi>σ</mi><mi>y</mi><mn>2</mn></msubsup></mrow></mfrac>
+<munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><msub><mi>𝒲</mi><mi>t</mi></msub></mrow></munder>
+<msubsup><mrow><mo>‖</mo><msub><mi>y</mi><mi>j</mi></msub><mo>−</mo><msub><mi>A</mi><mi>j</mi></msub><mi>x</mi><mo>‖</mo></mrow><msub><mi mathvariant="normal">Λ</mi><mi>j</mi></msub><mn>2</mn></msubsup>
+<mo>+</mo>
+<mfrac><mn>1</mn><mrow><mn>2</mn><msubsup><mi>σ</mi><mi>p</mi><mn>2</mn></msubsup></mrow></mfrac>
+<msup><mrow><mo>‖</mo><mi>x</mi><mo>−</mo><msub><mi>v</mi><mi>t</mi></msub><mo>‖</mo></mrow><mn>2</mn></msup>
+<mo>}</mo></mrow>
+</math></div>
+<p>The new data-fit agents solve the same problem for the set <math><msub><mi>ℐ</mi><mi>i</mi></msub></math> of views in interval <math><mi>i</mi></math>, with two frames as the unknowns. Each view is compared with the hat-weighted average of the two frames, where <math><msub><mi>λ</mi><mi>j</mi></msub><mo>=</mo><msub><mi>φ</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false">(</mo><msub><mi>τ</mi><mi>j</mi></msub><mo stretchy="false">)</mo></math>.</p>
+<div class="eq"><math display="block">
+<mtable columnalign="right left">
+<mtr>
+<mtd class="r"><mo stretchy="false">(</mo><msub><mover><mi>x</mi><mo>^</mo></mover><mi>i</mi></msub><mo separator="true">,</mo><msub><mover><mi>x</mi><mo>^</mo></mover><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false">)</mo><mo>=</mo><munder><mrow><mi>arg</mi><mspace width="0.17em"></mspace><mi>min</mi></mrow><mrow><msub><mi>x</mi><mi>i</mi></msub><mo separator="true">,</mo><msub><mi>x</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub></mrow></munder></mtd>
+<mtd class="l"><mfrac><mn>1</mn><mrow><mn>2</mn><msubsup><mi>σ</mi><mi>y</mi><mn>2</mn></msubsup></mrow></mfrac><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><msub><mi>ℐ</mi><mi>i</mi></msub></mrow></munder><msubsup><mrow><mo>‖</mo><msub><mi>y</mi><mi>j</mi></msub><mo>−</mo><msub><mi>A</mi><mi>j</mi></msub><mrow><mo>(</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><msub><mi>λ</mi><mi>j</mi></msub><mo stretchy="false">)</mo><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>λ</mi><mi>j</mi></msub><msub><mi>x</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>)</mo></mrow><mo>‖</mo></mrow><msub><mi mathvariant="normal">Λ</mi><mi>j</mi></msub><mn>2</mn></msubsup></mtd>
+</mtr>
+<mtr>
+<mtd class="r"></mtd>
+<mtd class="l"><mo>+</mo><mfrac><mn>1</mn><mrow><mn>2</mn><msubsup><mi>σ</mi><mi>p</mi><mn>2</mn></msubsup></mrow></mfrac><mrow><mo>(</mo><msup><mrow><mo>‖</mo><msub><mi>x</mi><mi>i</mi></msub><mo>−</mo><msub><mi>v</mi><mi>i</mi></msub><mo>‖</mo></mrow><mn>2</mn></msup><mo>+</mo><msup><mrow><mo>‖</mo><msub><mi>x</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>−</mo><msub><mi>v</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>‖</mo></mrow><mn>2</mn></msup><mo>)</mo></mrow></mtd>
+</mtr>
+</mtable>
+</math></div>
+<p>The two proximal maps are related in four ways.</p>
+<ul>
+<li>Both are the data-fit agents of a MACE loop. The inputs <math><msub><mi>v</mi><mi>i</mi></msub></math> and <math><msub><mi>v</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub></math> are two frames of the agent's MACE input, and <math><msub><mi>σ</mi><mi>p</mi></msub></math> is the same <code>sigma_prox</code> parameter.</li>
+<li>If every <math><msub><mi>λ</mi><mi>j</mi></msub></math> is 0, the two-frame problem splits in two. Then <math><msub><mover><mi>x</mi><mo>^</mo></mover><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msub><mi>v</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub></math>, and <math><msub><mover><mi>x</mi><mo>^</mo></mover><mi>i</mi></msub></math> is the result of <code>prox_map</code> on the views of the interval.</li>
+<li>Both use VCD with the same projectors and partitions. Each two-frame subset update does two back projections and two forward projections, with the hat weights applied to the views. With the positivity constraint, it may do four forward projections, just as a subset update of <code>prox_map</code> may do two. Its voxel update solves a 2 × 2 system. It uses three Hessian diagonals, with the weights <math><mi mathvariant="normal">Λ</mi><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>λ</mi><mo stretchy="false">)</mo></mrow><mn>2</mn></msup></math>, <math><mi mathvariant="normal">Λ</mi><mi>λ</mi><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>λ</mi><mo stretchy="false">)</mo></math>, and <math><mi mathvariant="normal">Λ</mi><msup><mi>λ</mi><mn>2</mn></msup></math>.</li>
+<li>With a <code>frame_overlap_factor</code> of 2, MACE4D puts each view into the proximal maps of two frames, and each of those frames treats the view as its own. In the new design, each view goes into the proximal map of one interval, and its hat weights divide it between the two frames.</li>
+</ul>
+
+<h2>6. Which object holds each quantity</h2>
+<div class="tablewrap"><table>
+<tr><th>Quantity</th><th>Held by</th><th>Kept for</th></tr>
+<tr><td>sinogram <math><mi>y</mi></math> and weights <math><mi mathvariant="normal">Λ</mi></math></td><td>the caller</td><td>the run</td></tr>
+<tr><td>views, <math><msub><mi mathvariant="normal">Λ</mi><mi>j</mi></msub></math>, and <math><msub><mi>λ</mi><mi>j</mi></msub></math> of one interval</td><td>its data-fit agent, on the device of its interval model</td><td>the run</td></tr>
+<tr><td>projectors <math><msub><mi>A</mi><mi>j</mi></msub></math></td><td>the interval models</td><td>the run</td></tr>
+<tr><td>view times <math><msub><mi>τ</mi><mi>j</mi></msub></math>, frame times <math><msub><mi>t</mi><mi>k</mi></msub></math>, and hat weights</td><td>the time-resolved model</td><td>the run</td></tr>
+<tr><td><math><msub><mi>σ</mi><mi>y</mi></msub></math> and <math><msub><mi>σ</mi><mi>p</mi></msub></math></td><td>the time-resolved model, which passes them to every interval model and agent</td><td>the run</td></tr>
+<tr><td>frames <math><msub><mi>x</mi><mi>k</mi></msub></math></td><td>the MACE object, in its eight 4D arrays</td><td>the run</td></tr>
+<tr><td>warm starts of the data-fit tasks</td><td>the data-fit agents, on the host</td><td>the run</td></tr>
+<tr><td>label volume, part kinds, and spring geometry</td><td>the motion object</td><td>the run</td></tr>
+<tr><td>translations <math><mi>d</mi></math></td><td>the motion object</td><td>the run. The motion object returns a new <math><mi>d</mi></math> after each pass, and <code>recon</code> stores it only when the loop continues.</td></tr>
+<tr><td>labels of frame <math><mi>k</mi></math>, <math><msub><mi>M</mi><mi>k</mi></msub></math>, and <math><msub><mi>S</mi><mi>k</mi></msub></math></td><td>computed by the motion object in each task that needs them, and not stored</td><td>one task</td></tr>
+<tr><td>MACE4D reconstruction and <code>MACE4DModel</code></td><td>the caller</td><td>the start of the run</td></tr>
+</table></div>
+
+<h2>7. Inputs, outputs, and logs</h2>
+<ul>
+<li>The labels are one <code>uint8</code> volume with the shape of a frame. Label 0 is the background. The dict <code>part_kinds</code> maps every other label to <code>'static'</code>, <code>'part'</code>, or <code>'spring'</code>. Each spring must touch exactly one static label and one part label. These two contacts give its fixed end and its moving end.</li>
+<li>The result holds the frames as a <code>float32</code> array of shape <code>(K,) + recon_shape</code>, and <math><mi>d</mi></math> as a <code>float32</code> array of shape <code>(K, M, 3)</code> in voxels, where <code>M</code> is the number of moving parts. Row <code>m</code> of <math><mi>d</mi></math> belongs to the <code>m</code>-th part label in increasing order, and its three components follow the axis order of <code>recon_shape</code>. The result also holds a dict of run information.</li>
+<li>With <code>log_dir</code>, the run writes the three log files of MACE4D and one more file, <code>motion_log.csv</code>. Each pass appends to all four files. The motion log has one row for each outer pass, with <math><msub><mi>b</mi><mtext>t</mtext></msub></math> and the largest change of <math><mi>d</mi></math>.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<p>None remain.</p>
+<h2>9. Decisions</h2>
+<ol class="questions">
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q1. New class.</b> The time-resolved reconstruction is a new class in a new module.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q2. Two-frame data-fit proximal map.</b> It is a private function in <code>time_resolved.py</code>, next to the agent that calls it. It calls the existing pieces of <code>TomographyModel</code> and leaves <code>tomography_model.py</code> unchanged.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q3. Spatial denoiser.</b> <code>HyperplaneAgent</code> accepts axis 0 and rejects a temporal filter with axis 0.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q4. Labels.</b> The labels are one <code>uint8</code> volume with a dict of kinds.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q5. Starting point.</b> <code>recon</code> takes the MACE4D reconstruction together with the <code>MACE4DModel</code> that made it.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q6. One MACE object.</b> <code>recon</code> keeps one MACE object for the whole run and replaces only the two temporal agents between passes.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q7. Labels.</b> Label 0 is the background, and <code>part_kinds</code> names the static labels. This revises Q4.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q8. Last interval.</b> <code>construct_interval_models</code> drops the views after the last full interval. The formula for <math><mi>K</mi></math> in the Theory blueprint changes to match.</label></li>
+</ol>
+</div>
+</body>
+</html>

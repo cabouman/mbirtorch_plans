@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blueprints: Time-resolved 4D reconstruction</title>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --fg: #1f2328; --muted: #5f6670; --line: #d9d7d0;
+  --accent: #2b6cb0; --done: #2f855a; --todo: #b7791f; --draft: #2b6cb0;
+  --sans: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15171b; --surface: #1d2025; --fg: #e6e4df; --muted: #a0a6ae; --line: #343a42;
+  --accent: #7fb0ea; --done: #7cc99a; --todo: #e2b05a; --draft: #7fb0ea; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15171b; --surface: #1d2025; --fg: #e6e4df; --muted: #a0a6ae; --line: #343a42;
+  --accent: #7fb0ea; --done: #7cc99a; --todo: #e2b05a; --draft: #7fb0ea; color-scheme: dark }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 820px; margin: 0 auto; padding-inline: 16px; padding-block: 36px 64px; }
+h1 { font-size: 32px; font-weight: 700; margin: 0 0 6px; }
+h2 { font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 28px 0 8px; }
+p { max-width: 70ch; margin: 0 0 10px; }
+.lead { color: var(--muted); font-size: 17px; }
+code { font-family: var(--mono); font-size: 0.9em; }
+a { color: var(--accent); }
+.list { display: grid; gap: 12px; margin: 10px 0; }
+.item { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 18px; display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: start; }
+.item h3 { margin: 0; font-size: 18px; }
+.item h3 a { text-decoration: none; }
+.item h3 a:hover { text-decoration: underline; }
+.item p { margin: 0; grid-column: 1; font-size: 15px; }
+.item.optional { border-style: dashed; }
+.status { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; border: 1px solid; white-space: nowrap; }
+.status.done { color: var(--done); border-color: var(--done); }
+.status.todo { color: var(--todo); border-color: var(--todo); }
+.status.draft { color: var(--draft); border-color: var(--draft); }
+.status.none { color: var(--muted); border-color: var(--line); }
+.foot { font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Blueprints: Time-resolved 4D reconstruction</h1>
+<p class="lead">A 4D reconstruction for mbirtorch that models each view at its own acquisition time and uses a motion-compensated temporal prior. It is for continuous-rotation scans of objects that move faster than the current MACE4D frames can follow. One blueprint per component. Start at the top and read down.</p>
+
+<h2>Core components</h2>
+<div class="list">
+  <div class="item">
+    <h3><a href="theory.html">1. Theory</a></h3>
+    <span class="status done">settled</span>
+    <p>It defines the time-resolved data term, the motion model, and the motion-compensated temporal prior. It also gives the MACE iteration that combines them with the spatial denoisers.</p>
+  </div>
+  <div class="item">
+    <h3><a href="architecture.html">2. Software Architecture</a></h3>
+    <span class="status done">settled</span>
+    <p>It shows how the new pieces extend <code>MACE4DModel</code>. The new pieces are the data-fit agents that each hold two frames, the motion estimator, and the storage of the motion fields.</p>
+  </div>
+  <div class="item">
+    <h3><a href="hardware.html">3. Hardware Mapping</a></h3>
+    <span class="status todo">for review</span>
+    <p>It gives what lives in host and GPU memory, what each processor computes, and what moves between them, with sizes and times. It sets a memory budget for each device, because one interval task holds about seven volumes. The motion needs three numbers per moving part per frame and one label volume, in place of a dense field that is three times the size of a frame.</p>
+  </div>
+  <div class="item">
+    <h3>4. User API</h3>
+    <span class="status none">not started</span>
+    <p>It gives the script a user writes for a time-resolved run, and every new public name.</p>
+  </div>
+</div>
+
+<h2>Optional components</h2>
+<div class="list">
+  <div class="item optional">
+    <h3>5. Testing and Verification</h3>
+    <span class="status none">not started</span>
+    <p>It compares the new method with the current MACE4D on a moving phantom with known motion. It also lists the tests of the new operators, such as an adjoint test and a one-frame run that must reproduce the standard 3D reconstruction.</p>
+  </div>
+</div>
+
+<p class="foot">Pre and Post Processing, Documentation, and Release and Maintenance were not chosen, because these parts work as they do for MACE4D now. Decisions and rejected alternatives are recorded, with dates, in <code>decisions.md</code>.</p>
+</div>
+</body>
+</html>

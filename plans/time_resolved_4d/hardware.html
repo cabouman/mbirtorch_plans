@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blueprints: Time-resolved 4D reconstruction, Hardware Mapping</title>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --fg: #1f2328; --muted: #5f6670; --line: #d9d7d0;
+  --accent: #2b6cb0; --done: #2f855a; --todo: #b7791f;
+  --fill-a: #e3eefb; --fill-b: #dff4f7; --fill-c: #fdf3df;
+  --sans: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15171b; --surface: #1d2025; --fg: #e6e4df; --muted: #a0a6ae; --line: #343a42;
+  --accent: #7fb0ea; --done: #7cc99a; --todo: #e2b05a;
+  --fill-a: #1b2d44; --fill-b: #0f3238; --fill-c: #3a2f17; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15171b; --surface: #1d2025; --fg: #e6e4df; --muted: #a0a6ae; --line: #343a42;
+  --accent: #7fb0ea; --done: #7cc99a; --todo: #e2b05a;
+  --fill-a: #1b2d44; --fill-b: #0f3238; --fill-c: #3a2f17; color-scheme: dark }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 900px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+.crumb { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+.crumb a { color: var(--accent); text-decoration: none; }
+h1 { font-size: 30px; font-weight: 700; margin: 0 0 4px; }
+h2 { font-size: 22px; font-weight: 700; margin: 40px 0 10px; }
+p { max-width: 70ch; margin: 0 0 10px; }
+.lead { color: var(--muted); font-size: 17px; }
+code { font-family: var(--mono); font-size: 0.9em; }
+ul, ol { max-width: 75ch; } li { margin: 4px 0; }
+pre, .eq { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; font-family: var(--mono); font-size: 14px; overflow-x: auto; margin: 10px 0; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; margin: 12px 0; font-size: 15px; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
+td.n, th.n { text-align: right; }
+th { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+figure { margin: 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; overflow-x: auto; }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; }
+svg text { font-family: var(--sans); fill: var(--fg); font-size: 14px; }
+svg .box-a { fill: var(--fill-a); stroke: var(--accent); }
+svg .box-b { fill: var(--fill-b); stroke: var(--muted); }
+svg .box-c { fill: var(--fill-c); stroke: var(--todo); }
+svg .arrow { stroke: var(--muted); fill: none; stroke-width: 1.5; }
+.chip { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 8px; border-radius: 3px; border: 1px solid; vertical-align: middle; }
+.chip.done { color: var(--done); border-color: var(--done); }
+.chip.todo { color: var(--todo); border-color: var(--todo); }
+.ask { border-left: 4px solid var(--todo); background: var(--surface); padding: 10px 16px; max-width: 75ch; margin: 16px 0; }
+ol.questions { list-style: none; padding-left: 0; }
+ol.questions li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+ol.questions input { width: 18px; height: 18px; margin-top: 4px; accent-color: var(--done); }
+ol.questions li.decided { color: var(--muted); }
+math { font-family: "STIX Two Math", "Latin Modern Math", "Cambria Math", math; font-size: 1.05em; }
+.eq math { font-size: 18px; }
+mtd { padding: 0.25em 0.3em; }
+mtd.l { text-align: left; }
+mtd.r { text-align: right; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="crumb"><a href="index.html">Blueprints: Time-resolved 4D reconstruction</a> &rsaquo; Hardware Mapping</p>
+<h1>3. Hardware Mapping</h1>
+<p class="lead">This blueprint says what lives in host memory and in GPU memory, what each processor computes, and what moves between them, with sizes and times. Host memory limits the number of frames, and so the speed of motion that a run can follow.</p>
+
+<h2>1. Where things live</h2>
+<p>The frames live on the host, in the arrays of the MACE object, as in MACE4D. Each GPU keeps the data and the Hessian diagonals of the intervals assigned to it for the whole run. A task copies its frames from the host to a GPU, computes there, and copies its result back. Each GPU runs one task at a time.</p>
+<figure>
+<svg viewBox="0 0 820 220" width="820" height="220" role="img" aria-label="The host holds the MACE arrays, the warm starts, the sinogram, the MACE4D start, the labels, and d. Each GPU holds the data and Hessian diagonals of its intervals and a copy of the labels, and it runs one task at a time. Frames move from the host to a GPU and back for each task.">
+  <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+  <rect x="10" y="20" width="300" height="180" rx="6" class="box-a"/>
+  <text x="24" y="44">host memory</text>
+  <text x="24" y="70" font-size="13">MACE arrays: 8 × <tspan font-style="italic">K</tspan> frames</text>
+  <text x="24" y="92" font-size="13">warm starts: 2 × <tspan font-style="italic">K</tspan> frames</text>
+  <text x="24" y="114" font-size="13">MACE4D start, sinogram, weights</text>
+  <text x="24" y="136" font-size="13">labels and <tspan font-style="italic">d</tspan></text>
+  <text x="24" y="166" font-size="13">consensus update, stop test</text>
+  <text x="24" y="186" font-size="13">on torch's host threads</text>
+  <path d="M312,95 L498,95" class="arrow" marker-end="url(#ah)"/>
+  <path d="M498,125 L312,125" class="arrow" marker-end="url(#ah)"/>
+  <text x="340" y="86" font-size="12">frames of one task</text>
+  <text x="340" y="145" font-size="12">result of the task</text>
+  <rect x="500" y="20" width="310" height="180" rx="6" class="box-c"/>
+  <text x="514" y="44">each of <tspan font-style="italic">G</tspan> GPUs</text>
+  <text x="514" y="70" font-size="13">Hessian diagonals: 3 per interval</text>
+  <text x="514" y="92" font-size="13">views, weights, error sinogram</text>
+  <text x="514" y="114" font-size="13">copy of the labels</text>
+  <text x="514" y="144" font-size="13">one task at a time: data fit,</text>
+  <text x="514" y="164" font-size="13">denoiser slab, temporal pair,</text>
+  <text x="514" y="184" font-size="13">or registration</text>
+</svg>
+<figcaption>The data-fit tasks of an interval always run on that interval's GPU. The other tasks run on any GPU.</figcaption>
+</figure>
+
+<h2>2. Reference case</h2>
+<p>The sizes and times below use the scan of the MACE4D runs on gautschi, the 30 s Lilly phantom. Its frames are 260 × 260 × 728 voxels, which is 0.183 GiB each. Its sinogram is 2400 × 728 × 260, which is 1.69 GiB, with <math><mi>V</mi><mo>=</mo><mn>144</mn></math> views per rotation over 16.7 rotations. The MACE4D reconstruction of this scan has 99 frames. The tables give three frame rates, <math><mi>F</mi><mo>=</mo><mn>6</mn></math>, 12, and 24 frames per rotation, which follow motion up to about 6, 12, and 24 voxels per rotation. The formulas in the second column hold for any scan.</p>
+
+<h2>3. Host memory</h2>
+<div class="tablewrap"><table>
+<tr><th>Item</th><th>Size</th><th class="n">F = 6</th><th class="n">F = 12</th><th class="n">F = 24</th></tr>
+<tr><td>number of frames <math><mi>K</mi></math></td><td><math><mrow><mo>⌊</mo><mi>F</mi><mo stretchy="false">(</mo><mi>J</mi><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><mo>/</mo><mi>V</mi><mo>⌋</mo></mrow><mo>+</mo><mn>1</mn></math></td><td class="n">100</td><td class="n">200</td><td class="n">400</td></tr>
+<tr><td>MACE arrays</td><td>8 × <math><mi>K</mi></math> frames</td><td class="n">147 GiB</td><td class="n">293 GiB</td><td class="n">587 GiB</td></tr>
+<tr><td>warm starts of the data-fit agents</td><td>2 × <math><mi>K</mi></math> frames</td><td class="n">37 GiB</td><td class="n">73 GiB</td><td class="n">147 GiB</td></tr>
+<tr><td>MACE4D starting frames</td><td>99 frames</td><td class="n">18 GiB</td><td class="n">18 GiB</td><td class="n">18 GiB</td></tr>
+<tr><td>sinogram and weights</td><td>2 sinograms</td><td class="n">3.4 GiB</td><td class="n">3.4 GiB</td><td class="n">3.4 GiB</td></tr>
+<tr><td>labels and <math><mi>d</mi></math></td><td>1 byte per voxel, and 3 floats per moving part per frame</td><td class="n">0.05 GiB</td><td class="n">0.05 GiB</td><td class="n">0.05 GiB</td></tr>
+<tr><td><b>total</b></td><td></td><td class="n"><b>205 GiB</b></td><td class="n"><b>388 GiB</b></td><td class="n"><b>755 GiB</b></td></tr>
+</table></div>
+<p>One gautschi node has 1030 GB of host memory, which is 959 GiB. It therefore holds the reference case up to about <math><mi>F</mi><mo>=</mo><mn>24</mn></math>. Turning the warm starts off saves 2 × <math><mi>K</mi></math> frames. A dense motion field would add 3 × <math><mi>K</mi></math> frames, which is 220 GiB at <math><mi>F</mi><mo>=</mo><mn>24</mn></math>. The labels and <math><mi>d</mi></math> take 0.05 GiB instead.</p>
+
+<h2>4. GPU memory</h2>
+<p>The table gives the memory of each GPU when four GPUs share the intervals.</p>
+<div class="tablewrap"><table>
+<tr><th>Item</th><th>Size on each GPU</th><th class="n">F = 6</th><th class="n">F = 12</th><th class="n">F = 24</th></tr>
+<tr><td>Hessian diagonals of its intervals</td><td>3(<math><mi>K</mi><mo>−</mo><mn>1</mn></math>)/<math><mi>G</mi></math> frames</td><td class="n">13.6 GiB</td><td class="n">27.4 GiB</td><td class="n">54.9 GiB</td></tr>
+<tr><td>views, weights, and error sinogram of its intervals</td><td>3/<math><mi>G</mi></math> sinograms</td><td class="n">1.3 GiB</td><td class="n">1.3 GiB</td><td class="n">1.3 GiB</td></tr>
+<tr><td>largest task, a denoiser slab</td><td>about 3 × <code>denoise_slab_gb</code></td><td class="n">5.6 GiB</td><td class="n">5.6 GiB</td><td class="n">5.6 GiB</td></tr>
+<tr><td><b>total</b></td><td></td><td class="n"><b>20.5 GiB</b></td><td class="n"><b>34.2 GiB</b></td><td class="n"><b>61.7 GiB</b></td></tr>
+</table></div>
+<p>An H100 has 80 GB, which is 74.5 GiB, so four H100s hold every column. A data-fit task adds about four frames to its GPU, and a temporal task adds about ten. Both are smaller than the denoiser slab in the reference case. When one frame exceeds <code>denoise_slab_gb</code>, a slab still holds one whole frame, so the denoiser needs about three frames on one GPU.</p>
+
+<h2>5. Work and time</h2>
+<div class="tablewrap"><table>
+<tr><th>Processor</th><th>What it computes</th><th>How the work grows</th></tr>
+<tr><td>each GPU</td><td>the two-frame VCD of its intervals</td><td>The projection work does not depend on <math><mi>F</mi></math>, because each view is projected in one interval only. The work for each voxel grows with <math><mi>K</mi></math>.</td></tr>
+<tr><td>any GPU</td><td>the denoiser slabs, the temporal pairs, and the registration between passes</td><td>It grows with <math><mi>K</mi></math>. The temporal tasks interpolate only in the moving parts and springs, because <math><msub><mi>M</mi><mi>k</mi></msub></math> is the identity on the static part.</td></tr>
+<tr><td>host</td><td>the consensus update, the folds of task outputs, the starting frames, and the stop test</td><td>It grows with <math><mi>K</mi></math>. Each MACE iteration copies 10 × <math><mi>K</mi></math> frames between the host and the GPUs, against 8 × <math><mi>K</mi></math> in MACE4D.</td></tr>
+</table></div>
+<p>The times come from the MACE4D runs of the reference case on four H100s of one gautschi node with 56 host threads (<code>plans/mace4d/experiments/m4d4_partition_advance.md</code>). The right column is an estimate for <math><mi>F</mi><mo>=</mo><mn>6</mn></math>, not a measurement.</p>
+<div class="tablewrap"><table>
+<tr><th>Part of one MACE iteration</th><th>MACE4D, measured</th><th>Time-resolved, estimated</th></tr>
+<tr><td>data fit, summed over the GPUs</td><td>534 to 645 s</td><td>about the same, since each view gets the same projections</td></tr>
+<tr><td>denoising, summed over the GPUs</td><td>60 s</td><td>about 20 s, one 3D pass instead of three</td></tr>
+<tr><td>temporal tasks, summed over the GPUs</td><td>none</td><td>not known</td></tr>
+<tr><td>consensus update on the host</td><td>2.2 s</td><td>about 3 s, for five agents instead of four</td></tr>
+<tr><td>wall time</td><td>152 to 180 s</td><td>about 140 to 170 s, plus a quarter of the temporal time</td></tr>
+</table></div>
+<p>The run also needs the MACE4D reconstruction that gives the starting point. On the reference case, that reconstruction took about 18 minutes for its initial image and 24 to 27 minutes for ten iterations. The consensus update and the folds run on torch's host threads. With <code>OMP_NUM_THREADS=1</code>, the same MACE4D run took 2.6 times as long, so a run must leave torch its host threads.</p>
+
+<h2>6. Open questions</h2>
+<ol class="questions">
+  <li><input type="checkbox" id="q1"><label for="q1"><b>Q1. Hessian diagonals.</b> They are the largest item on each GPU. Should each GPU keep the three diagonals of its intervals for the whole run, or should each call compute them again?  Recommendation: keep them, as MACE4D keeps the diagonal of each frame. Computing them in each call would add about three back projections of the interval's views to every call.</label></li>
+  <li><input type="checkbox" id="q2"><label for="q2"><b>Q2. Memory check.</b> Should <code>recon</code> compute the host and GPU needs from the formulas of sections 3 and 4 before it starts, and stop with a message that names the largest <math><mi>F</mi></math> that fits?  Recommendation: yes.</label></li>
+  <li><input type="checkbox" id="q3"><label for="q3"><b>Q3. Warm starts.</b> Should the data-fit warm starts be on by default, with <code>prox_warm_start=False</code> as the way to save 2 × <math><mi>K</mi></math> frames of host memory, as in MACE4D?  Recommendation: yes.</label></li>
+  <li><input type="checkbox" id="q4"><label for="q4"><b>Q4. Reference case.</b> Should the Testing blueprint measure the times of this page on the reference case, on four H100s of one gautschi node, at <math><mi>F</mi><mo>=</mo><mn>6</mn></math>, 12, and 24?  Recommendation: yes. The temporal time and the growth of the data fit with <math><mi>K</mi></math> are the two numbers this page cannot estimate.</label></li>
+</ol>
+<h2>7. Decisions</h2>
+<p>None yet.</p>
+</div>
+</body>
+</html>

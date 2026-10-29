@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blueprints: Time-resolved 4D reconstruction, Theory</title>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --fg: #1f2328; --muted: #5f6670; --line: #d9d7d0;
+  --accent: #2b6cb0; --done: #2f855a; --todo: #b7791f;
+  --fill-a: #e3eefb; --fill-b: #dff4f7; --fill-c: #fdf3df;
+  --sans: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15171b; --surface: #1d2025; --fg: #e6e4df; --muted: #a0a6ae; --line: #343a42;
+  --accent: #7fb0ea; --done: #7cc99a; --todo: #e2b05a;
+  --fill-a: #1b2d44; --fill-b: #0f3238; --fill-c: #3a2f17; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15171b; --surface: #1d2025; --fg: #e6e4df; --muted: #a0a6ae; --line: #343a42;
+  --accent: #7fb0ea; --done: #7cc99a; --todo: #e2b05a;
+  --fill-a: #1b2d44; --fill-b: #0f3238; --fill-c: #3a2f17; color-scheme: dark }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 900px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+.crumb { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+.crumb a { color: var(--accent); text-decoration: none; }
+h1 { font-size: 30px; font-weight: 700; margin: 0 0 4px; }
+h2 { font-size: 22px; font-weight: 700; margin: 40px 0 10px; }
+p { max-width: 70ch; margin: 0 0 10px; }
+.lead { color: var(--muted); font-size: 17px; }
+code { font-family: var(--mono); font-size: 0.9em; }
+ul, ol { max-width: 75ch; } li { margin: 4px 0; }
+pre, .eq { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; font-family: var(--mono); font-size: 14px; overflow-x: auto; margin: 10px 0; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; margin: 12px 0; font-size: 15px; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
+th { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+figure { margin: 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; overflow-x: auto; }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; }
+svg text { font-family: var(--sans); fill: var(--fg); font-size: 14px; }
+svg .box-a { fill: var(--fill-a); stroke: var(--accent); }
+svg .box-b { fill: var(--fill-b); stroke: var(--muted); }
+svg .box-c { fill: var(--fill-c); stroke: var(--todo); }
+svg .arrow { stroke: var(--muted); fill: none; stroke-width: 1.5; }
+.chip { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 8px; border-radius: 3px; border: 1px solid; vertical-align: middle; }
+.chip.done { color: var(--done); border-color: var(--done); }
+.chip.todo { color: var(--todo); border-color: var(--todo); }
+.ask { border-left: 4px solid var(--todo); background: var(--surface); padding: 10px 16px; max-width: 75ch; margin: 16px 0; }
+ol.questions { list-style: none; padding-left: 0; }
+ol.questions li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+ol.questions input { width: 18px; height: 18px; margin-top: 4px; accent-color: var(--done); }
+ol.questions li.decided { color: var(--muted); }
+math { font-family: "STIX Two Math", "Latin Modern Math", "Cambria Math", math; font-size: 1.05em; }
+.eq math { font-size: 18px; }
+mtd { padding: 0.25em 0.3em; }
+mtd.l { text-align: left; }
+mtd.r { text-align: right; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="crumb"><a href="index.html">Blueprints: Time-resolved 4D reconstruction</a> &rsaquo; Theory</p>
+<h1>1. Theory</h1>
+<p class="lead">This blueprint defines what the time-resolved reconstruction computes: the quantities, the data term, the motion model, the temporal prior, and the iteration. The notation follows the Theory page of the mbirtorch documentation.</p>
+
+<h2>1. Quantities</h2>
+<div class="tablewrap"><table>
+<tr><th>Kind</th><th>Name</th><th>Shape and units</th></tr>
+<tr><td>Measured data</td><td>view <math><msub><mi>y</mi><mi>j</mi></msub></math> of the sinogram <math><mi>y</mi></math>, and its weights <math><msub><mi mathvariant="normal">Λ</mi><mi>j</mi></msub></math></td><td><math><mi>J</mi></math> views, each the size of the detector</td></tr>
+<tr><td>Forward-model parameters</td><td>projector <math><msub><mi>A</mi><mi>j</mi></msub></math> and acquisition time <math><msub><mi>τ</mi><mi>j</mi></msub></math> of view <math><mi>j</mi></math>, views per rotation <math><mi>V</mi></math>, and noise level <math><msub><mi>σ</mi><mi>y</mi></msub></math></td><td><math><msub><mi>A</mi><mi>j</mi></msub></math> from the CT model, and <math><msub><mi>τ</mi><mi>j</mi></msub><mo>=</mo><mi>j</mi></math> by default, in units of one view</td></tr>
+<tr><td>Unknowns</td><td>frame <math><msub><mi>x</mi><mi>k</mi></msub></math>, the estimate of the object at time <math><msub><mi>t</mi><mi>k</mi></msub></math></td><td><math><mi>K</mi></math> volumes</td></tr>
+<tr><td>Unknowns</td><td>translation <math><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi></mrow></msub></math> of moving part <math><mi>m</mi></math> in frame <math><mi>k</mi></math></td><td>3 floats per moving part per frame, in voxels, with <math><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mn>0</mn></mrow></msub><mo>=</mo><mn>0</mn></math></td></tr>
+<tr><td>Fixed inputs</td><td>MACE4D reconstruction of the same scan, and a label volume that the user draws on its frame 0</td><td>MACE4D frames at the MACE4D frame times, and one byte per voxel for the labels, which name the static part, a moving part, or a spring</td></tr>
+<tr><td>Computed from <math><mi>d</mi></math></td><td>labels of frame <math><mi>k</mi></math>, and the operator <math><msub><mi>M</mi><mi>k</mi></msub></math> that moves the contents of frame <math><mi>k</mi></math> to their positions in frame <math><mi>k</mi><mo>+</mo><mn>1</mn></math></td><td>one byte per voxel for the labels, and <math><msub><mi>M</mi><mi>k</mi></msub></math> is applied, not stored</td></tr>
+<tr><td>Reconstruction parameters</td><td>frames per rotation <math><mi>F</mi></math>, temporal weight <math><msub><mi>b</mi><mtext>t</mtext></msub></math> and the fraction of it used at the start, the qGGMRF parameters <math><msub><mi>σ</mi><mi>x</mi></msub></math>, <math><mi>p</mi></math>, <math><mi>q</mi></math>, <math><mi>T</mi></math>, the stopping tolerance <math><mi>ε</mi></math> for <math><mi>d</mi></math>, and the maximum number <math><mi>N</mi></math> of outer iterations</td><td>numbers, with <math><mi>ε</mi></math> in voxels</td></tr>
+</table></div>
+
+<h2>2. Time-resolved data term</h2>
+<p>Each view shows the object at the moment the view was taken. The data term therefore compares each view with the object at that moment. In contrast, MACE4D now compares each frame with every view in an angular window, as if the object stood still during the window.</p>
+<p>The reconstruction holds <math><mi>K</mi></math> frames. Frame <math><msub><mi>x</mi><mi>k</mi></msub></math> is the estimate of the object at time <math><msub><mi>t</mi><mi>k</mi></msub></math>. At a time <math><mi>τ</mi></math> between two frame times, the object is a weighted average of those two frames. The data term adds up the mismatch between each view and the object at the time of that view.</p>
+<div class="eq"><math display="block">
+<mtable columnalign="right left">
+<mtr>
+<mtd class="r"><mi>x</mi><mo stretchy="false">(</mo><mi>τ</mi><mo stretchy="false">)</mo></mtd>
+<mtd class="l"><mo>=</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></munderover><msub><mi>φ</mi><mi>k</mi></msub><mo stretchy="false">(</mo><mi>τ</mi><mo stretchy="false">)</mo><mspace width="0.17em"></mspace><msub><mi>x</mi><mi>k</mi></msub></mtd>
+</mtr>
+<mtr>
+<mtd class="r"><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mtd>
+<mtd class="l"><mo>=</mo><mfrac><mn>1</mn><mrow><mn>2</mn><msubsup><mi>σ</mi><mi>y</mi><mn>2</mn></msubsup></mrow></mfrac><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>J</mi><mo>−</mo><mn>1</mn></mrow></munderover><msubsup><mrow><mo>‖</mo><msub><mi>y</mi><mi>j</mi></msub><mo>−</mo><msub><mi>A</mi><mi>j</mi></msub><mspace width="0.17em"></mspace><mi>x</mi><mo stretchy="false">(</mo><msub><mi>τ</mi><mi>j</mi></msub><mo stretchy="false">)</mo><mo>‖</mo></mrow><msub><mi mathvariant="normal">Λ</mi><mi>j</mi></msub><mn>2</mn></msubsup></mtd>
+</mtr>
+</mtable>
+</math></div>
+<p>Here <math><msub><mi>φ</mi><mi>k</mi></msub></math> is the hat function of frame <math><mi>k</mi></math>. It equals 1 at time <math><msub><mi>t</mi><mi>k</mi></msub></math> and falls linearly to 0 at the neighboring frame times. The hat functions of the first and last frames are one-sided. The frame times are equally spaced, with <math><mi>F</mi></math> frames in each rotation of <math><mi>V</mi></math> views.</p>
+<div class="eq"><math display="block">
+<mtable columnalign="right left">
+<mtr>
+<mtd class="r"><msub><mi>t</mi><mi>k</mi></msub></mtd>
+<mtd class="l"><mo>=</mo><msub><mi>τ</mi><mn>0</mn></msub><mo>+</mo><mi>k</mi><mspace width="0.17em"></mspace><mfrac><mi>V</mi><mi>F</mi></mfrac><mo separator="true">,</mo><mspace width="1em"></mspace><mi>k</mi><mo>=</mo><mn>0</mn><mo separator="true">,</mo><mo>…</mo><mo separator="true">,</mo><mi>K</mi><mo>−</mo><mn>1</mn></mtd>
+</mtr>
+<mtr>
+<mtd class="r"><mi>K</mi></mtd>
+<mtd class="l"><mo>=</mo><mrow><mo>⌊</mo><mfrac><mrow><mi>F</mi><mo stretchy="false">(</mo><msub><mi>τ</mi><mrow><mi>J</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>−</mo><msub><mi>τ</mi><mn>0</mn></msub><mo stretchy="false">)</mo></mrow><mi>V</mi></mfrac><mo>⌋</mo></mrow><mo>+</mo><mn>1</mn></mtd>
+</mtr>
+</mtable>
+</math></div>
+<p>View <math><mi>j</mi></math> therefore involves only two frames, and <math><mi>f</mi></math> is a sum of one term per interval between frame times, <math><mi>f</mi><mo>=</mo><msub><mo>∑</mo><mi>i</mi></msub><msub><mi>f</mi><mi>i</mi></msub><mo stretchy="false">(</mo><msub><mi>x</mi><mi>i</mi></msub><mo separator="true">,</mo><msub><mi>x</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false">)</mo></math>. Interval <math><mi>i</mi></math> holds the views with <math><msub><mi>t</mi><mi>i</mi></msub><mo>≤</mo><msub><mi>τ</mi><mi>j</mi></msub><mo>&lt;</mo><msub><mi>t</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub></math>, and the last interval also holds a view at time <math><msub><mi>t</mi><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></msub></math>. The views after time <math><msub><mi>t</mi><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></msub></math> are dropped, as MACE4D drops the views that cannot fill a frame.</p>
+<p>The hat functions introduce motion blur into the data term. Between two frame times, the model of the object is a weighted average of the two frames. A moving edge therefore appears in the model as a blend of its positions in the two frames, instead of at its position at time <math><mi>τ</mi></math>. The blur is small only when an edge moves about one voxel or less from one frame to the next, so faster motion needs more frames per rotation. More complex forms of the interpolation could be proposed later. For example, each of the two frames could first be moved by the motion model to time <math><mi>τ</mi></math>, and the two moved frames then averaged.</p>
+
+<h2>3. Motion model: rigid parts plus springs</h2>
+<p>The object is made of a static part, moving parts that translate without rotating, and springs. Each spring joins the static part to one moving part. The label volume assigns each voxel of frame 0 to one of these parts. The label of a spring covers its solid envelope, including the gaps between its coils. The displacement of voxel <math><mi>r</mi></math> from frame 0 to frame <math><mi>k</mi></math> is the following.</p>
+<div class="eq"><math display="block">
+<mrow>
+<msub><mi>D</mi><mi>k</mi></msub><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo><mo>=</mo>
+<mrow><mo>{</mo>
+<mtable columnalign="left left">
+<mtr><mtd class="l"><mn>0</mn><mo separator="true">,</mo></mtd><mtd class="l"><mtext>if voxel&#160;</mtext><mi>r</mi><mtext>&#160;is in the static part</mtext></mtd></mtr>
+<mtr><mtd class="l"><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi></mrow></msub><mo separator="true">,</mo></mtd><mtd class="l"><mtext>if voxel&#160;</mtext><mi>r</mi><mtext>&#160;is in moving part&#160;</mtext><mi>m</mi></mtd></mtr>
+<mtr><mtd class="l"><msub><mi>u</mi><mi>c</mi></msub><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo><mspace width="0.17em"></mspace><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi></mrow></msub><mo separator="true">,</mo></mtd><mtd class="l"><mtext>if voxel&#160;</mtext><mi>r</mi><mtext>&#160;is in spring&#160;</mtext><mi>c</mi><mtext>, which joins moving part&#160;</mtext><mi>m</mi></mtd></mtr>
+</mtable>
+</mrow>
+</mrow>
+</math></div>
+<p>Spring <math><mi>c</mi></math> has its fixed end at <math><msub><mi>a</mi><mi>c</mi></msub></math>, the center of its contact with the static part. Its unit axis <math><msub><mi>e</mi><mi>c</mi></msub></math> points from <math><msub><mi>a</mi><mi>c</mi></msub></math> to the center of its contact with moving part <math><mi>m</mi></math>, and <math><msub><mi>ℓ</mi><mi>c</mi></msub></math> is the distance between the two centers in frame 0. The spring coordinate <math><msub><mi>u</mi><mi>c</mi></msub><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo></math> is the following fraction, clipped to the interval from 0 to 1.</p>
+<div class="eq"><math display="block">
+<msub><mi>u</mi><mi>c</mi></msub><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mo stretchy="false">(</mo><mi>r</mi><mo>−</mo><msub><mi>a</mi><mi>c</mi></msub><mo stretchy="false">)</mo><mo>⋅</mo><msub><mi>e</mi><mi>c</mi></msub></mrow><msub><mi>ℓ</mi><mi>c</mi></msub></mfrac>
+</math></div>
+<p>A spring stretches or compresses when its moving part moves along its axis, and it shears when the part moves sideways. The motion in frame <math><mi>k</mi></math> is described by three numbers for each moving part. A dense displacement field would need three numbers for every voxel.</p>
+
+<h2>4. Motion-compensated temporal prior</h2>
+<p>The temporal prior penalizes the change from each frame to the next after the motion between them is removed. It has the form of the qGGMRF prior. Each of its pairs links voxel <math><mi>r</mi></math> of frame <math><mi>k</mi><mo>+</mo><mn>1</mn></math> to the point of frame <math><mi>k</mi></math> that moves to voxel <math><mi>r</mi></math>.</p>
+<div class="eq"><math display="block">
+<mtable columnalign="right left">
+<mtr>
+<mtd class="r"><msub><mi>h</mi><mtext>t</mtext></msub><mo stretchy="false">(</mo><mi>x</mi><mo separator="true">;</mo><mi>d</mi><mo stretchy="false">)</mo></mtd>
+<mtd class="l"><mo>=</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>K</mi><mo>−</mo><mn>2</mn></mrow></munderover><munder><mo>∑</mo><mrow><mi>r</mi><mo>∉</mo><msub><mi>S</mi><mi>k</mi></msub></mrow></munder><msub><mi>b</mi><mtext>t</mtext></msub><mspace width="0.17em"></mspace><mi>ρ</mi><mrow><mo>(</mo><msub><mi>x</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn><mo separator="true">,</mo><mi>r</mi></mrow></msub><mo>−</mo><msub><mrow><mo>[</mo><msub><mi>M</mi><mi>k</mi></msub><msub><mi>x</mi><mi>k</mi></msub><mo>]</mo></mrow><mi>r</mi></msub><mo>)</mo></mrow></mtd>
+</mtr>
+<mtr>
+<mtd class="r"><msub><mrow><mo>[</mo><msub><mi>M</mi><mi>k</mi></msub><msub><mi>x</mi><mi>k</mi></msub><mo>]</mo></mrow><mi>r</mi></msub></mtd>
+<mtd class="l"><mo>=</mo><msub><mi>x</mi><mi>k</mi></msub><mrow><mo>(</mo><mi>r</mi><mo>−</mo><msub><mi>w</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo><mspace width="0.17em"></mspace><mo stretchy="false">(</mo><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>−</mo><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi></mrow></msub><mo stretchy="false">)</mo><mo>)</mo></mrow></mtd>
+</mtr>
+</mtable>
+</math></div>
+<p>The operator <math><msub><mi>M</mi><mi>k</mi></msub></math> is computed from <math><mi>d</mi></math>. It shifts moving part <math><mi>m</mi></math> by <math><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>−</mo><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi></mrow></msub></math>, it shifts each point of a spring by a fraction of that difference, and it leaves the static part in place. Here <math><mi>m</mi></math> is the moving part that holds voxel <math><mi>r</mi></math>, or the moving part that its spring joins. The weight <math><msub><mi>w</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo></math> depends on the label of voxel <math><mi>r</mi></math> in frame <math><mi>k</mi><mo>+</mo><mn>1</mn></math>.</p>
+<div class="eq"><math display="block">
+<mrow>
+<msub><mi>w</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false">(</mo><mi>r</mi><mo stretchy="false">)</mo><mo>=</mo>
+<mrow><mo>{</mo>
+<mtable columnalign="left left">
+<mtr><mtd class="l"><mn>0</mn><mo separator="true">,</mo></mtd><mtd class="l"><mtext>if voxel&#160;</mtext><mi>r</mi><mtext>&#160;is in the static part</mtext></mtd></mtr>
+<mtr><mtd class="l"><mn>1</mn><mo separator="true">,</mo></mtd><mtd class="l"><mtext>if voxel&#160;</mtext><mi>r</mi><mtext>&#160;is in moving part&#160;</mtext><mi>m</mi></mtd></mtr>
+<mtr><mtd class="l"><mfrac><mrow><mo stretchy="false">(</mo><mi>r</mi><mo>−</mo><msub><mi>a</mi><mi>c</mi></msub><mo stretchy="false">)</mo><mo>⋅</mo><msub><mi>e</mi><mi>c</mi></msub></mrow><mrow><msub><mi>ℓ</mi><mi>c</mi></msub><mo>+</mo><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>⋅</mo><msub><mi>e</mi><mi>c</mi></msub></mrow></mfrac><mo separator="true">,</mo></mtd><mtd class="l"><mtext>if voxel&#160;</mtext><mi>r</mi><mtext>&#160;is in spring&#160;</mtext><mi>c</mi></mtd></mtr>
+</mtable>
+</mrow>
+</mrow>
+</math></div>
+<p>The spring weight is clipped to the interval from 0 to 1. Its denominator is the length of the spring in frame <math><mi>k</mi><mo>+</mo><mn>1</mn></math>, which must stay positive. The labels of frame <math><mi>k</mi><mo>+</mo><mn>1</mn></math> are the labels of frame 0 moved by <math><msub><mi>D</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub></math>. Where moved labels overlap, a moving part takes precedence over a spring, and both take precedence over the static part. A voxel that no moved label covers is static. Frame <math><msub><mi>x</mi><mi>k</mi></msub></math> is evaluated between voxels by cubic B-spline interpolation.</p>
+<p>The set <math><msub><mi>S</mi><mi>k</mi></msub></math> holds the voxels that the sum skips. A voxel is in <math><msub><mi>S</mi><mi>k</mi></msub></math> when its label in frame <math><mi>k</mi><mo>+</mo><mn>1</mn></math> differs from the label of its source point in frame <math><mi>k</mi></math>, as where a moving part or a spring uncovers the background. A voxel is also in <math><msub><mi>S</mi><mi>k</mi></msub></math> when it lies within one voxel of the boundary of a moving part or a spring in frame <math><mi>k</mi><mo>+</mo><mn>1</mn></math>. The potential <math><mi>ρ</mi></math> is the qGGMRF potential, with the parameters <math><msub><mi>σ</mi><mi>x</mi></msub></math>, <math><mi>p</mi></math>, <math><mi>q</mi></math>, and <math><mi>T</mi></math> of the spatial prior. The weight <math><msub><mi>b</mi><mtext>t</mtext></msub></math> applies to each temporal pair.</p>
+
+<h2>5. Iteration</h2>
+<p>For fixed <math><mi>d</mi></math>, the frames minimize the following cost. Here <math><mi>h</mi></math> is the qGGMRF prior of the mbirtorch documentation, applied to each frame as a 3D volume.</p>
+<div class="eq"><math display="block">
+<mover><mi>x</mi><mo>^</mo></mover><mo>=</mo><munder><mrow><mi>arg</mi><mspace width="0.17em"></mspace><mi>min</mi></mrow><mi>x</mi></munder><mrow><mo>{</mo><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>+</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></munderover><mi>h</mi><mo stretchy="false">(</mo><msub><mi>x</mi><mi>k</mi></msub><mo stretchy="false">)</mo><mo>+</mo><msub><mi>h</mi><mtext>t</mtext></msub><mo stretchy="false">(</mo><mi>x</mi><mo separator="true">;</mo><mi>d</mi><mo stretchy="false">)</mo><mo>}</mo></mrow>
+</math></div>
+<p>MACE computes this minimizer as the consensus of five agents: the data-fit agents for the even and the odd intervals, the qGGMRF denoiser applied to each frame, and the temporal agents for the even and the odd pairs of frames. The temporal agent for the even pairs holds the terms of <math><msub><mi>h</mi><mtext>t</mtext></msub></math> with even <math><mi>k</mi></math>, each of which links frames <math><mi>k</mi></math> and <math><mi>k</mi><mo>+</mo><mn>1</mn></math>. The temporal agent for the odd pairs holds the terms with odd <math><mi>k</mi></math>. The intervals or pairs within one agent share no frame, so each data-fit agent and each temporal agent solves independent two-frame problems. The agents use one step size and equal weights.</p>
+<p>An outer loop alternates this reconstruction with an estimate of <math><mi>d</mi></math>. The starting <math><mi>d</mi></math> comes from registering each moving part of each MACE4D frame to the same part in MACE4D frame 0, on which the labels are drawn. That <math><mi>d</mi></math> is interpolated linearly in time to the frame times <math><msub><mi>t</mi><mi>k</mi></msub></math>. It is held at 0 before the time of MACE4D frame 0, and at its last value after the time of the last MACE4D frame. The first MACE pass starts from the MACE4D frames, interpolated in time in the same way.</p>
+<p>The temporal weight starts at a fraction of <math><msub><mi>b</mi><mtext>t</mtext></msub></math> and rises to <math><msub><mi>b</mi><mtext>t</mtext></msub></math> over the outer iterations. Once it reaches <math><msub><mi>b</mi><mtext>t</mtext></msub></math>, the loop stops when no translation changes by more than <math><mi>ε</mi></math> voxels from one estimate to the next, or after <math><mi>N</mi></math> outer iterations. The result is the frames of the last MACE pass and the <math><mi>d</mi></math> that pass used.</p>
+<figure>
+<svg viewBox="0 0 760 180" width="760" height="180" role="img" aria-label="Outer loop: start with d from a registration of the MACE4D reconstruction, reconstruct the frames by MACE with five agents, then estimate d from the frames, and repeat until d settles; the loop ends with a MACE pass">
+  <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+  <rect x="10" y="50" width="110" height="56" rx="6" class="box-b"/>
+  <text x="18" y="74">start</text>
+  <text x="18" y="94" font-size="13"><tspan font-style="italic">d</tspan> from MACE4D</text>
+  <path d="M120,78 L156,78" class="arrow" marker-end="url(#ah)"/>
+  <rect x="160" y="10" width="250" height="140" rx="6" class="box-a"/>
+  <text x="174" y="32">MACE at fixed <tspan font-style="italic">d</tspan></text>
+  <text x="174" y="54" font-size="13">data fit, even intervals</text>
+  <text x="174" y="73" font-size="13">data fit, odd intervals</text>
+  <text x="174" y="92" font-size="13">3D qGGMRF on each frame</text>
+  <text x="174" y="111" font-size="13">temporal prior, even pairs</text>
+  <text x="174" y="130" font-size="13">temporal prior, odd pairs</text>
+  <path d="M410,78 L446,78" class="arrow" marker-end="url(#ah)"/>
+  <rect x="450" y="50" width="110" height="56" rx="6" class="box-b"/>
+  <text x="466" y="83">frames <tspan font-style="italic">x</tspan><tspan dy="4" font-size="10" font-style="italic">k</tspan></text>
+  <path d="M560,78 L596,78" class="arrow" marker-end="url(#ah)"/>
+  <rect x="600" y="50" width="150" height="56" rx="6" class="box-c"/>
+  <text x="614" y="74">estimate <tspan font-style="italic">d</tspan></text>
+  <text x="614" y="94" font-size="13">register each part</text>
+  <path d="M675,106 L675,168 L285,168 L285,154" class="arrow" marker-end="url(#ah)"/>
+  <text x="430" y="163" font-size="13">repeat until <tspan font-style="italic">d</tspan> settles</text>
+</svg>
+<figcaption>The figure shows the outer loop, which ends with a MACE pass. The temporal weight rises over the outer iterations.</figcaption>
+</figure>
+<p>The motion estimate registers each moving part of each frame to a template. The template <math><mover><mi>x</mi><mo>¯</mo></mover></math> is the mean of all frames, each moved back to frame 0 by the current <math><mi>d</mi></math>.</p>
+<div class="eq"><math display="block">
+<mtable columnalign="right left">
+<mtr>
+<mtd class="r"><msub><mover><mi>x</mi><mo>¯</mo></mover><mi>r</mi></msub></mtd>
+<mtd class="l"><mo>=</mo><mfrac><mn>1</mn><mi>K</mi></mfrac><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></munderover><msub><mi>x</mi><mi>k</mi></msub><mo stretchy="false">(</mo><mi>r</mi><mo>+</mo><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi></mrow></msub><mo stretchy="false">)</mo><mo separator="true">,</mo><mspace width="1em"></mspace><mi>r</mi><mo>∈</mo><mtext>part&#160;</mtext><mi>m</mi></mtd>
+</mtr>
+<mtr>
+<mtd class="r"><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi></mrow></msub></mtd>
+<mtd class="l"><mo>←</mo><munder><mrow><mi>arg</mi><mspace width="0.17em"></mspace><mi>min</mi></mrow><mi>δ</mi></munder><munder><mo>∑</mo><mrow><mi>r</mi><mo>∈</mo><mtext>part&#160;</mtext><mi>m</mi></mrow></munder><mi>ρ</mi><mrow><mo>(</mo><msub><mi>x</mi><mi>k</mi></msub><mo stretchy="false">(</mo><mi>r</mi><mo>+</mo><mi>δ</mi><mo stretchy="false">)</mo><mo>−</mo><msub><mover><mi>x</mi><mo>¯</mo></mover><mi>r</mi></msub><mo>)</mo></mrow></mtd>
+</mtr>
+</mtable>
+</math></div>
+<p>Here <math><msub><mi>x</mi><mi>k</mi></msub><mo stretchy="false">(</mo><mi>r</mi><mo>+</mo><mi>δ</mi><mo stretchy="false">)</mo></math> is frame <math><mi>k</mi></math> interpolated by cubic B-splines at the position of voxel <math><mi>r</mi></math> shifted by <math><mi>δ</mi></math>. The minimization is not convex, so a local search starts from the current <math><msub><mi>d</mi><mrow><mi>m</mi><mo separator="true">,</mo><mi>k</mi></mrow></msub></math>.</p>
+<p>The time-resolved mode differs from MACE4D now in three ways.</p>
+<div class="tablewrap"><table>
+<tr><th>Part</th><th>MACE4D now</th><th>Time-resolved mode</th></tr>
+<tr><td>Data fit</td><td>A data-fit agent fits each frame to every view in its angular window.</td><td>Two agents fit the frames to the views between consecutive frame times.</td></tr>
+<tr><td>Prior</td><td>Three qGGMRF denoisers act on (x, y, t), (y, z, t), and (x, z, t).</td><td>A 3D qGGMRF denoiser acts on each frame, and <math><msub><mi>h</mi><mtext>t</mtext></msub></math> links the frames.</td></tr>
+<tr><td>Temporal filter</td><td>It removes the modulation at period <code>frames_per_rotation</code> and at its harmonics.</td><td>It is not used. The Testing blueprint measures any periodic component that remains.</td></tr>
+</table></div>
+
+<h2>6. Open questions</h2>
+<p>None remain.</p>
+<h2>7. Decisions</h2>
+<ol class="questions">
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q0. Motion model.</b> For now, the object is a static part, moving parts that translate, and springs between them that stretch or compress.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q1. Temporal basis.</b> The first version uses hat functions.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q2. Temporal potential.</b> The potential <math><mi>ρ</mi></math> of the temporal prior is the qGGMRF potential.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q3. Spatial denoisers.</b> A 3D qGGMRF denoiser on each frame replaces the three denoisers of MACE4D.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q4. Labels.</b> The user supplies the label volume in the first version.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q5. Hard constraint.</b> This version has no mode that reconstructs one volume plus the motion.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q6. Start of the outer loop.</b> The loop starts <math><mi>d</mi></math> from a registration of the MACE4D reconstruction, raises <math><msub><mi>b</mi><mtext>t</mtext></msub></math> over the outer iterations, and stops when <math><mi>d</mi></math> settles.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q7. Registration target.</b> Each moving part is registered to the mean of all frames moved back to frame 0.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q8. Interpolation.</b> <math><msub><mi>M</mi><mi>k</mi></msub></math> and the registration use cubic B-splines, unless they add much to the total reconstruction time.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q9. Boundary band.</b> The temporal prior also skips the voxels within one voxel of the boundary of a moving part or a spring.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q10. Temporal agents.</b> The temporal prior is split into two agents, one for the even pairs of frames and one for the odd pairs.</label></li>
+  <li class="decided"><input type="checkbox" checked disabled><label><span class="chip done">decided 2026-10-22</span> <b>Q11. Last interval.</b> The views after the last full interval are dropped, so the formula for <math><mi>K</mi></math> uses the floor. This decision came from the review of the Software Architecture blueprint.</label></li>
+</ol>
+</div>
+</body>
+</html>
