@@ -17,7 +17,8 @@
 #SBATCH -A bouman -p ai -N1 --gpus-per-node=1 --cpus-per-task=14 -t 0:08:00 -J cu_check
 #SBATCH -o cu_check-%j.log
 source /etc/profile
-export HTTPS_PROXY=squid.rcac.purdue.edu:3128 HTTP_PROXY=squid.rcac.purdue.edu:3128
+# squid.rcac.purdue.edu stopped answering on 2026-10-28; squid1 and squid2 answered on 2026-11-01.
+export HTTPS_PROXY=squid1.rcac.purdue.edu:3128 HTTP_PROXY=squid1.rcac.purdue.edu:3128
 TORCH_ENVS=${TORCH_ENVS:-"mbirtorch pcdrecon"}
 JAX_ENV=${JAX_ENV:-mbirjax_regression}
 PIN=${CUDA_PIN:-cuda/13.3.0}

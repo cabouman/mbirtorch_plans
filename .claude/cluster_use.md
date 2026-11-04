@@ -737,8 +737,9 @@ module load modtree/gpu    # the GPU module tree; its toolchain brings cuda/12.6
 # No `module load cuda` / `module load cudnn` (removed 2026-09-03).  Bare `module load cuda` now
 # resolves to the default 13.3.0 and swaps out modtree/gpu's 12.6.1; `module load cudnn` (a CUDA-12
 # build of 9.2) swaps it back AND breaks torch — see the cudnn row below.
-export HTTPS_PROXY=squid.rcac.purdue.edu:3128   # compute nodes reach github/PyPI only via squid
-export HTTP_PROXY=squid.rcac.purdue.edu:3128
+# squid.rcac.purdue.edu stopped answering on 2026-10-28; squid1 and squid2 answered on 2026-11-01.
+export HTTPS_PROXY=squid1.rcac.purdue.edu:3128  # compute nodes reach github/PyPI only via squid
+export HTTP_PROXY=squid1.rcac.purdue.edu:3128
 export NO_PROXY=localhost,127.0.0.1,::1,.rcac.purdue.edu   # loopback must bypass squid: PyCharm Markdown preview, debugger, Jupyter, TensorBoard
 export no_proxy=$NO_PROXY                                   # curl/git read lowercase; Chromium/Java uppercase
 # module use /depot/bouman/apps/modules          # group tree (cuda/12.9.0, 13.0.0; cudnn/9.11.0, 9.12.0) — unused
